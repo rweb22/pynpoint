@@ -24,7 +24,7 @@ export default () => ({
   dataIngestion: {
     pincodeDataUrl:
       process.env.PINCODE_DATA_URL ||
-      'https://data.gov.in/api/datastore/resource.json?resource_id=pincode-boundaries',
+      'https://pub-0429b8e3b5a946e69ea007df844a6f1c.r2.dev/postal/boundaries/Datagov_Pincode_Boundaries.geojson',
     pincodeDataChecksum: process.env.PINCODE_DATA_CHECKSUM || '',
     forceReingest: process.env.FORCE_REINGEST_DATA === 'true',
   },

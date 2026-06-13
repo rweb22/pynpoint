@@ -29,7 +29,7 @@ REDIS_URL=${{Redis.REDIS_URL}}
 RUN_MIGRATIONS=true
 
 # Data Ingestion
-PINCODE_DATA_URL=<REPLACE_WITH_ACTUAL_URL>
+PINCODE_DATA_URL=https://pub-0429b8e3b5a946e69ea007df844a6f1c.r2.dev/postal/boundaries/Datagov_Pincode_Boundaries.geojson
 SKIP_INITIALIZATION=true
 
 # H3 Index

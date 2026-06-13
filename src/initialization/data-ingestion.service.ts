@@ -65,14 +65,18 @@ export class DataIngestionService {
 
     const dataUrl =
       process.env.PINCODE_DATA_URL ||
-      'https://data.gov.in/api/datastore/resource.json?resource_id=pincode-boundaries';
+      'https://pub-0429b8e3b5a946e69ea007df844a6f1c.r2.dev/postal/boundaries/Datagov_Pincode_Boundaries.geojson';
     const expectedChecksum = process.env.PINCODE_DATA_CHECKSUM;
+    const isGzipped = dataUrl.endsWith('.gz');
 
     this.logger.log(`Downloading pincode data from ${dataUrl}...`);
 
     try {
       // Step 1: Download file
-      const tempFile = '/tmp/pincode-boundaries.geojson.gz';
+      const tempFile = isGzipped
+        ? '/tmp/pincode-boundaries.geojson.gz'
+        : '/tmp/pincode-boundaries.geojson';
+
       await this.downloadFile(dataUrl, tempFile);
       this.logger.log('✅ Download complete');
 
@@ -83,18 +87,25 @@ export class DataIngestionService {
         this.logger.log('✅ Checksum verified');
       }
 
-      // Step 3: Decompress
-      const decompressedFile = '/tmp/pincode-boundaries.geojson';
-      await this.decompressFile(tempFile, decompressedFile);
-      this.logger.log('✅ File decompressed');
+      // Step 3: Decompress (if needed)
+      let geojsonFile = tempFile;
+      if (isGzipped) {
+        const decompressedFile = '/tmp/pincode-boundaries.geojson';
+        await this.decompressFile(tempFile, decompressedFile);
+        this.logger.log('✅ File decompressed');
+        geojsonFile = decompressedFile;
+      } else {
+        this.logger.log('✅ File is already uncompressed');
+      }
 
       // Step 4: Parse and insert into PostgreSQL
       this.logger.log('Parsing GeoJSON and inserting into database...');
-      await this.parseAndInsert(decompressedFile);
+      await this.parseAndInsert(geojsonFile);
       this.logger.log('✅ Data inserted into PostgreSQL');
 
       // Step 5: Cleanup
-      await this.cleanup([tempFile, decompressedFile]);
+      const filesToClean = isGzipped ? [tempFile, geojsonFile] : [tempFile];
+      await this.cleanup(filesToClean);
       this.logger.log('✅ Temporary files cleaned up');
     } catch (error) {
       this.logger.error('Data ingestion failed:', error.stack);
@@ -222,12 +233,15 @@ export class DataIngestionService {
 
         // Transform features to Pincode entities
         const entities = batch.map((feature: any) => {
+          const props = feature.properties;
+
           const pincode = this.pincodeRepository.create({
-            pincode: feature.properties.pincode || feature.properties.PINCODE,
-            state: feature.properties.state || feature.properties.STATE,
-            district: feature.properties.district || feature.properties.DISTRICT,
-            city: feature.properties.city || feature.properties.CITY,
-            office_name: feature.properties.office_name || feature.properties.OFFICE_NAME,
+            // Handle various property name formats (Capitalized, lowercase, UPPERCASE)
+            pincode: props.Pincode || props.pincode || props.PINCODE,
+            state: props.Circle || props.circle || props.state || props.STATE,
+            district: props.Division || props.division || props.district || props.DISTRICT,
+            city: props.Region || props.region || props.city || props.CITY,
+            office_name: props.Office_Name || props.office_name || props.OFFICE_NAME,
             // Convert GeoJSON geometry to PostGIS format
             // TypeORM will use ST_GeomFromGeoJSON() function
             boundary: JSON.stringify(feature.geometry),
