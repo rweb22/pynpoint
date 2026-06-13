@@ -15,9 +15,23 @@ export class InitialSchema1718260800000 implements MigrationInterface {
 
   public async up(queryRunner: QueryRunner): Promise<void> {
     // Enable PostGIS extension (requires superuser or extension privileges)
-    // If this fails, the database user needs CREATEEXTENSION privilege:
-    // GRANT CREATE ON DATABASE <dbname> TO <user>;
-    await queryRunner.query(`CREATE EXTENSION IF NOT EXISTS postgis;`);
+    // Try to create the extension, but don't fail if it's not available
+    try {
+      await queryRunner.query(`CREATE EXTENSION IF NOT EXISTS postgis;`);
+    } catch (error) {
+      // Check if PostGIS is already available (might be pre-installed)
+      const result = await queryRunner.query(
+        `SELECT COUNT(*) FROM pg_available_extensions WHERE name = 'postgis' AND installed_version IS NOT NULL;`
+      );
+
+      if (parseInt(result[0].count) === 0) {
+        throw new Error(
+          'PostGIS extension is not available. Please enable PostGIS in your Railway PostgreSQL database. ' +
+          'In Railway dashboard: Database > Settings > Enable PostGIS Extension'
+        );
+      }
+      // PostGIS is already installed, continue
+    }
 
     // Create pincodes table
     await queryRunner.query(`
