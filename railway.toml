@@ -7,13 +7,13 @@ buildCommand = "npm install && npm run build"
 [deploy]
 startCommand = "npm run start:prod"
 healthcheckPath = "/health"
-healthcheckTimeout = 300
+healthcheckTimeout = 7200
 restartPolicyType = "ON_FAILURE"
 restartPolicyMaxRetries = 10
 
 [[deploy.environmentVariables]]
 name = "NODE_ENV"
-value = "production"
+value = "development"
 
 [[deploy.environmentVariables]]
 name = "PORT"
