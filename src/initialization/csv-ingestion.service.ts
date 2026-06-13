@@ -53,9 +53,7 @@ export class CSVIngestionService {
         },
       });
 
-      this.logger.debug(
-        `CSV data check: ${postOfficeCount} post offices, ${pincodeWithStateCount} pincodes with metadata`,
-      );
+      // Removed debug logging to reduce log spam (500/s limit on Railway)
 
       // Require minimum thresholds to consider CSV data as "ingested"
       const MIN_POST_OFFICES = 160000; // ~97% of 165,627
@@ -270,17 +268,23 @@ export class CSVIngestionService {
       return Math.round(parsed * 10000000) / 10000000;
     };
 
+    // Validate pincode length (must be exactly 6 digits)
+    let pincode = row.pincode?.trim() || null;
+    if (pincode && pincode.length > 6) {
+      pincode = pincode.substring(0, 6); // Truncate to 6 characters
+    }
+
     return {
-      pincode: row.pincode?.trim() || null,
-      officename: row.officename?.trim() || null,
-      area: normalize(row.area),
+      pincode,
+      officename: row.officename?.trim().substring(0, 200) || null, // Truncate to column length
+      area: normalize(row.area)?.substring(0, 200) || null,
       officetype: row.officetype?.trim().toUpperCase() || null, // Keep uppercase for HO/SO/BO
-      delivery: normalize(row.delivery),
-      district: normalize(row.district),
-      state: normalize(row.state),
-      division: row.division?.trim() || null,
-      region: row.region?.trim() || null,
-      circle: row.circle?.trim() || null,
+      delivery: normalize(row.delivery)?.substring(0, 20) || null,
+      district: normalize(row.district)?.substring(0, 100) || null,
+      state: normalize(row.state)?.substring(0, 100) || null,
+      division: row.division?.trim().substring(0, 100) || null,
+      region: row.region?.trim().substring(0, 100) || null,
+      circle: row.circle?.trim().substring(0, 100) || null,
       latitude: parseCoordinate(row.latitude),
       longitude: parseCoordinate(row.longitude),
     };
@@ -296,17 +300,31 @@ export class CSVIngestionService {
     for (let i = 0; i < records.length; i += BATCH_SIZE) {
       const batch = records.slice(i, i + BATCH_SIZE);
 
-      await this.postOfficeRepository
-        .createQueryBuilder()
-        .insert()
-        .into(PostOffice)
-        .values(batch)
-        .execute();
+      try {
+        await this.postOfficeRepository
+          .createQueryBuilder()
+          .insert()
+          .into(PostOffice)
+          .values(batch)
+          .execute();
 
-      inserted += batch.length;
+        inserted += batch.length;
 
-      if (inserted % 10000 === 0 || inserted === records.length) {
-        this.logger.log(`  Progress: ${inserted.toLocaleString()} / ${records.length.toLocaleString()} post offices`);
+        // Less aggressive logging - only every 20k records
+        if (inserted % 20000 === 0 || inserted === records.length) {
+          this.logger.log(`  Progress: ${inserted.toLocaleString()} / ${records.length.toLocaleString()} post offices`);
+        }
+      } catch (error) {
+        this.logger.error(`Failed to insert batch ${i / BATCH_SIZE + 1} (records ${i}-${i + batch.length - 1})`);
+        this.logger.error(`Error: ${error.message}`);
+
+        // Log first 3 records from failed batch for debugging
+        this.logger.error('Sample records from failed batch:');
+        batch.slice(0, 3).forEach((record, idx) => {
+          this.logger.error(`  Record ${i + idx}: pincode=${record.pincode}, lat=${record.latitude}, lng=${record.longitude}, office=${record.officename}`);
+        });
+
+        throw error;
       }
     }
 
