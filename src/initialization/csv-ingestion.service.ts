@@ -263,7 +263,11 @@ export class CSVIngestionService {
     const parseCoordinate = (coord: string | null | undefined): number | null => {
       if (!coord || coord.trim() === '') return null;
       const parsed = parseFloat(coord);
-      return isNaN(parsed) ? null : parsed;
+      if (isNaN(parsed)) return null;
+
+      // Round to 7 decimal places to fit DECIMAL(10,7)
+      // This gives ~11mm precision, more than enough for postal addresses
+      return Math.round(parsed * 10000000) / 10000000;
     };
 
     return {
