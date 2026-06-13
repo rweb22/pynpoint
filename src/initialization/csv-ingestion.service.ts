@@ -265,7 +265,15 @@ export class CSVIngestionService {
 
       // Round to 7 decimal places to fit DECIMAL(10,7)
       // This gives ~11mm precision, more than enough for postal addresses
-      return Math.round(parsed * 10000000) / 10000000;
+      const rounded = Math.round(parsed * 10000000) / 10000000;
+
+      // Validate range (India: lat 8-37, lng 68-97)
+      // If out of range, set to null
+      if (Math.abs(rounded) > 999) {
+        return null; // Value too large for DECIMAL(10,7)
+      }
+
+      return rounded;
     };
 
     // Validate pincode length (must be exactly 6 digits)
