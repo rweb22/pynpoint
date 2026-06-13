@@ -227,38 +227,66 @@ export class DataIngestionService {
       // Process in batches for better performance
       const batchSize = 500;
       let processedCount = 0;
+      const startTime = Date.now();
+
+      this.logger.log(`Starting batch insertion (batch size: ${batchSize})...`);
 
       for (let i = 0; i < geojson.features.length; i += batchSize) {
+        const batchStartTime = Date.now();
         const batch = geojson.features.slice(i, i + batchSize);
 
-        // Transform features to Pincode entities
-        const entities = batch.map((feature: any) => {
+        // Build raw SQL INSERT with ST_GeogFromGeoJSON
+        // TypeORM doesn't handle PostGIS geography types automatically
+        const values = batch.map((feature: any, index: number) => {
           const props = feature.properties;
 
-          const pincode = this.pincodeRepository.create({
-            // Handle various property name formats (Capitalized, lowercase, UPPERCASE)
-            pincode: props.Pincode || props.pincode || props.PINCODE,
-            state: props.Circle || props.circle || props.state || props.STATE,
-            district: props.Division || props.division || props.district || props.DISTRICT,
-            city: props.Region || props.region || props.city || props.CITY,
-            office_name: props.Office_Name || props.office_name || props.OFFICE_NAME,
-            // Convert GeoJSON geometry to PostGIS format
-            // TypeORM will use ST_GeomFromGeoJSON() function
-            boundary: JSON.stringify(feature.geometry),
-            is_active: true,
-          });
+          const pincode = props.Pincode || props.pincode || props.PINCODE;
+          const state = props.Circle || props.circle || props.state || props.STATE;
+          const district = props.Division || props.division || props.district || props.DISTRICT;
+          const city = props.Region || props.region || props.city || props.CITY;
+          const officeName = props.Office_Name || props.office_name || props.OFFICE_NAME;
+          const geometryJson = JSON.stringify(feature.geometry);
 
-          return pincode;
-        });
+          // Log first feature for debugging
+          if (i === 0 && index === 0) {
+            this.logger.debug(`Sample feature - Pincode: ${pincode}, Type: ${feature.geometry.type}`);
+          }
 
-        // Bulk insert
-        await this.pincodeRepository.save(entities, { chunk: 100 });
+          return `(
+            ${this.escapeString(pincode)},
+            ST_GeogFromGeoJSON(${this.escapeString(geometryJson)}),
+            ${this.escapeString(state)},
+            ${this.escapeString(district)},
+            ${this.escapeString(city)},
+            ${this.escapeString(officeName)},
+            true
+          )`;
+        }).join(',\n');
 
-        processedCount += entities.length;
-        const progress = ((processedCount / geojson.features.length) * 100).toFixed(1);
-        this.logger.log(
-          `Inserted ${processedCount}/${geojson.features.length} (${progress}%)`,
-        );
+        const sql = `
+          INSERT INTO pincodes (pincode, boundary, state, district, city, office_name, is_active)
+          VALUES ${values}
+          ON CONFLICT (pincode) DO NOTHING
+        `;
+
+        try {
+          await this.pincodeRepository.query(sql);
+
+          processedCount += batch.length;
+          const progress = ((processedCount / geojson.features.length) * 100).toFixed(1);
+          const batchDuration = ((Date.now() - batchStartTime) / 1000).toFixed(2);
+          const totalDuration = ((Date.now() - startTime) / 1000).toFixed(1);
+          const estimatedRemaining = ((Date.now() - startTime) / processedCount * (geojson.features.length - processedCount) / 1000).toFixed(0);
+
+          this.logger.log(
+            `✓ Batch ${Math.floor(i / batchSize) + 1}: ${processedCount}/${geojson.features.length} (${progress}%) | ` +
+            `Batch: ${batchDuration}s | Total: ${totalDuration}s | ETA: ~${estimatedRemaining}s`
+          );
+        } catch (error) {
+          this.logger.error(`Failed to insert batch starting at index ${i}:`, error.message);
+          this.logger.error(`First pincode in failed batch: ${batch[0]?.properties?.Pincode}`);
+          throw error;
+        }
       }
 
       this.logger.log(`✅ Successfully inserted ${processedCount} pincodes`);
@@ -266,6 +294,18 @@ export class DataIngestionService {
       this.logger.error('Failed to parse and insert GeoJSON:', error.stack);
       throw error;
     }
+  }
+
+  /**
+   * Escape string for SQL (prevents SQL injection)
+   */
+  private escapeString(value: string | null | undefined): string {
+    if (value === null || value === undefined || value === '') {
+      return 'NULL';
+    }
+    // Escape single quotes by doubling them
+    const escaped = value.toString().replace(/'/g, "''");
+    return `'${escaped}'`;
   }
 
   /**
