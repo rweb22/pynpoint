@@ -34,6 +34,7 @@
     "@nestjs/terminus": "^10.2.3",
     "@nestjs/typeorm": "^10.0.2",
     "@turf/buffer": "^7.2.0",
+    "csv-parse": "^6.2.1",
     "dotenv": "^16.4.5",
     "h3-js": "^4.1.0",
     "ioredis": "^5.4.1",

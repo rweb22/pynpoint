@@ -1,5 +1,6 @@
 import { Injectable, Logger, OnApplicationBootstrap } from '@nestjs/common';
 import { DataIngestionService } from './data-ingestion.service';
+import { CSVIngestionService } from './csv-ingestion.service';
 import { H3IndexService } from './h3-index.service';
 import { HealthService } from './health.service';
 
@@ -18,7 +19,13 @@ import { HealthService } from './health.service';
  * 3. onModuleInit() [not used here]
  * 4. onApplicationBootstrap() ← THIS RUNS HERE
  * 5. Server starts listening
- * 
+ *
+ * Phases:
+ * 1. Database validation (PostGIS)
+ * 2. Pincode boundary ingestion (GeoJSON - 19,312 pincodes with boundaries)
+ * 3. CSV data ingestion (165,627 post offices + pincode metadata updates)
+ * 4. H3 spatial index build (32M+ hexagons)
+ *
  * Behavior modes (controlled by environment variables):
  * - Production: Validate data exists, fail fast if missing
  * - Development: Auto-download and build if missing
@@ -30,6 +37,7 @@ export class InitializationService implements OnApplicationBootstrap {
 
   constructor(
     private readonly dataIngestionService: DataIngestionService,
+    private readonly csvIngestionService: CSVIngestionService,
     private readonly h3IndexService: H3IndexService,
     private readonly healthService: HealthService,
   ) {}
@@ -52,15 +60,15 @@ export class InitializationService implements OnApplicationBootstrap {
       await this.healthService.checkPostGIS();
       this.logger.log('✅ Database validated (PostGIS enabled)');
 
-      // Phase 2: Ensure pincode boundary data exists
-      this.logger.log('Phase 2: Checking pincode data...');
+      // Phase 2: Ensure pincode boundary data exists (GeoJSON)
+      this.logger.log('Phase 2: Checking pincode boundary data...');
       const dataExists = await this.dataIngestionService.checkDataExists();
 
       if (!dataExists) {
         if (isProduction) {
           // Production: Fail fast - data should be pre-loaded
           this.logger.error(
-            '❌ Pincode data not found. In production, data must be pre-loaded.',
+            '❌ Pincode boundary data not found. In production, data must be pre-loaded.',
           );
           this.logger.error(
             'Run: npm run cli init -- before starting the application.',
@@ -68,16 +76,41 @@ export class InitializationService implements OnApplicationBootstrap {
           process.exit(1);
         } else {
           // Development: Auto-download and ingest
-          this.logger.log('Pincode data not found, starting ingestion...');
+          this.logger.log('Pincode boundary data not found, starting ingestion...');
           await this.dataIngestionService.ingestData();
-          this.logger.log('✅ Pincode data ingested');
+          this.logger.log('✅ Pincode boundary data ingested');
         }
       } else {
-        this.logger.log('✅ Pincode data already exists');
+        this.logger.log('✅ Pincode boundary data already exists');
       }
 
-      // Phase 3: Ensure H3 spatial index exists
-      this.logger.log('Phase 3: Checking H3 spatial index...');
+      // Phase 3: Ensure CSV data exists (post offices + pincode metadata)
+      this.logger.log('Phase 3: Checking CSV data (post offices)...');
+      const csvPath = process.env.CSV_DATA_PATH || './bharatpin_pincodes_2026.csv';
+      const csvDataExists = await this.csvIngestionService.checkCSVDataExists();
+
+      if (!csvDataExists) {
+        if (isProduction) {
+          // Production: Fail fast - data should be pre-loaded
+          this.logger.error(
+            '❌ CSV data not found. In production, data must be pre-loaded.',
+          );
+          this.logger.error(
+            'Run: npm run cli init -- before starting the application.',
+          );
+          process.exit(1);
+        } else {
+          // Development: Auto-ingest
+          this.logger.log('CSV data not found, starting ingestion...');
+          await this.csvIngestionService.ingestCSVData(csvPath);
+          this.logger.log('✅ CSV data ingested');
+        }
+      } else {
+        this.logger.log('✅ CSV data already exists');
+      }
+
+      // Phase 4: Ensure H3 spatial index exists
+      this.logger.log('Phase 4: Checking H3 spatial index...');
       const indexExists = await this.h3IndexService.checkIndexExists();
 
       if (!indexExists) {
@@ -100,7 +133,7 @@ export class InitializationService implements OnApplicationBootstrap {
         this.logger.log('✅ H3 index already exists');
       }
 
-      // Phase 4: Mark system as ready
+      // Phase 5: Mark system as ready
       await this.healthService.markReady();
 
       const duration = ((Date.now() - startTime) / 1000).toFixed(2);
