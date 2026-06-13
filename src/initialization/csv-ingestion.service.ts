@@ -175,13 +175,13 @@ export class CSVIngestionService {
         .on('error', reject);
     });
 
-    // Step 2: Bulk insert post offices
-    this.logger.log('💾 Inserting post offices...');
-    await this.bulkInsertPostOffices(records);
-
-    // Step 3: Update/insert pincodes table
+    // Step 2: Update/insert pincodes table FIRST (so foreign key constraint is satisfied)
     this.logger.log('🔄 Updating pincodes table...');
     const { updated, inserted } = await this.updatePincodesFromCSV(pincodeMap);
+
+    // Step 3: Bulk insert post offices AFTER pincodes exist
+    this.logger.log('💾 Inserting post offices...');
+    await this.bulkInsertPostOffices(records);
 
     // Summary
     this.logger.log('');
