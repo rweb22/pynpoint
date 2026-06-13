@@ -43,7 +43,7 @@ export class Pincode {
     type: 'geography',
     spatialFeatureType: 'MultiPolygon',
     srid: 4326,
-    nullable: false,
+    nullable: true, // Some pincodes from CSV don't have boundaries
   })
   boundary: string; // Will store GeoJSON or WKT format
 
