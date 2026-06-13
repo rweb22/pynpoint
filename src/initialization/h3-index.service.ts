@@ -125,56 +125,76 @@ export class H3IndexService {
   private async processPincode(pincode: any): Promise<string[]> {
     const { boundary } = pincode;
 
-    // Get edge length for buffering (Resolution 9: ~0.174 km)
-    const edgeLengthKm = getHexagonEdgeLengthAvg(this.H3_RESOLUTION, 'km');
+    try {
+      // Get edge length for buffering (Resolution 9: ~0.174 km)
+      const edgeLengthKm = getHexagonEdgeLengthAvg(this.H3_RESOLUTION, 'km');
 
-    // Parse GeoJSON geometry
-    const geometry = typeof boundary === 'string' ? JSON.parse(boundary) : boundary;
+      // Parse GeoJSON geometry
+      const geometry = typeof boundary === 'string' ? JSON.parse(boundary) : boundary;
 
-    let polygons: any[] = [];
+      let polygons: any[] = [];
 
-    if (geometry.type === 'Polygon') {
-      polygons = [geometry.coordinates];
-    } else if (geometry.type === 'MultiPolygon') {
-      polygons = geometry.coordinates;
-    } else {
-      throw new Error(`Unsupported geometry type: ${geometry.type}`);
-    }
-
-    const allHexagons = new Set<string>();
-
-    for (const polygon of polygons) {
-      // CRITICAL FIX: Buffer polygon by edge length
-      // This ensures boundary hexagons belong to multiple pincodes (Many-to-Many)
-      const originalFeature = {
-        type: 'Feature' as const,
-        geometry: {
-          type: 'Polygon' as const,
-          coordinates: polygon,
-        },
-        properties: {},
-      };
-
-      const bufferedFeature = buffer(originalFeature, edgeLengthKm, {
-        units: 'kilometers',
-      });
-
-      // Skip if buffer operation failed
-      if (!bufferedFeature || !bufferedFeature.geometry) {
-        continue;
+      if (geometry.type === 'Polygon') {
+        polygons = [geometry.coordinates];
+      } else if (geometry.type === 'MultiPolygon') {
+        polygons = geometry.coordinates;
+      } else {
+        this.logger.warn(`Unsupported geometry type for pincode ${pincode.pincode}: ${geometry.type}`);
+        return [];
       }
 
-      // Fill buffered polygon with hexagons
-      const hexagons = polygonToCells(
-        bufferedFeature.geometry.coordinates as number[][] | number[][][],
-        this.H3_RESOLUTION,
-        true, // isGeoJson = true
+      const allHexagons = new Set<string>();
+
+      for (let i = 0; i < polygons.length; i++) {
+        const polygon = polygons[i];
+
+        try {
+          // CRITICAL FIX: Buffer polygon by edge length
+          // This ensures boundary hexagons belong to multiple pincodes (Many-to-Many)
+          const originalFeature = {
+            type: 'Feature' as const,
+            geometry: {
+              type: 'Polygon' as const,
+              coordinates: polygon,
+            },
+            properties: {},
+          };
+
+          const bufferedFeature = buffer(originalFeature, edgeLengthKm, {
+            units: 'kilometers',
+          });
+
+          // Skip if buffer operation failed
+          if (!bufferedFeature || !bufferedFeature.geometry) {
+            this.logger.debug(`Buffer failed for pincode ${pincode.pincode}, polygon ${i}`);
+            continue;
+          }
+
+          // Fill buffered polygon with hexagons
+          const hexagons = polygonToCells(
+            bufferedFeature.geometry.coordinates as number[][] | number[][][],
+            this.H3_RESOLUTION,
+            true, // isGeoJson = true
+          );
+
+          hexagons.forEach((hex) => allHexagons.add(hex));
+        } catch (polygonError) {
+          this.logger.warn(
+            `Failed to process polygon ${i} for pincode ${pincode.pincode}: ${polygonError.message}`
+          );
+          // Continue with next polygon instead of failing entire pincode
+          continue;
+        }
+      }
+
+      return Array.from(allHexagons);
+    } catch (error) {
+      this.logger.error(
+        `Failed to process pincode ${pincode.pincode}: ${error.message}`
       );
-
-      hexagons.forEach((hex) => allHexagons.add(hex));
+      // Return empty array instead of throwing - don't fail entire build for one bad pincode
+      return [];
     }
-
-    return Array.from(allHexagons);
   }
 
   /**
@@ -205,7 +225,8 @@ export class H3IndexService {
 
     await pipeline.exec();
 
-    this.logger.debug(`Stored ${hexagons.length} hexagons for ${pincode}`);
+    // Debug logging removed to avoid Railway rate limit (500 logs/sec)
+    // Progress is logged every 1000 pincodes in buildIndex()
   }
 
   /**
