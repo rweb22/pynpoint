@@ -358,21 +358,21 @@ export class CSVIngestionService {
         await this.pincodeRepository.update(
           { pincode },
           {
-            state: canonical.state,
-            district: canonical.district,
-            city: canonical.area,
-            office_name: canonical.officename,
+            state: canonical.state?.substring(0, 100) || null,
+            district: canonical.district?.substring(0, 100) || null,
+            city: canonical.area?.substring(0, 100) || null,
+            office_name: canonical.officename?.substring(0, 200) || null,
           },
         );
         updated++;
       } else {
         // New pincode (exists in CSV but not in GeoJSON)
         newPincodes.push({
-          pincode,
-          state: canonical.state,
-          district: canonical.district,
-          city: canonical.area,
-          office_name: canonical.officename,
+          pincode: pincode?.substring(0, 6),
+          state: canonical.state?.substring(0, 100) || null,
+          district: canonical.district?.substring(0, 100) || null,
+          city: canonical.area?.substring(0, 100) || null,
+          office_name: canonical.officename?.substring(0, 200) || null,
           boundary: undefined, // No boundary data available
           centroid: undefined,
           is_active: true,
@@ -390,12 +390,23 @@ export class CSVIngestionService {
       const BATCH_SIZE = 1000;
       for (let i = 0; i < newPincodes.length; i += BATCH_SIZE) {
         const batch = newPincodes.slice(i, i + BATCH_SIZE);
-        await this.pincodeRepository
-          .createQueryBuilder()
-          .insert()
-          .into(Pincode)
-          .values(batch)
-          .execute();
+
+        try {
+          await this.pincodeRepository
+            .createQueryBuilder()
+            .insert()
+            .into(Pincode)
+            .values(batch)
+            .execute();
+        } catch (error) {
+          this.logger.error(`Failed to insert pincode batch ${i / BATCH_SIZE + 1}`);
+          this.logger.error(`Error: ${error.message}`);
+          this.logger.error('Sample pincodes from failed batch:');
+          batch.slice(0, 3).forEach((pc, idx) => {
+            this.logger.error(`  Pincode ${i + idx}: pincode=${pc.pincode}, state=${pc.state}, district=${pc.district}, city=${pc.city}, office=${pc.office_name}`);
+          });
+          throw error;
+        }
       }
     }
 
