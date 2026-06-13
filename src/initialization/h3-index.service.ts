@@ -170,14 +170,42 @@ export class H3IndexService {
             continue;
           }
 
-          // Fill buffered polygon with hexagons
-          const hexagons = polygonToCells(
-            bufferedFeature.geometry.coordinates as number[][] | number[][][],
-            this.H3_RESOLUTION,
-            true, // isGeoJson = true
-          );
+          // CRITICAL FIX: Handle buffering that produces MultiPolygon
+          // @turf/buffer sometimes creates MultiPolygon from Polygon input
+          // H3's polygonToCells fails on buffered MultiPolygons (code: 1 error)
+          // Solution: Extract each polygon from MultiPolygon and process separately
 
-          hexagons.forEach((hex) => allHexagons.add(hex));
+          let polygonsToProcess: number[][][] = [];
+
+          if (bufferedFeature.geometry.type === 'Polygon') {
+            polygonsToProcess = [bufferedFeature.geometry.coordinates];
+          } else if (bufferedFeature.geometry.type === 'MultiPolygon') {
+            // Extract all polygons from MultiPolygon
+            polygonsToProcess = bufferedFeature.geometry.coordinates;
+          } else {
+            this.logger.warn(
+              `Unexpected buffered geometry type for pincode ${pincode.pincode}: ${bufferedFeature.geometry.type}`
+            );
+            continue;
+          }
+
+          // Process each polygon part
+          for (const polygonCoords of polygonsToProcess) {
+            try {
+              const hexagons = polygonToCells(
+                polygonCoords,
+                this.H3_RESOLUTION,
+                true, // isGeoJson = true
+              );
+
+              hexagons.forEach((hex) => allHexagons.add(hex));
+            } catch (h3Error) {
+              // If this specific polygon part fails, log and continue with others
+              this.logger.debug(
+                `H3 conversion failed for one part of pincode ${pincode.pincode}, polygon ${i}: ${h3Error.message}`
+              );
+            }
+          }
         } catch (polygonError) {
           this.logger.warn(
             `Failed to process polygon ${i} for pincode ${pincode.pincode}: ${polygonError.message}`
