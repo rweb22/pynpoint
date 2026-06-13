@@ -323,13 +323,19 @@ export class CSVIngestionService {
           this.logger.log(`  Progress: ${inserted.toLocaleString()} / ${records.length.toLocaleString()} post offices`);
         }
       } catch (error) {
-        this.logger.error(`Failed to insert batch ${i / BATCH_SIZE + 1} (records ${i}-${i + batch.length - 1})`);
-        this.logger.error(`Error: ${error.message}`);
+        this.logger.error(`\n❌ Failed to insert post office batch ${Math.floor(i / BATCH_SIZE) + 1}`);
+        this.logger.error(`   Records ${i} to ${i + batch.length - 1}`);
+        this.logger.error(`   Error: ${error.message}`);
+        this.logger.error(`\n📋 First 5 records from failed batch:`);
 
-        // Log first 3 records from failed batch for debugging
-        this.logger.error('Sample records from failed batch:');
-        batch.slice(0, 3).forEach((record, idx) => {
-          this.logger.error(`  Record ${i + idx}: pincode=${record.pincode}, lat=${record.latitude}, lng=${record.longitude}, office=${record.officename}`);
+        batch.slice(0, 5).forEach((record, idx) => {
+          this.logger.error(`\n   Record #${i + idx}:`);
+          this.logger.error(`     pincode: ${record.pincode} (${typeof record.pincode})`);
+          this.logger.error(`     officename: ${record.officename}`);
+          this.logger.error(`     latitude: ${record.latitude} (${typeof record.latitude})`);
+          this.logger.error(`     longitude: ${record.longitude} (${typeof record.longitude})`);
+          this.logger.error(`     state: ${record.state}`);
+          this.logger.error(`     district: ${record.district}`);
         });
 
         throw error;
