@@ -86,7 +86,6 @@ export class InitializationService implements OnApplicationBootstrap {
 
       // Phase 3: Ensure CSV data exists (post offices + pincode metadata)
       this.logger.log('Phase 3: Checking CSV data (post offices)...');
-      const csvPath = process.env.CSV_DATA_PATH || './bharatpin_pincodes_2026.csv';
       const csvDataExists = await this.csvIngestionService.checkCSVDataExists();
 
       if (!csvDataExists) {
@@ -100,9 +99,9 @@ export class InitializationService implements OnApplicationBootstrap {
           );
           process.exit(1);
         } else {
-          // Development: Auto-ingest
-          this.logger.log('CSV data not found, starting ingestion...');
-          await this.csvIngestionService.ingestCSVData(csvPath);
+          // Development: Auto-download and ingest
+          this.logger.log('CSV data not found, starting download and ingestion...');
+          await this.csvIngestionService.ingestCSVData();
           this.logger.log('✅ CSV data ingested');
         }
       } else {

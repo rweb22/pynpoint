@@ -1,8 +1,10 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, DataSource, Not, IsNull } from 'typeorm';
-import { createReadStream } from 'fs';
+import { createReadStream, createWriteStream } from 'fs';
+import { access, unlink } from 'fs/promises';
 import { parse } from 'csv-parse';
+import * as https from 'https';
 import { Pincode } from '../database/entities/pincode.entity';
 import { PostOffice } from '../database/entities/postoffice.entity';
 
@@ -70,12 +72,52 @@ export class CSVIngestionService {
   }
 
   /**
+   * Download CSV file from URL
+   */
+  private async downloadCSV(url: string, destPath: string): Promise<void> {
+    this.logger.log(`Downloading CSV from ${url}...`);
+
+    return new Promise((resolve, reject) => {
+      const file = createWriteStream(destPath);
+
+      https
+        .get(url, (response) => {
+          if (response.statusCode !== 200) {
+            reject(
+              new Error(
+                `Failed to download CSV: HTTP ${response.statusCode}`,
+              ),
+            );
+            return;
+          }
+
+          response.pipe(file);
+
+          file.on('finish', () => {
+            file.close();
+            resolve();
+          });
+        })
+        .on('error', (err) => {
+          unlink(destPath).catch(() => {});
+          reject(err);
+        });
+
+      file.on('error', (err) => {
+        unlink(destPath).catch(() => {});
+        reject(err);
+      });
+    });
+  }
+
+  /**
    * Ingest BharatPin CSV data
    *
-   * @param csvPath - Path to bharatpin_pincodes_2026.csv
+   * Downloads CSV if not present locally, then processes it.
+   *
    * @param force - If true, re-ingest even if data exists
    */
-  async ingestCSVData(csvPath: string, force = false): Promise<void> {
+  async ingestCSVData(force = false): Promise<void> {
     const forceReingest = force || process.env.FORCE_REINGEST_CSV === 'true';
 
     if (!forceReingest && (await this.checkCSVDataExists())) {
@@ -86,6 +128,20 @@ export class CSVIngestionService {
     if (forceReingest) {
       this.logger.log('Force re-ingestion: clearing existing CSV data...');
       await this.postOfficeRepository.delete({});
+    }
+
+    // Download CSV if needed
+    const csvUrl =
+      process.env.CSV_DATA_URL ||
+      'https://raw.githubusercontent.com/jeet308/bharatpin/main/src/bharatpin/data/pincodes.csv';
+    const csvPath = '/tmp/bharatpin_pincodes_2026.csv';
+
+    try {
+      await access(csvPath);
+      this.logger.log(`Using existing CSV file at ${csvPath}`);
+    } catch {
+      await this.downloadCSV(csvUrl, csvPath);
+      this.logger.log('✅ CSV download complete');
     }
 
     this.logger.log(`📊 Reading CSV from ${csvPath}...`);

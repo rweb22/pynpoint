@@ -10,6 +10,7 @@
 - Comprehensive indexes on all searchable fields
 
 ### 2. **CSV Ingestion Service** (`src/initialization/csv-ingestion.service.ts`)
+- **Downloads CSV** from GitHub (jeet308/bharatpin) if not present
 - Parses bharatpin_pincodes_2026.csv (165,627 rows)
 - Bulk inserts post offices (1000/batch for performance)
 - Updates existing pincodes with canonical state/district/city
@@ -90,11 +91,16 @@ const hasEnoughMetadata = pincodeWithStateCount >= 19000; // 97% threshold
 
 ---
 
-## 📁 Files Moved
+## 📁 Data Files
 
-✅ **Data Files** (moved to pynpoint/):
-1. `bharatpin_pincodes_2026.csv` (21.5 MB, 165,627 records)
-2. `Datagov_Pincode_Boundaries.geojson` (29.71 MB, 19,312 pincodes)
+✅ **Files NOT in Repository** (downloaded automatically):
+1. `bharatpin_pincodes_2026.csv` - Downloaded from GitHub to `/tmp/` (21.5 MB, 165,627 records)
+2. `Datagov_Pincode_Boundaries.geojson` - Downloaded from R2 CDN to `/tmp/` (29.71 MB, 19,312 pincodes)
+
+📝 **Added to .gitignore**:
+- `*.csv`
+- `*.geojson`
+- Large data files should never be committed to the repository
 
 ---
 
@@ -102,9 +108,14 @@ const hasEnoughMetadata = pincodeWithStateCount >= 19000; // 97% threshold
 
 ### Environment Variables (Optional)
 ```bash
-CSV_DATA_PATH=./bharatpin_pincodes_2026.csv  # Default location
-FORCE_REINGEST_CSV=false                      # Force re-ingestion
-NODE_ENV=development                          # Auto-ingest in dev mode
+# CSV download URL (defaults to GitHub)
+CSV_DATA_URL=https://raw.githubusercontent.com/jeet308/bharatpin/main/src/bharatpin/data/pincodes.csv
+
+# Force re-ingestion even if data exists
+FORCE_REINGEST_CSV=false
+
+# Auto-download in dev mode
+NODE_ENV=development
 ```
 
 ### On First Deploy (Railway):

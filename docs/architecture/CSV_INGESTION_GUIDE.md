@@ -17,8 +17,9 @@ The CSV ingestion system processes the **BharatPin 2026 dataset** (165,627 post 
 - **Purpose**: Spatial data for reverse geocoding and mapping
 
 ### 2. CSV (Post Office Data)
-- **File**: `bharatpin_pincodes_2026.csv`
-- **Source**: BharatPin/India Post 2026
+- **File**: Downloaded to `/tmp/bharatpin_pincodes_2026.csv`
+- **Source**: GitHub (jeet308/bharatpin) - India Post 2026 dataset
+- **URL**: `https://raw.githubusercontent.com/jeet308/bharatpin/main/src/bharatpin/data/pincodes.csv`
 - **Records**: 165,627 post offices
 - **Unique Pincodes**: 19,586
 - **Coverage**: All 37 states/UTs
@@ -135,10 +136,10 @@ Result: state="kerala", district="ernakulam", city="kochi" from Edapally SO
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `CSV_DATA_PATH` | `./bharatpin_pincodes_2026.csv` | Path to CSV file |
+| `CSV_DATA_URL` | `https://raw.githubusercontent.com/jeet308/bharatpin/main/src/bharatpin/data/pincodes.csv` | URL to download CSV from |
 | `FORCE_REINGEST_CSV` | `false` | Force re-ingestion even if data exists |
 | `SKIP_INITIALIZATION` | `false` | Skip entire initialization |
-| `NODE_ENV` | - | `production` = fail fast, `development` = auto-ingest |
+| `NODE_ENV` | - | `production` = fail fast, `development` = auto-download |
 
 ---
 
@@ -187,9 +188,9 @@ const MIN_PINCODES_WITH_METADATA = 19000;
 **Solution**: Set `FORCE_REINGEST_CSV=true` - it automatically clears before re-inserting
 
 ### Missing states/districts
-**Cause**: CSV file incomplete or corrupted
+**Cause**: CSV download failed or file corrupted
 
-**Solution**: Re-download `bharatpin_pincodes_2026.csv` (21.5 MB, 165,628 lines including header)
+**Solution**: Delete `/tmp/bharatpin_pincodes_2026.csv` and restart - it will re-download automatically
 
 ---
 
