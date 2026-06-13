@@ -252,16 +252,22 @@ export class DataIngestionService {
             this.logger.debug(`Sample feature - Pincode: ${pincode}, Type: ${feature.geometry.type}`);
           }
 
+          // Validate required fields
+          if (!pincode) {
+            this.logger.warn(`Skipping feature at index ${i + index}: missing pincode`);
+            return null;
+          }
+
           return `(
             ${this.escapeString(pincode)},
-            ST_GeogFromGeoJSON(${this.escapeString(geometryJson)}),
+            ST_GeomFromGeoJSON(${this.escapeString(geometryJson)})::geography,
             ${this.escapeString(state)},
             ${this.escapeString(district)},
             ${this.escapeString(city)},
             ${this.escapeString(officeName)},
             true
           )`;
-        }).join(',\n');
+        }).filter(v => v !== null).join(',\n');
 
         const sql = `
           INSERT INTO pincodes (pincode, boundary, state, district, city, office_name, is_active)
@@ -278,10 +284,13 @@ export class DataIngestionService {
           const totalDuration = ((Date.now() - startTime) / 1000).toFixed(1);
           const estimatedRemaining = ((Date.now() - startTime) / processedCount * (geojson.features.length - processedCount) / 1000).toFixed(0);
 
-          this.logger.log(
-            `✓ Batch ${Math.floor(i / batchSize) + 1}: ${processedCount}/${geojson.features.length} (${progress}%) | ` +
-            `Batch: ${batchDuration}s | Total: ${totalDuration}s | ETA: ~${estimatedRemaining}s`
-          );
+          // Log every 10 batches to reduce log volume (Railway limit: 500 logs/sec)
+          if (i === 0 || (Math.floor(i / batchSize) + 1) % 10 === 0 || processedCount >= geojson.features.length) {
+            this.logger.log(
+              `✓ Batch ${Math.floor(i / batchSize) + 1}: ${processedCount}/${geojson.features.length} (${progress}%) | ` +
+              `Batch: ${batchDuration}s | Total: ${totalDuration}s | ETA: ~${estimatedRemaining}s`
+            );
+          }
         } catch (error) {
           this.logger.error(`Failed to insert batch starting at index ${i}:`, error.message);
           this.logger.error(`First pincode in failed batch: ${batch[0]?.properties?.Pincode}`);
