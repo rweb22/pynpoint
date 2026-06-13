@@ -47,13 +47,33 @@ export class Pincode {
   })
   boundary: string; // Will store GeoJSON or WKT format
 
+  /**
+   * Centroid (geometric center) of the pincode boundary
+   *
+   * This is automatically computed from the boundary polygon.
+   * Useful for:
+   * - Displaying pincode markers on maps
+   * - Distance calculations between pincodes
+   * - Finding nearest pincodes to a point
+   */
+  @Column({
+    type: 'geography',
+    spatialFeatureType: 'Point',
+    srid: 4326,
+    nullable: true,
+  })
+  centroid: string; // GeoJSON Point
+
   @Column({ length: 100, nullable: true })
+  @Index()
   state: string;
 
   @Column({ length: 100, nullable: true })
+  @Index()
   district: string;
 
   @Column({ length: 100, nullable: true })
+  @Index()
   city: string;
 
   @Column({ length: 200, nullable: true })
