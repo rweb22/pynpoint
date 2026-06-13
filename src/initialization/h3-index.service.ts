@@ -159,9 +159,14 @@ export class H3IndexService {
         units: 'kilometers',
       });
 
+      // Skip if buffer operation failed
+      if (!bufferedFeature || !bufferedFeature.geometry) {
+        continue;
+      }
+
       // Fill buffered polygon with hexagons
       const hexagons = polygonToCells(
-        bufferedFeature.geometry.coordinates,
+        bufferedFeature.geometry.coordinates as number[][] | number[][][],
         this.H3_RESOLUTION,
         true, // isGeoJson = true
       );
