@@ -1,6 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, DataSource } from 'typeorm';
+import { Repository, DataSource, Not, IsNull } from 'typeorm';
 import { createReadStream } from 'fs';
 import { parse } from 'csv-parse';
 import { Pincode } from '../database/entities/pincode.entity';
@@ -35,12 +35,34 @@ export class CSVIngestionService {
 
   /**
    * Check if CSV data has already been ingested
+   *
+   * Criteria:
+   * - At least 160,000 post offices (threshold: 165,627 expected, allow for ~3% tolerance)
+   * - At least 19,000 pincodes updated with metadata
+   *
+   * This prevents partial ingestions and ensures data integrity.
    */
   async checkCSVDataExists(): Promise<boolean> {
     try {
-      const count = await this.postOfficeRepository.count();
-      this.logger.debug(`Found ${count} post offices in database`);
-      return count > 0;
+      const postOfficeCount = await this.postOfficeRepository.count();
+      const pincodeWithStateCount = await this.pincodeRepository.count({
+        where: {
+          state: Not(IsNull()),
+        },
+      });
+
+      this.logger.debug(
+        `CSV data check: ${postOfficeCount} post offices, ${pincodeWithStateCount} pincodes with metadata`,
+      );
+
+      // Require minimum thresholds to consider CSV data as "ingested"
+      const MIN_POST_OFFICES = 160000; // ~97% of 165,627
+      const MIN_PINCODES_WITH_METADATA = 19000; // ~97% of 19,586
+
+      const hasEnoughPostOffices = postOfficeCount >= MIN_POST_OFFICES;
+      const hasEnoughMetadata = pincodeWithStateCount >= MIN_PINCODES_WITH_METADATA;
+
+      return hasEnoughPostOffices && hasEnoughMetadata;
     } catch (error) {
       this.logger.error('Error checking CSV data existence:', error);
       throw error;
@@ -103,9 +125,17 @@ export class CSVIngestionService {
 
     // Step 3: Update/insert pincodes table
     this.logger.log('🔄 Updating pincodes table...');
-    await this.updatePincodesFromCSV(pincodeMap);
+    const { updated, inserted } = await this.updatePincodesFromCSV(pincodeMap);
 
+    // Summary
+    this.logger.log('');
     this.logger.log('✅ CSV ingestion complete');
+    this.logger.log('📊 Summary:');
+    this.logger.log(`  • Post offices inserted: ${records.length.toLocaleString()}`);
+    this.logger.log(`  • Unique pincodes in CSV: ${pincodeMap.size.toLocaleString()}`);
+    this.logger.log(`  • Pincodes updated (with boundaries): ${updated.toLocaleString()}`);
+    this.logger.log(`  • Pincodes inserted (without boundaries): ${inserted.toLocaleString()}`);
+    this.logger.log(`  • Total pincodes in database: ${(updated + inserted).toLocaleString()}`);
   }
 
   /**
@@ -170,8 +200,12 @@ export class CSVIngestionService {
    * Update pincodes table with canonical data from CSV
    * - Updates existing pincodes (with boundaries) with correct state/district/city
    * - Inserts new pincodes (without boundaries) that exist in CSV but not in GeoJSON
+   *
+   * @returns Object with counts of updated and inserted pincodes
    */
-  private async updatePincodesFromCSV(pincodeMap: Map<string, any[]>): Promise<void> {
+  private async updatePincodesFromCSV(
+    pincodeMap: Map<string, any[]>,
+  ): Promise<{ updated: number; inserted: number }> {
     const existingPincodes = await this.pincodeRepository.find({
       select: ['pincode'],
     });
@@ -230,7 +264,11 @@ export class CSVIngestionService {
       }
     }
 
-    this.logger.log(`✅ Updated ${updated.toLocaleString()} pincodes, inserted ${inserted.toLocaleString()} new pincodes`);
+    this.logger.log(
+      `✅ Updated ${updated.toLocaleString()} pincodes, inserted ${inserted.toLocaleString()} new pincodes`,
+    );
+
+    return { updated, inserted };
   }
 
   /**

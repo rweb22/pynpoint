@@ -1,0 +1,35 @@
+feat: Add smart CSV ingestion validation with threshold checks
+
+**Improvements:**
+
+1. **Intelligent Data Existence Check**
+   - Requires minimum 160,000 post offices (97% of 165,627)
+   - Requires minimum 19,000 pincodes with metadata (97% of 19,586)
+   - Prevents partial ingestions and ensures data integrity
+   - Better than simple 'count > 0' check
+
+2. **Enhanced Logging**
+   - Detailed summary after CSV ingestion
+   - Shows post offices inserted, pincodes updated/inserted
+   - Progress indicators during processing
+
+3. **Return Values**
+   - updatePincodesFromCSV() now returns { updated, inserted }
+   - Enables summary reporting
+
+4. **Documentation**
+   - Complete CSV_INGESTION_GUIDE.md
+   - Covers workflow, normalization, troubleshooting
+   - Migration history and performance metrics
+
+**Validation Logic:**
+```typescript
+const hasEnoughPostOffices = count >= 160000;
+const hasEnoughMetadata = pincodeWithStateCount >= 19000;
+return hasEnoughPostOffices && hasEnoughMetadata;
+```
+
+This prevents scenarios where:
+- Partial CSV ingestion fails midway
+- Database is manually truncated
+- Migration runs but data insertion fails
