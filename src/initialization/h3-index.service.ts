@@ -240,16 +240,3 @@ export class H3IndexService {
     }
   }
 }
-
-      // Fill buffered polygon with hexagons
-      const hexagons = polygonToCells(
-        bufferedFeature.geometry.coordinates,
-        this.H3_RESOLUTION,
-        true, // isGeoJson = true
-      );
-
-      hexagons.forEach((hex) => allHexagons.add(hex));
-    }
-
-    return Array.from(allHexagons);
-  }
