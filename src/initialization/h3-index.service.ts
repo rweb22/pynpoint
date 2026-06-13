@@ -175,7 +175,7 @@ export class H3IndexService {
           // H3's polygonToCells fails on buffered MultiPolygons (code: 1 error)
           // Solution: Extract each polygon from MultiPolygon and process separately
 
-          let polygonsToProcess: number[][][] = [];
+          let polygonsToProcess: any[] = [];
 
           if (bufferedFeature.geometry.type === 'Polygon') {
             polygonsToProcess = [bufferedFeature.geometry.coordinates];
@@ -184,7 +184,7 @@ export class H3IndexService {
             polygonsToProcess = bufferedFeature.geometry.coordinates;
           } else {
             this.logger.warn(
-              `Unexpected buffered geometry type for pincode ${pincode.pincode}: ${bufferedFeature.geometry.type}`
+              `Unexpected buffered geometry type for pincode ${pincode.pincode}: ${(bufferedFeature.geometry as any).type}`
             );
             continue;
           }
