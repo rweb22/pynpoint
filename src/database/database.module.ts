@@ -26,7 +26,10 @@ import { Pincode } from './entities/pincode.entity';
         type: 'postgres',
         url: configService.get<string>('DATABASE_URL'),
         entities: [Pincode],
-        synchronize: configService.get<string>('NODE_ENV') !== 'production',
+        migrations: ['dist/database/migrations/*.js'],
+        migrationsTableName: 'typeorm_migrations',
+        migrationsRun: configService.get<string>('RUN_MIGRATIONS') === 'true',
+        synchronize: false, // Always false - use migrations instead
         logging: configService.get<string>('NODE_ENV') === 'development',
         // PostGIS extension is automatically detected
         // Connection pooling
