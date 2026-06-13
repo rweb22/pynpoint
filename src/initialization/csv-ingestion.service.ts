@@ -72,42 +72,79 @@ export class CSVIngestionService {
   }
 
   /**
-   * Download CSV file from URL
+   * Download CSV file from URL with retry logic
    */
-  private async downloadCSV(url: string, destPath: string): Promise<void> {
+  private async downloadCSV(
+    url: string,
+    destPath: string,
+    maxRetries = 3,
+  ): Promise<void> {
     this.logger.log(`Downloading CSV from ${url}...`);
 
-    return new Promise((resolve, reject) => {
-      const file = createWriteStream(destPath);
-
-      https
-        .get(url, (response) => {
-          if (response.statusCode !== 200) {
-            reject(
-              new Error(
-                `Failed to download CSV: HTTP ${response.statusCode}`,
-              ),
-            );
-            return;
-          }
-
-          response.pipe(file);
-
-          file.on('finish', () => {
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+      try {
+        await new Promise<void>((resolve, reject) => {
+          const file = createWriteStream(destPath);
+          const timeout = setTimeout(() => {
             file.close();
-            resolve();
+            reject(new Error('Download timeout (60s)'));
+          }, 60000); // 60s timeout
+
+          https
+            .get(url, (response) => {
+              if (response.statusCode !== 200) {
+                clearTimeout(timeout);
+                file.close();
+                reject(
+                  new Error(
+                    `Failed to download CSV: HTTP ${response.statusCode}`,
+                  ),
+                );
+                return;
+              }
+
+              response.pipe(file);
+
+              file.on('finish', () => {
+                clearTimeout(timeout);
+                file.close();
+                resolve();
+              });
+            })
+            .on('error', (err) => {
+              clearTimeout(timeout);
+              file.close();
+              unlink(destPath).catch(() => {});
+              reject(err);
+            });
+
+          file.on('error', (err) => {
+            clearTimeout(timeout);
+            file.close();
+            unlink(destPath).catch(() => {});
+            reject(err);
           });
-        })
-        .on('error', (err) => {
-          unlink(destPath).catch(() => {});
-          reject(err);
         });
 
-      file.on('error', (err) => {
-        unlink(destPath).catch(() => {});
-        reject(err);
-      });
-    });
+        this.logger.log('✅ CSV download complete');
+        return; // Success
+      } catch (error) {
+        this.logger.warn(
+          `Download attempt ${attempt}/${maxRetries} failed: ${error.message}`,
+        );
+
+        if (attempt === maxRetries) {
+          throw new Error(
+            `Failed to download CSV after ${maxRetries} attempts: ${error.message}`,
+          );
+        }
+
+        // Wait before retry (exponential backoff)
+        const waitMs = Math.min(1000 * Math.pow(2, attempt - 1), 10000);
+        this.logger.log(`Retrying in ${waitMs}ms...`);
+        await new Promise((resolve) => setTimeout(resolve, waitMs));
+      }
+    }
   }
 
   /**
@@ -136,12 +173,32 @@ export class CSVIngestionService {
       'https://raw.githubusercontent.com/jeet308/bharatpin/main/src/bharatpin/data/pincodes.csv';
     const csvPath = '/tmp/bharatpin_pincodes_2026.csv';
 
+    let fileExists = false;
     try {
       await access(csvPath);
+      fileExists = true;
       this.logger.log(`Using existing CSV file at ${csvPath}`);
     } catch {
-      await this.downloadCSV(csvUrl, csvPath);
-      this.logger.log('✅ CSV download complete');
+      // File doesn't exist, need to download
+    }
+
+    if (!fileExists) {
+      try {
+        await this.downloadCSV(csvUrl, csvPath);
+      } catch (error) {
+        this.logger.error(`Failed to download CSV: ${error.message}`);
+        // Check if a cached file exists from a previous run
+        try {
+          await access(csvPath);
+          this.logger.warn(
+            'Using cached CSV file from failed download (file may be incomplete)',
+          );
+        } catch {
+          throw new Error(
+            `CSV download failed and no cached file available: ${error.message}`,
+          );
+        }
+      }
     }
 
     this.logger.log(`📊 Reading CSV from ${csvPath}...`);
