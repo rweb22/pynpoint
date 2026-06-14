@@ -1,8 +1,9 @@
 # API Distribution Architecture for PinPoint India
 
-**Author**: Architecture Team  
-**Date**: 2026-06-14  
+**Author**: Architecture Team
+**Date**: 2026-06-14
 **Status**: Design Complete - Ready for Implementation
+**Architecture**: Decoupled (Lean API Service + External Identity/Billing)
 
 ---
 
@@ -14,11 +15,39 @@ This document outlines the comprehensive API consumption and distribution archit
 2. **Direct Subscription Model** - Custom API keys with tier-based quotas
 3. **Web Playground** - Temporary tokens for interactive documentation
 
-The architecture integrates seamlessly with our existing NestJS/PostgreSQL/Redis/H3 stack while maintaining sub-100ms response times for reverse geocoding queries.
+The architecture follows a **decoupled design** where:
+- **PinPoint API Service** (this NestJS service) remains lean and focused on high-performance API delivery
+- **Main Website** (external infrastructure) handles customer identity, billing, subscriptions, and developer portal
+- API keys are provisioned by the website and validated locally using Redis caching for sub-millisecond performance
+
+This integrates seamlessly with our existing NestJS/PostgreSQL/Redis/H3 stack while maintaining sub-100ms response times for reverse geocoding queries.
 
 ---
 
 ## Architecture Overview
+
+### Decoupled System Design
+
+```
+┌──────────────────────────────────────────────────────────────┐
+│                    Main Website / Portal                      │
+│  - Customer Registration & Identity                          │
+│  - Billing & Subscriptions (Stripe)                          │
+│  - API Key Management UI                                     │
+│  - Developer Playground                                      │
+│  - Usage Analytics Dashboard                                │
+└────────────────────────┬─────────────────────────────────────┘
+                         │
+                         │ Provisions API Keys
+                         │ (via Admin API or direct DB insert)
+                         ▼
+┌──────────────────────────────────────────────────────────────┐
+│                PinPoint API Service (NestJS)                  │
+│  - Lean, high-performance API gateway                        │
+│  - No customer management logic                              │
+│  - Validates keys using local cache                          │
+└──────────────────────────────────────────────────────────────┘
+```
 
 ### Multi-Channel Authentication Flow
 
@@ -39,12 +68,17 @@ The architecture integrates seamlessly with our existing NestJS/PostgreSQL/Redis
       │  1. RapidAPI Guard (X-RapidAPI-Proxy-Secret)│
       │  2. API Key Guard (X-API-Key)               │
       │  3. Playground Guard (Bearer JWT)           │
+      │                                             │
+      │  Guards validate against:                   │
+      │  - PostgreSQL (api_keys table)              │
+      │  - Redis cache (1-hour TTL)                 │
       └──────────────────┬──────────────────────────┘
                          │
                          ▼
       ┌─────────────────────────────────────────────┐
       │         Rate Limit Interceptor              │
-      │  - Redis token bucket per customer/tier     │
+      │  - Redis token bucket per external_customer_id │
+      │  - Tier-based limits (stored in api_keys)   │
       │  - Free: 10/min | Pro: 100/min | Ent: 1000  │
       └──────────────────┬──────────────────────────┘
                          │
@@ -56,6 +90,8 @@ The architecture integrates seamlessly with our existing NestJS/PostgreSQL/Redis
       │  - Nearby Search (radius-based)             │
       └─────────────────────────────────────────────┘
 ```
+
+**Key Principle:** The API service never queries external systems for authentication. All validation is local (PostgreSQL + Redis) for maximum performance.
 
 ---
 
@@ -265,22 +301,20 @@ Example: `ppk_live_sk_a8f2e9c1b4d7f3e2_c4f9`
 - Random: 20 chars (160-bit entropy)
 - Checksum: Luhn algorithm (fast validation)
 
-**Database Schema:**
+**Database Schema (Decoupled):**
 ```typescript
 // src/database/entities/api-key.entity.ts
 @Entity('api_keys')
 @Index(['prefix'])
-@Index(['customer_id'])
+@Index(['external_customer_id'])
 @Index(['is_active', 'expires_at'])
 export class ApiKey {
   @PrimaryGeneratedColumn('uuid')
   id: string;
 
-  @ManyToOne(() => Customer)
-  customer: Customer;
-
+  // NO foreign key relationship - customer managed externally
   @Column()
-  customer_id: string;
+  external_customer_id: string;  // ID from main website (e.g., Stripe customer ID)
 
   @Column({ length: 15 })
   prefix: string;  // "ppk_live_sk_a8f" for display
@@ -291,6 +325,7 @@ export class ApiKey {
   @Column({ type: 'enum', enum: ['live', 'test'] })
   environment: 'live' | 'test';
 
+  // Tier is stored locally to avoid external lookups on every request
   @Column({ type: 'enum', enum: ['free', 'pro', 'business', 'enterprise'] })
   tier: string;
 
@@ -306,17 +341,50 @@ export class ApiKey {
   @Column({ type: 'timestamp', nullable: true })
   last_used_at: Date;
 
+  // Optional rate limit overrides (per-key custom limits)
+  @Column({ type: 'jsonb', nullable: true })
+  rate_limit_overrides: {
+    requests_per_minute?: number;
+    requests_per_day?: number;
+    requests_per_second?: number;
+  };
+
   @Column({ type: 'jsonb', default: {} })
   metadata: {
     name?: string;
     description?: string;
     allowed_ips?: string[];
     scopes?: string[];
+    provisioned_by?: string;  // User ID from main website who created this key
+    notes?: string;
   };
 }
 ```
 
-**API Key Service:**
+**Key Provisioning Flow:**
+
+```
+Main Website                    PinPoint API Service
+     │                                  │
+     │  1. User subscribes to Pro tier  │
+     │                                  │
+     ├─────────────────────────────────►│
+     │  POST /admin/api-keys             │
+     │  {                                │
+     │    external_customer_id: "cus_xyz",
+     │    tier: "pro",                   │
+     │    environment: "live"            │
+     │  }                                │
+     │                                  │
+     │◄─────────────────────────────────┤
+     │  { key: "ppk_live_sk_...",       │
+     │    prefix: "ppk_live_sk_a8f" }   │
+     │                                  │
+     │  2. Store key in user's account  │
+     │  (masked: ppk_live_sk_a8f****)   │
+```
+
+**API Key Service (Simplified):**
 ```typescript
 // src/auth/services/api-key.service.ts
 @Injectable()
@@ -326,11 +394,20 @@ export class ApiKeyService {
     private redisService: RedisService,
   ) {}
 
+  /**
+   * Generate new API key (called by main website via admin API)
+   *
+   * @param externalCustomerId - Customer ID from main website (e.g., Stripe customer ID)
+   * @param tier - Subscription tier
+   * @param environment - live or test
+   * @param rateLimitOverrides - Optional custom rate limits for this key
+   */
   async generateKey(
-    customerId: string,
+    externalCustomerId: string,
     tier: 'free' | 'pro' | 'business' | 'enterprise',
-    environment: 'live' | 'test' = 'live'
-  ): Promise<{ key: string; prefix: string }> {
+    environment: 'live' | 'test' = 'live',
+    rateLimitOverrides?: { requests_per_minute?: number; requests_per_day?: number }
+  ): Promise<{ key: string; prefix: string; id: string }> {
     // Generate cryptographically secure random bytes
     const randomBytes = crypto.randomBytes(20);
     const randomPart = randomBytes.toString('base64url').substring(0, 20);
@@ -343,25 +420,33 @@ export class ApiKeyService {
     const prefix = fullKey.substring(0, 15);  // "ppk_live_sk_a8f"
 
     const apiKey = this.keyRepo.create({
-      customer_id: customerId,
+      external_customer_id: externalCustomerId,
       prefix,
       key_hash: keyHash,
       environment,
       tier,
       is_active: true,
+      rate_limit_overrides: rateLimitOverrides || null,
     });
 
     await this.keyRepo.save(apiKey);
 
     // IMPORTANT: Return full key ONLY at creation time
-    // Customer must store it securely - we can't recover it
-    return { key: fullKey, prefix };
+    // Main website must store it securely - we can't recover it
+    return { key: fullKey, prefix, id: apiKey.id };
   }
 
+  /**
+   * Validate API key (called on every request)
+   *
+   * Returns customer info if valid, null if invalid
+   * Uses Redis cache to avoid DB queries on hot path
+   */
   async validateKey(key: string): Promise<{
-    customerId: string;
+    externalCustomerId: string;
     tier: string;
     keyId: string;
+    rateLimitOverrides?: { requests_per_minute?: number; requests_per_day?: number };
   } | null> {
     // Quick format validation
     if (!key.startsWith('ppk_')) return null;
@@ -369,7 +454,7 @@ export class ApiKeyService {
     const prefix = key.substring(0, 15);
     const keyHash = crypto.createHash('sha256').update(key).digest('hex');
 
-    // Check Redis cache first (hot path optimization)
+    // Check Redis cache first (hot path optimization - <1ms)
     const cacheKey = `apikey:${prefix}`;
     const cached = await this.redisService.get(cacheKey);
 
@@ -377,17 +462,17 @@ export class ApiKeyService {
       const data = JSON.parse(cached);
       if (data.key_hash === keyHash && data.is_active) {
         return {
-          customerId: data.customer_id,
+          externalCustomerId: data.external_customer_id,
           tier: data.tier,
           keyId: data.id,
+          rateLimitOverrides: data.rate_limit_overrides,
         };
       }
     }
 
-    // Fall back to database
+    // Fall back to database (~5ms)
     const apiKey = await this.keyRepo.findOne({
       where: { prefix, is_active: true },
-      relations: ['customer'],
     });
 
     if (!apiKey || apiKey.key_hash !== keyHash) return null;
@@ -400,34 +485,60 @@ export class ApiKeyService {
     // Update last used timestamp (async, don't block)
     this.keyRepo.update(apiKey.id, { last_used_at: new Date() }).catch(() => {});
 
-    // Cache for 1 hour
+    // Cache for 1 hour (optimize hot path)
     await this.redisService.set(
       cacheKey,
       JSON.stringify({
         id: apiKey.id,
-        customer_id: apiKey.customer_id,
+        external_customer_id: apiKey.external_customer_id,
         tier: apiKey.tier,
         key_hash: apiKey.key_hash,
         is_active: true,
+        rate_limit_overrides: apiKey.rate_limit_overrides,
       }),
       'EX',
       3600
     );
 
     return {
-      customerId: apiKey.customer_id,
+      externalCustomerId: apiKey.external_customer_id,
       tier: apiKey.tier,
       keyId: apiKey.id,
+      rateLimitOverrides: apiKey.rate_limit_overrides,
     };
   }
 
+  /**
+   * Revoke API key (called by main website or admin API)
+   */
   async revokeKey(keyId: string): Promise<void> {
     const apiKey = await this.keyRepo.findOne({ where: { id: keyId } });
     if (!apiKey) throw new NotFoundException('API key not found');
 
     await this.keyRepo.update(keyId, { is_active: false });
 
-    // Remove from cache
+    // Remove from cache to invalidate immediately
+    await this.redisService.del(`apikey:${apiKey.prefix}`);
+  }
+
+  /**
+   * Update API key tier (called when customer upgrades/downgrades)
+   * Main website calls this after subscription change
+   */
+  async updateKeyTier(
+    keyId: string,
+    tier: 'free' | 'pro' | 'business' | 'enterprise',
+    rateLimitOverrides?: { requests_per_minute?: number; requests_per_day?: number }
+  ): Promise<void> {
+    const apiKey = await this.keyRepo.findOne({ where: { id: keyId } });
+    if (!apiKey) throw new NotFoundException('API key not found');
+
+    await this.keyRepo.update(keyId, {
+      tier,
+      rate_limit_overrides: rateLimitOverrides || apiKey.rate_limit_overrides,
+    });
+
+    // Invalidate cache to pick up new tier
     await this.redisService.del(`apikey:${apiKey.prefix}`);
   }
 
@@ -485,7 +596,7 @@ export class ApiKeyGuard implements CanActivate {
       });
     }
 
-    // Validate key
+    // Validate key (uses Redis cache, <1ms on hot path)
     const keyData = await this.apiKeyService.validateKey(apiKey);
     if (!keyData) {
       this.logger.warn(`Invalid API key: ${apiKey.substring(0, 15)}***`);
@@ -497,14 +608,128 @@ export class ApiKeyGuard implements CanActivate {
 
     // Attach to request
     request.user = {
-      customerId: keyData.customerId,
+      externalCustomerId: keyData.externalCustomerId,  // External ID from main website
       tier: keyData.tier,
       keyId: keyData.keyId,
+      rateLimitOverrides: keyData.rateLimitOverrides,
       authType: 'api-key',
     };
 
     return true;
   }
+}
+```
+
+---
+
+### Admin API for Main Website Integration
+
+The main website (developer portal) needs to provision and manage API keys. Provide a secure admin API:
+
+**Admin Controller:**
+```typescript
+// src/admin/admin.controller.ts
+@Controller('admin/api-keys')
+@UseGuards(AdminAuthGuard)  // Secure with shared secret or mutual TLS
+export class AdminApiKeyController {
+  constructor(private apiKeyService: ApiKeyService) {}
+
+  @Post()
+  async createKey(@Body() dto: CreateApiKeyDto) {
+    return await this.apiKeyService.generateKey(
+      dto.external_customer_id,
+      dto.tier,
+      dto.environment,
+      dto.rate_limit_overrides
+    );
+  }
+
+  @Patch(':id/tier')
+  async updateTier(@Param('id') id: string, @Body() dto: UpdateTierDto) {
+    await this.apiKeyService.updateKeyTier(
+      id,
+      dto.tier,
+      dto.rate_limit_overrides
+    );
+    return { success: true };
+  }
+
+  @Delete(':id')
+  async revokeKey(@Param('id') id: string) {
+    await this.apiKeyService.revokeKey(id);
+    return { success: true };
+  }
+
+  @Get('customer/:externalCustomerId')
+  async listCustomerKeys(@Param('externalCustomerId') customerId: string) {
+    // Return list of keys for a customer (prefixes only, not full keys)
+    const keys = await this.apiKeyService.listKeysByCustomer(customerId);
+    return keys.map(k => ({
+      id: k.id,
+      prefix: k.prefix,
+      tier: k.tier,
+      environment: k.environment,
+      created_at: k.created_at,
+      last_used_at: k.last_used_at,
+    }));
+  }
+}
+```
+
+**AdminAuthGuard (Secure Admin API):**
+```typescript
+@Injectable()
+export class AdminAuthGuard implements CanActivate {
+  constructor(private configService: ConfigService) {}
+
+  canActivate(context: ExecutionContext): boolean {
+    const request = context.switchToHttp().getRequest();
+    const adminSecret = request.headers['x-admin-secret'];
+    const expectedSecret = this.configService.get('ADMIN_API_SECRET');
+
+    if (!adminSecret || adminSecret !== expectedSecret) {
+      throw new UnauthorizedException('Invalid admin credentials');
+    }
+
+    return true;
+  }
+}
+```
+
+**Environment Configuration:**
+```bash
+# .env
+ADMIN_API_SECRET=<shared-secret-between-website-and-api>  # Long random string
+```
+
+**Main Website Integration Example:**
+```typescript
+// In main website backend (Next.js API route, for example)
+async function provisionApiKeyForUser(userId: string, tier: string) {
+  const response = await fetch('https://api.pinpointindia.com/admin/api-keys', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-Admin-Secret': process.env.PINPOINT_ADMIN_SECRET,
+    },
+    body: JSON.stringify({
+      external_customer_id: userId,  // Or Stripe customer ID
+      tier: tier,
+      environment: 'live',
+    }),
+  });
+
+  const { key, prefix, id } = await response.json();
+
+  // Store in your database
+  await db.apiKeys.create({
+    userId,
+    keyId: id,
+    keyPrefix: prefix,  // Masked version for display
+    // DON'T store full key - user must copy it once
+  });
+
+  return { key, prefix };  // Return to user ONCE
 }
 ```
 
@@ -551,7 +776,9 @@ export class RateLimitInterceptor implements NestInterceptor {
     if (!user) return next.handle();
 
     const tier = user.tier as keyof typeof this.tierLimits;
-    const limits = this.tierLimits[tier] || this.tierLimits.free;
+
+    // Use custom rate limits if provided (per-key overrides)
+    let limits = user.rateLimitOverrides || this.tierLimits[tier] || this.tierLimits.free;
 
     // Skip rate limiting for RapidAPI (they handle it)
     if (tier === 'rapidapi') return next.handle();
@@ -560,8 +787,11 @@ export class RateLimitInterceptor implements NestInterceptor {
     const minuteBucket = Math.floor(now / 60000);
     const dayBucket = Math.floor(now / 86400000);
 
-    const minuteKey = `ratelimit:${user.customerId}:min:${minuteBucket}`;
-    const dayKey = `ratelimit:${user.customerId}:day:${dayBucket}`;
+    // Rate limit by external_customer_id (from main website)
+    // This ensures all keys for a customer share the same quota
+    const customerId = user.externalCustomerId;
+    const minuteKey = `ratelimit:${customerId}:min:${minuteBucket}`;
+    const dayKey = `ratelimit:${customerId}:day:${dayBucket}`;
 
     // Check per-minute limit
     if (limits.perMinute) {
@@ -651,13 +881,13 @@ export class RateLimitInterceptor implements NestInterceptor {
 export class AppModule {}
 ```
 
-### Auth Module Structure
+### Auth Module Structure (Decoupled)
 
 ```typescript
 // src/auth/auth.module.ts
 @Module({
   imports: [
-    TypeOrmModule.forFeature([ApiKey, Customer]),
+    TypeOrmModule.forFeature([ApiKey, ApiUsage]),  // NO Customer entity
     JwtModule.register({
       secret: process.env.JWT_SECRET,
       signOptions: { expiresIn: '15m' },
@@ -670,7 +900,10 @@ export class AppModule {}
     ApiKeyGuard,
     PlaygroundTokenGuard,
   ],
-  controllers: [AuthController],
+  controllers: [
+    AuthController,      // Playground tokens
+    AdminApiKeyController,  // Admin API for main website
+  ],
   exports: [ApiKeyService, PlaygroundService],
 })
 export class AuthModule {}
@@ -721,40 +954,85 @@ export class PincodeController {
 
 ---
 
-## 6. Developer Portal Requirements
+## 6. Developer Portal Requirements (Main Website)
 
-### API Dashboard Features
+**Note:** The developer portal is implemented in the **main website infrastructure**, not in the PinPoint API service.
 
-1. **Key Management**
-   - Generate/revoke API keys
-   - View key usage statistics
-   - Rotate keys with grace period
+### System Architecture
 
-2. **Usage Analytics**
-   - Requests per day/week/month
-   - Endpoint popularity
-   - Error rate tracking
-   - Response time percentiles
+```
+┌──────────────────────────────────────────────────────────┐
+│              Main Website (Developer Portal)              │
+│  - Next.js 14 frontend                                   │
+│  - NextAuth.js for user identity                         │
+│  - Stripe for subscriptions                              │
+│  - Own database for user profiles                        │
+│                                                           │
+│  When user subscribes:                                   │
+│  1. Create Stripe subscription                           │
+│  2. Call PinPoint Admin API to provision key             │
+│  3. Store key prefix in website DB                       │
+│  4. Display full key to user ONCE                        │
+└────────────────────┬─────────────────────────────────────┘
+                     │
+                     │ Admin API (authenticated)
+                     ▼
+┌──────────────────────────────────────────────────────────┐
+│             PinPoint API Service (NestJS)                │
+│  - /admin/api-keys (POST, PATCH, DELETE)                │
+│  - Provisions keys with external_customer_id             │
+│  - NO knowledge of user identity/billing                 │
+└──────────────────────────────────────────────────────────┘
+```
 
-3. **Billing & Quotas**
-   - Current tier and limits
-   - Usage vs quota progress bars
-   - Upgrade/downgrade options
+### Portal Features (Implemented in Main Website)
+
+1. **User Management**
+   - Sign up / Sign in (NextAuth.js)
+   - OAuth (Google, GitHub)
+   - User profiles and teams
+
+2. **Subscription Management**
+   - Tier selection (Free/Pro/Business/Enterprise)
+   - Stripe checkout integration
+   - Upgrade/downgrade flows
    - Invoice history
 
-4. **Interactive Docs**
-   - Auto-generated OpenAPI/Swagger
-   - Try-it-out with temporary tokens
-   - Code samples (curl, Python, JavaScript, Go)
-   - Response examples
+3. **API Key Management**
+   - Generate keys (calls PinPoint Admin API)
+   - List keys (prefix only, not full key)
+   - Revoke keys
+   - View last used timestamp
+
+4. **Usage Analytics**
+   - Fetch from ApiUsage table via read-only query
+   - Or: PinPoint API provides `/admin/usage/:externalCustomerId` endpoint
+   - Charts: requests/day, endpoint popularity, error rates
+
+5. **Interactive Playground**
+   - Generate temporary JWT token (calls PinPoint `/auth/playground-token`)
+   - Embedded API docs with Swagger UI
+   - Try-it-out functionality
+   - Code sample generator
 
 ### Technology Stack for Portal
 
-- **Frontend**: Next.js 14 with React Server Components
-- **Backend**: PinPoint API + dedicated admin API
-- **Auth**: NextAuth.js with Google/GitHub OAuth
-- **Payments**: Stripe for subscription management
-- **Docs**: OpenAPI 3.1 + Swagger UI / Scalar
+- **Frontend**: Next.js 14 + React Server Components
+- **Auth**: NextAuth.js (Google, GitHub, Email)
+- **Payments**: Stripe Checkout + Customer Portal
+- **Database**: PostgreSQL (user profiles, subscriptions)
+- **API Docs**: Swagger UI / Scalar (embedded)
+- **Hosting**: Vercel / Netlify
+
+### Integration Points
+
+| Portal Action | PinPoint API Endpoint | Auth Method |
+|---------------|----------------------|-------------|
+| Generate API Key | `POST /admin/api-keys` | X-Admin-Secret |
+| Revoke API Key | `DELETE /admin/api-keys/:id` | X-Admin-Secret |
+| Update Tier | `PATCH /admin/api-keys/:id/tier` | X-Admin-Secret |
+| Get Usage | `GET /admin/usage/:customerId` | X-Admin-Secret |
+| Playground Token | `POST /auth/playground-token` | Public |
 
 ---
 

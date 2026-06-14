@@ -1,14 +1,21 @@
-# API Authentication Implementation Guide
+# API Authentication Implementation Guide (Decoupled Architecture)
 
-**Status**: Ready for Development  
-**Priority**: High (Required for API monetization)  
-**Estimated Effort**: 6-8 weeks
+**Status**: Ready for Development
+**Priority**: High (Required for API monetization)
+**Estimated Effort**: 3-4 weeks (reduced from 6-8 weeks)
+**Architecture**: Lean API Service (no customer management)
 
 ---
 
 ## Quick Start
 
-This guide provides step-by-step instructions for implementing the API distribution architecture outlined in `API_DISTRIBUTION_ARCHITECTURE.md`.
+This guide provides step-by-step instructions for implementing the **decoupled** API distribution architecture outlined in `API_DISTRIBUTION_ARCHITECTURE.md`.
+
+**Key Principle**: This NestJS service does NOT manage customers, billing, or subscriptions. It only:
+1. Validates API keys (local PostgreSQL + Redis cache)
+2. Enforces rate limits (Redis token bucket)
+3. Tracks usage statistics (ApiUsage table)
+4. Provides admin API for the main website to provision keys
 
 ---
 
@@ -18,84 +25,38 @@ This guide provides step-by-step instructions for implementing the API distribut
 - ✅ PostgreSQL with PostGIS (current: 19,596 pincodes + 165,603 post offices)
 - ✅ Redis (current: 32.5M H3 hexagons persisted)
 - ✅ TypeORM configured (current: migrations working)
+- ✅ Main website/portal (separate infrastructure) for customer management
 
 ---
 
 ## Phase 1: Database Schema (Week 1)
 
-### Step 1.1: Create Customer Entity
+### Step 1.1: Create API Key Entity (NO Customer Entity)
+
+**Important**: We do NOT create a Customer entity. Customer data is managed by the main website.
 
 ```bash
-# Generate entity and migration
-npm run typeorm entity:create -- -n Customer
-npm run typeorm migration:create -- -n CreateCustomers
+# Generate entities and migrations
+npm run typeorm entity:create -- -n ApiKey
+npm run typeorm entity:create -- -n ApiUsage
+npm run typeorm migration:create -- -n CreateAuthTables
 ```
-
-```typescript
-// src/database/entities/customer.entity.ts
-import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn, Index, OneToMany } from 'typeorm';
-import { ApiKey } from './api-key.entity';
-
-@Entity('customers')
-@Index(['email'], { unique: true })
-export class Customer {
-  @PrimaryGeneratedColumn('uuid')
-  id: string;
-
-  @Column({ unique: true })
-  email: string;
-
-  @Column({ nullable: true })
-  name: string;
-
-  @Column({ nullable: true })
-  company: string;
-
-  @Column({ type: 'enum', enum: ['free', 'pro', 'business', 'enterprise'], default: 'free' })
-  tier: 'free' | 'pro' | 'business' | 'enterprise';
-
-  @Column({ default: true })
-  is_active: boolean;
-
-  @CreateDateColumn()
-  created_at: Date;
-
-  @UpdateDateColumn()
-  updated_at: Date;
-
-  @Column({ type: 'jsonb', default: {} })
-  metadata: {
-    stripeCustomerId?: string;
-    subscriptionId?: string;
-    billingEmail?: string;
-  };
-
-  @OneToMany(() => ApiKey, (apiKey) => apiKey.customer)
-  apiKeys: ApiKey[];
-}
-```
-
-### Step 1.2: Create API Key Entity
 
 ```typescript
 // src/database/entities/api-key.entity.ts
-import { Entity, PrimaryGeneratedColumn, Column, ManyToOne, JoinColumn, Index, CreateDateColumn } from 'typeorm';
-import { Customer } from './customer.entity';
+import { Entity, PrimaryGeneratedColumn, Column, Index, CreateDateColumn } from 'typeorm';
 
 @Entity('api_keys')
 @Index(['prefix'])
-@Index(['customer_id'])
+@Index(['external_customer_id'])  // Customer ID from main website
 @Index(['is_active', 'expires_at'])
 export class ApiKey {
   @PrimaryGeneratedColumn('uuid')
   id: string;
 
-  @ManyToOne(() => Customer, (customer) => customer.apiKeys)
-  @JoinColumn({ name: 'customer_id' })
-  customer: Customer;
-
+  // NO foreign key relationship - customer managed externally
   @Column()
-  customer_id: string;
+  external_customer_id: string;  // Customer ID from main website (e.g., Stripe customer ID)
 
   @Column({ length: 15 })
   prefix: string;  // "ppk_live_sk_a8f"
@@ -106,6 +67,7 @@ export class ApiKey {
   @Column({ type: 'enum', enum: ['live', 'test'], default: 'live' })
   environment: 'live' | 'test';
 
+  // Tier stored locally to avoid external lookups on every request
   @Column({ type: 'enum', enum: ['free', 'pro', 'business', 'enterprise'] })
   tier: string;
 
@@ -121,29 +83,41 @@ export class ApiKey {
   @Column({ type: 'timestamp', nullable: true })
   last_used_at: Date;
 
+  // Optional per-key rate limit overrides (custom enterprise limits)
+  @Column({ type: 'jsonb', nullable: true })
+  rate_limit_overrides: {
+    requests_per_minute?: number;
+    requests_per_day?: number;
+    requests_per_second?: number;
+  };
+
   @Column({ type: 'jsonb', default: {} })
   metadata: {
     name?: string;
     description?: string;
     allowed_ips?: string[];
     scopes?: string[];
+    provisioned_by?: string;  // User ID from main website who created this key
+    notes?: string;
   };
 }
 ```
 
-### Step 1.3: Create API Usage Entity
+### Step 1.2: Create API Usage Entity
 
 ```typescript
 // src/database/entities/api-usage.entity.ts
+import { Entity, PrimaryGeneratedColumn, Column, Index } from 'typeorm';
+
 @Entity('api_usage')
-@Index(['customer_id', 'date'])
+@Index(['external_customer_id', 'date'])
 @Index(['endpoint'])
 export class ApiUsage {
   @PrimaryGeneratedColumn('uuid')
   id: string;
 
   @Column()
-  customer_id: string;
+  external_customer_id: string;  // Customer ID from main website
 
   @Column({ type: 'date' })
   date: Date;
@@ -164,11 +138,11 @@ export class ApiUsage {
   avg_response_time_ms: number;
 
   @Column({ type: 'jsonb', default: {} })
-  status_codes: Record<string, number>;
+  status_codes: Record<string, number>;  // e.g., { "200": 950, "404": 50 }
 }
 ```
 
-### Step 1.4: Register Entities
+### Step 1.3: Register Entities (NO Customer Entity)
 
 ```typescript
 // src/database/database.module.ts
@@ -180,8 +154,7 @@ export class ApiUsage {
     TypeOrmModule.forFeature([
       Pincode,
       PostOffice,
-      Customer,      // NEW
-      ApiKey,        // NEW
+      ApiKey,        // NEW - No Customer entity!
       ApiUsage,      // NEW
     ]),
   ],
@@ -190,7 +163,7 @@ export class ApiUsage {
 export class DatabaseModule {}
 ```
 
-### Step 1.5: Run Migration
+### Step 1.4: Run Migration
 
 ```bash
 # Generate migration
