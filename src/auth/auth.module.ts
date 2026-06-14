@@ -8,6 +8,7 @@ import { ApiKeyGuard } from './guards/api-key.guard';
 import { AdminAuthGuard } from './guards/admin-auth.guard';
 import { RateLimitInterceptor } from './interceptors/rate-limit.interceptor';
 import { UsageTrackingInterceptor } from './interceptors/usage-tracking.interceptor';
+import { AdminApiKeyController } from './controllers/admin-api-key.controller';
 import { RedisModule } from '../redis/redis.module';
 
 /**
@@ -30,6 +31,9 @@ import { RedisModule } from '../redis/redis.module';
  * Interceptors:
  * - RateLimitInterceptor: Enforce tier-based rate limits
  * - UsageTrackingInterceptor: Track API usage for analytics
+ *
+ * Controllers:
+ * - AdminApiKeyController: Admin endpoints for key provisioning
  */
 @Module({
   imports: [
@@ -37,6 +41,7 @@ import { RedisModule } from '../redis/redis.module';
     TypeOrmModule.forFeature([ApiKey, ApiUsage]),
     RedisModule, // Provides RedisCacheService
   ],
+  controllers: [AdminApiKeyController],
   providers: [
     ApiKeyService,
     ApiKeyGuard,
