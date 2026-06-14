@@ -1,7 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { InjectDataSource } from '@nestjs/typeorm';
 import { DataSource } from 'typeorm';
-import { RedisService } from '../redis/redis.service';
+import { RedisPersistentService } from '../redis/redis-persistent.service';
 
 /**
  * HealthService
@@ -24,7 +24,7 @@ export class HealthService {
   constructor(
     @InjectDataSource()
     private readonly dataSource: DataSource,
-    private readonly redisService: RedisService,
+    private readonly redisService: RedisPersistentService,
   ) {}
 
   /**

@@ -139,6 +139,23 @@ export class RedisPersistentService implements OnModuleInit, OnModuleDestroy {
   }
 
   // Generic operations (use sparingly)
+  async get(key: string): Promise<string | null> {
+    return this.client.get(key);
+  }
+
+  async set(key: string, value: string | number): Promise<'OK'> {
+    return this.client.set(key, value.toString());
+  }
+
+  async del(...keys: string[]): Promise<number> {
+    if (keys.length === 0) return 0;
+    return this.client.del(...keys);
+  }
+
+  async keys(pattern: string): Promise<string[]> {
+    return this.client.keys(pattern);
+  }
+
   async ping(): Promise<string> {
     return this.client.ping();
   }

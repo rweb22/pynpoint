@@ -5,7 +5,7 @@ import {
   TypeOrmHealthIndicator,
 } from '@nestjs/terminus';
 import { HealthService } from '../initialization/health.service';
-import { RedisService } from '../redis/redis.service';
+import { RedisPersistentService } from '../redis/redis-persistent.service';
 
 /**
  * HealthController
@@ -25,7 +25,7 @@ export class HealthController {
     private readonly health: HealthCheckService,
     private readonly db: TypeOrmHealthIndicator,
     private readonly healthService: HealthService,
-    private readonly redisService: RedisService,
+    private readonly redisService: RedisPersistentService,
   ) {}
 
   /**

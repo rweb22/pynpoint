@@ -4,7 +4,7 @@ import { Repository } from 'typeorm';
 import { polygonToCells, getHexagonEdgeLengthAvg } from 'h3-js';
 import buffer from '@turf/buffer';
 import { Pincode } from '../database/entities/pincode.entity';
-import { RedisService } from '../redis/redis.service';
+import { RedisPersistentService } from '../redis/redis-persistent.service';
 
 /**
  * H3IndexService
@@ -33,7 +33,7 @@ export class H3IndexService {
   constructor(
     @InjectRepository(Pincode)
     private readonly pincodeRepository: Repository<Pincode>,
-    private readonly redisService: RedisService,
+    private readonly redisService: RedisPersistentService,
   ) {}
 
   /**
