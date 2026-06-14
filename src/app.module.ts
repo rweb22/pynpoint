@@ -6,6 +6,7 @@ import { DatabaseModule } from './database/database.module';
 import { RedisModule } from './redis/redis.module';
 import { InitializationModule } from './initialization/initialization.module';
 import { HealthModule } from './health/health.module';
+import { AuthModule } from './auth/auth.module';
 import configuration from './config/configuration';
 
 /**
@@ -34,6 +35,9 @@ import configuration from './config/configuration';
     // Database & Cache
     DatabaseModule,
     RedisModule,
+
+    // Authentication
+    AuthModule,
 
     // Initialization
     InitializationModule,
