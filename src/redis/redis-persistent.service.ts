@@ -28,10 +28,15 @@ export class RedisPersistentService implements OnModuleInit, OnModuleDestroy {
   constructor(private readonly configService: ConfigService) {}
 
   async onModuleInit(): Promise<void> {
-    const redisUrl = this.configService.get<string>('REDIS_PERSISTENT_URL') 
-      || this.configService.get<string>('REDIS_URL') 
+    // Prioritize REDIS_PERSISTENT_URL, fallback to REDIS_URL (for migration)
+    const redisUrl = this.configService.get<string>('REDIS_PERSISTENT_URL')
+      || this.configService.get<string>('REDIS_URL')
       || 'redis://localhost:6379';
-    
+
+    if (!this.configService.get<string>('REDIS_PERSISTENT_URL')) {
+      this.logger.warn('⚠️  Using REDIS_URL for persistent storage. Consider renaming to REDIS_PERSISTENT_URL');
+    }
+
     this.logger.log(`Connecting to PERSISTENT Redis (H3 index): ${redisUrl}`);
 
     this.client = new Redis(redisUrl, {

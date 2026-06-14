@@ -28,10 +28,14 @@ export class RedisCacheService implements OnModuleInit, OnModuleDestroy {
   constructor(private readonly configService: ConfigService) {}
 
   async onModuleInit(): Promise<void> {
-    const redisUrl = this.configService.get<string>('REDIS_CACHE_URL') 
-      || this.configService.get<string>('REDIS_URL') 
-      || 'redis://localhost:6379/1'; // Use DB 1 if same instance
-    
+    const redisUrl = this.configService.get<string>('REDIS_CACHE_URL')
+      || this.configService.get<string>('REDIS_URL')?.replace(/\/\d+$/, '') + '/1' // Fallback: same instance, DB 1
+      || 'redis://localhost:6379/1';
+
+    if (!this.configService.get<string>('REDIS_CACHE_URL')) {
+      this.logger.warn('⚠️  REDIS_CACHE_URL not set. Using REDIS_URL database 1. For production, create separate Redis instance.');
+    }
+
     this.logger.log(`Connecting to CACHE Redis (auth, rate-limit): ${redisUrl}`);
 
     this.client = new Redis(redisUrl, {
