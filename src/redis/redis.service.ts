@@ -99,14 +99,24 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
         }
       }
 
+      // Get directory configuration
+      const dirConfig = (await this.client.config('GET', 'dir')) as [string, string];
+      const dbFilenameConfig = (await this.client.config('GET', 'dbfilename')) as [string, string];
+
       // Log persistence status
       if (rdbEnabled || aofEnabled) {
         this.logger.log('✅ Redis persistence enabled');
+        this.logger.log(`   Storage directory: ${dirConfig[1]}`);
         if (rdbEnabled) {
           this.logger.log(`   RDB: ${saveConfig[1]}`);
+          this.logger.log(`   RDB filename: ${dbFilenameConfig[1]}`);
+          this.logger.log(`   Full path: ${dirConfig[1]}/${dbFilenameConfig[1]}`);
           if (persistenceInfo['rdb_last_save_time']) {
             const lastSave = new Date(parseInt(persistenceInfo['rdb_last_save_time']) * 1000);
             this.logger.log(`   Last RDB save: ${lastSave.toISOString()}`);
+          }
+          if (persistenceInfo['rdb_bgsave_in_progress']) {
+            this.logger.log(`   Background save in progress: ${persistenceInfo['rdb_bgsave_in_progress']}`);
           }
         }
         if (aofEnabled) {
