@@ -3,6 +3,8 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { Pincode } from './entities/pincode.entity';
 import { PostOffice } from './entities/postoffice.entity';
+import { ApiKey } from './entities/api-key.entity';
+import { ApiUsage } from './entities/api-usage.entity';
 
 /**
  * DatabaseModule
@@ -26,7 +28,7 @@ import { PostOffice } from './entities/postoffice.entity';
       useFactory: (configService: ConfigService) => ({
         type: 'postgres',
         url: configService.get<string>('DATABASE_URL'),
-        entities: [Pincode, PostOffice],
+        entities: [Pincode, PostOffice, ApiKey, ApiUsage],
         migrations: ['dist/database/migrations/*.js'],
         migrationsTableName: 'typeorm_migrations',
         migrationsRun: configService.get<string>('RUN_MIGRATIONS') === 'true',
@@ -41,7 +43,7 @@ import { PostOffice } from './entities/postoffice.entity';
         },
       }),
     }),
-    TypeOrmModule.forFeature([Pincode, PostOffice]),
+    TypeOrmModule.forFeature([Pincode, PostOffice, ApiKey, ApiUsage]),
   ],
   exports: [TypeOrmModule],
 })
