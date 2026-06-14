@@ -68,6 +68,64 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
     // Wait for ready
     await this.client.ping();
     this.logger.log('✅ Redis ready');
+
+    // Verify persistence configuration
+    await this.verifyPersistence();
+  }
+
+  /**
+   * Verify Redis persistence is configured to prevent data loss
+   * Logs warnings if persistence is disabled
+   */
+  private async verifyPersistence(): Promise<void> {
+    try {
+      // Check RDB (snapshot) persistence
+      const saveConfig = (await this.client.config('GET', 'save')) as [string, string];
+      const rdbEnabled = saveConfig[1] !== '';
+
+      // Check AOF (append-only file) persistence
+      const aofConfig = (await this.client.config('GET', 'appendonly')) as [string, string];
+      const aofEnabled = aofConfig[1] === 'yes';
+
+      // Get persistence info
+      const info = await this.client.info('persistence');
+      const lines = info.split('\r\n');
+      const persistenceInfo: Record<string, string> = {};
+
+      for (const line of lines) {
+        const [key, value] = line.split(':');
+        if (key && value) {
+          persistenceInfo[key.trim()] = value.trim();
+        }
+      }
+
+      // Log persistence status
+      if (rdbEnabled || aofEnabled) {
+        this.logger.log('✅ Redis persistence enabled');
+        if (rdbEnabled) {
+          this.logger.log(`   RDB: ${saveConfig[1]}`);
+          if (persistenceInfo['rdb_last_save_time']) {
+            const lastSave = new Date(parseInt(persistenceInfo['rdb_last_save_time']) * 1000);
+            this.logger.log(`   Last RDB save: ${lastSave.toISOString()}`);
+          }
+        }
+        if (aofEnabled) {
+          this.logger.log(`   AOF: enabled (${aofConfig[1]})`);
+          if (persistenceInfo['aof_current_size']) {
+            const sizeBytes = parseInt(persistenceInfo['aof_current_size']);
+            const sizeMB = (sizeBytes / 1024 / 1024).toFixed(2);
+            this.logger.log(`   AOF size: ${sizeMB} MB`);
+          }
+        }
+      } else {
+        this.logger.warn('⚠️  Redis persistence is DISABLED!');
+        this.logger.warn('   Data will be lost on Redis restart.');
+        this.logger.warn('   See docs/architecture/REDIS_PERSISTENCE_GUIDE.md for configuration.');
+      }
+    } catch (error) {
+      this.logger.error('Failed to verify Redis persistence:', error);
+      // Don't throw - persistence verification is informational
+    }
   }
 
   async onModuleDestroy(): Promise<void> {
