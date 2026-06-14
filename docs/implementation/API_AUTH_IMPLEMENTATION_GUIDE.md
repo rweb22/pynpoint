@@ -23,9 +23,12 @@ This guide provides step-by-step instructions for implementing the **decoupled**
 
 - ✅ NestJS application running (current: production-ready)
 - ✅ PostgreSQL with PostGIS (current: 19,596 pincodes + 165,603 post offices)
-- ✅ Redis (current: 32.5M H3 hexagons persisted)
+- ✅ Redis Persistent (current: 32.5M H3 hexagons, noeviction, RDB snapshots)
+- ✅ Redis Cache (NEW: for API key cache + rate limiting, allkeys-lru, no persistence)
 - ✅ TypeORM configured (current: migrations working)
 - ✅ Main website/portal (separate infrastructure) for customer management
+
+**Important**: See `REDIS_DUAL_INSTANCE_ARCHITECTURE.md` for Redis setup details.
 
 ---
 

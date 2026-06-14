@@ -214,10 +214,11 @@ Main Website                    PinPoint API Service
 
 | Feature | Tech Stack | Database |
 |---------|-----------|----------|
-| Key validation | NestJS Guards | api_keys |
-| Rate limiting | Redis | Token buckets |
+| Key validation | NestJS Guards | api_keys + Redis (cache) |
+| Rate limiting | Redis (cache) | Token buckets |
 | Usage tracking | PostgreSQL | api_usage |
 | Admin API | NestJS Controllers | api_keys |
+| H3 Spatial Index | Redis (persistent) | 32.5M hexagons |
 
 ---
 
