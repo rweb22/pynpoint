@@ -314,6 +314,7 @@ export class CSVIngestionService {
           .insert()
           .into(PostOffice)
           .values(batch)
+          .orIgnore() // Skip duplicates instead of failing (requires unique constraint)
           .execute();
 
         inserted += batch.length;
