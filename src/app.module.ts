@@ -7,6 +7,7 @@ import { RedisModule } from './redis/redis.module';
 import { InitializationModule } from './initialization/initialization.module';
 import { HealthModule } from './health/health.module';
 import { AuthModule } from './auth/auth.module';
+import { PincodeModule } from './pincode/pincode.module';
 import configuration from './config/configuration';
 
 /**
@@ -38,6 +39,9 @@ import configuration from './config/configuration';
 
     // Authentication
     AuthModule,
+
+    // API Endpoints
+    PincodeModule, // Track 1: Pincode Solo Operations
 
     // Initialization
     InitializationModule,
