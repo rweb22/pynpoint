@@ -932,13 +932,243 @@ Find all pincodes within a custom polygon.
 
 ---
 
-## 🌟 Advanced Endpoints (Future Phases)
+## 📏 Track 5: Distance & Measurement Operations
 
-### **4.1 GET /geocoding/forward** (Address → Coordinates + Pincode)
-### **4.2 GET /geocoding/reverse** (Coordinates → Address)
-### **4.3 GET /autocomplete** (Address search suggestions)
-### **4.4 GET /distance** (Calculate distance between pincodes)
-### **4.5 GET /serviceability** (Check delivery serviceability)
+High-performance distance calculations between various spatial entities.
+
+---
+
+### **5.1 GET /distance/pincodes**
+Calculate distance between two pincodes (center-to-center).
+
+**Query Parameters**:
+- `from` (string, required) - Starting pincode
+- `to` (string, required) - Destination pincode
+- `unit` (enum, optional: km, mi, m) - Distance unit (default: km)
+
+**Example**: `/distance/pincodes?from=110001&to=400001&unit=km`
+
+**Response**:
+```json
+{
+  "from": {
+    "pincode": "110001",
+    "officeName": "Parliament House",
+    "coordinates": {
+      "latitude": 28.6139,
+      "longitude": 77.2090
+    }
+  },
+  "to": {
+    "pincode": "400001",
+    "officeName": "Mumbai GPO",
+    "coordinates": {
+      "latitude": 18.9322,
+      "longitude": 72.8264
+    }
+  },
+  "distance": {
+    "value": 1151.3,
+    "unit": "km"
+  },
+  "haversineDistance": 1151.3,
+  "method": "haversine"
+}
+```
+
+**Performance**: ~2-5ms (cached pincode lookups + haversine formula)
+
+---
+
+### **5.2 GET /distance/digipins**
+Calculate distance between two DIGIPIN cells (center-to-center).
+
+**Query Parameters**:
+- `from` (string, required) - Starting DIGIPIN code
+- `to` (string, required) - Destination DIGIPIN code
+- `unit` (enum, optional: km, mi, m) - Distance unit (default: km)
+
+**Example**: `/distance/digipins?from=2C45KL&to=3F89TM&unit=km`
+
+**Response**:
+```json
+{
+  "from": {
+    "digipinCode": "2C45KL",
+    "level": 6,
+    "center": {
+      "latitude": 28.6139,
+      "longitude": 77.2090
+    }
+  },
+  "to": {
+    "digipinCode": "3F89TM",
+    "level": 6,
+    "center": {
+      "latitude": 19.0760,
+      "longitude": 72.8777
+    }
+  },
+  "distance": {
+    "value": 1151.3,
+    "unit": "km"
+  },
+  "haversineDistance": 1151.3,
+  "method": "haversine"
+}
+```
+
+**Performance**: ~0.5ms (pure algorithm: decode + haversine)
+
+---
+
+### **5.3 GET /distance/h3**
+Calculate distance between two H3 hexagons (center-to-center).
+
+**Query Parameters**:
+- `from` (string, required) - Starting H3 index
+- `to` (string, required) - Destination H3 index
+- `unit` (enum, optional: km, mi, m) - Distance unit (default: km)
+- `includeGridDistance` (boolean, optional) - Include H3 grid distance (default: false)
+
+**Example**: `/distance/h3?from=89283082803ffff&to=8928308a4b7ffff&unit=km&includeGridDistance=true`
+
+**Response**:
+```json
+{
+  "from": {
+    "h3Index": "89283082803ffff",
+    "resolution": 9,
+    "center": {
+      "latitude": 28.6139,
+      "longitude": 77.2090
+    }
+  },
+  "to": {
+    "h3Index": "8928308a4b7ffff",
+    "resolution": 9,
+    "center": {
+      "latitude": 19.0760,
+      "longitude": 72.8777
+    }
+  },
+  "distance": {
+    "value": 1151.3,
+    "unit": "km"
+  },
+  "haversineDistance": 1151.3,
+  "gridDistance": 6542,
+  "method": "haversine",
+  "note": "Grid distance is the number of H3 cells between the two points"
+}
+```
+
+**Performance**: ~1ms (h3 decode + haversine, grid distance adds ~2ms)
+
+---
+
+### **5.4 GET /distance/coordinates**
+Calculate distance between two coordinate pairs.
+
+**Query Parameters**:
+- `fromLat` (float, required) - Starting latitude
+- `fromLng` (float, required) - Starting longitude
+- `toLat` (float, required) - Destination latitude
+- `toLng` (float, required) - Destination longitude
+- `unit` (enum, optional: km, mi, m) - Distance unit (default: km)
+
+**Example**: `/distance/coordinates?fromLat=28.6139&fromLng=77.2090&toLat=19.0760&toLng=72.8777&unit=km`
+
+**Response**:
+```json
+{
+  "from": {
+    "latitude": 28.6139,
+    "longitude": 77.2090
+  },
+  "to": {
+    "latitude": 19.0760,
+    "longitude": 72.8777
+  },
+  "distance": {
+    "value": 1151.3,
+    "unit": "km"
+  },
+  "haversineDistance": 1151.3,
+  "method": "haversine"
+}
+```
+
+**Performance**: ~0.1ms (pure haversine calculation)
+
+---
+
+### **5.5 POST /distance/batch**
+Calculate distances between multiple pairs (up to 100).
+
+**Request Body**:
+```json
+{
+  "pairs": [
+    {
+      "type": "pincode",
+      "from": "110001",
+      "to": "400001"
+    },
+    {
+      "type": "coordinates",
+      "from": {"lat": 28.6139, "lng": 77.2090},
+      "to": {"lat": 19.0760, "lng": 72.8777}
+    },
+    {
+      "type": "h3",
+      "from": "89283082803ffff",
+      "to": "8928308a4b7ffff"
+    }
+  ],
+  "unit": "km"
+}
+```
+
+**Response**:
+```json
+{
+  "total": 3,
+  "unit": "km",
+  "results": [
+    {
+      "type": "pincode",
+      "from": "110001",
+      "to": "400001",
+      "distance": 1151.3
+    },
+    {
+      "type": "coordinates",
+      "from": {"lat": 28.6139, "lng": 77.2090},
+      "to": {"lat": 19.0760, "lng": 72.8777},
+      "distance": 1151.3
+    },
+    {
+      "type": "h3",
+      "from": "89283082803ffff",
+      "to": "8928308a4b7ffff",
+      "distance": 1151.3
+    }
+  ]
+}
+```
+
+**Performance**: ~5-50ms depending on types and cache hits
+
+---
+
+## 🌟 Track 6: Advanced Endpoints (Future Phases)
+
+### **6.1 GET /geocoding/forward** (Address → Coordinates + Pincode)
+### **6.2 GET /geocoding/reverse** (Coordinates → Address)
+### **6.3 GET /autocomplete** (Address search suggestions)
+### **6.4 GET /serviceability** (Check delivery serviceability)
+### **6.5 GET /route** (Calculate route between pincodes)
 
 ---
 
