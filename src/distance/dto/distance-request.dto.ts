@@ -2,6 +2,17 @@ import { IsOptional, IsString, IsNumber, IsEnum, ValidateNested, IsArray, ArrayM
 import { Type } from 'class-transformer';
 
 /**
+ * Coordinate DTO - defined first to avoid circular dependency
+ */
+export class CoordinateDto {
+  @IsNumber()
+  lat: number;
+
+  @IsNumber()
+  lng: number;
+}
+
+/**
  * Location can be one of: pincode, digipin, h3, or coordinate
  */
 export class LocationDto {
@@ -21,14 +32,6 @@ export class LocationDto {
   @ValidateNested()
   @Type(() => CoordinateDto)
   coordinate?: CoordinateDto;
-}
-
-export class CoordinateDto {
-  @IsNumber()
-  lat: number;
-
-  @IsNumber()
-  lng: number;
 }
 
 export enum DistanceUnit {
