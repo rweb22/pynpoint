@@ -63,7 +63,13 @@ export class ConversionAdvancedService {
       boundaries.map(async (row) => {
         try {
           const boundary = JSON.parse(row.boundary_geojson);
-          const h3Indexes = polygonToCells(boundary.coordinates, resolution, true);
+
+          // Handle MultiPolygon (use first polygon) or Polygon
+          const coordinates = boundary.type === 'MultiPolygon'
+            ? boundary.coordinates[0]
+            : boundary.coordinates;
+
+          const h3Indexes = polygonToCells(coordinates, resolution, true);
 
           return {
             pincode: row.pincode,
@@ -211,8 +217,8 @@ export class ConversionAdvancedService {
     const results = await this.pincodeRepository.query(
       `SELECT
         pincode,
-        ST_Contains(boundary, ST_Point($2, $3)) as is_inside,
-        ST_Distance(centroid::geography, ST_Point($2, $3)::geography) / 1000.0 as distance_km
+        ST_Contains(boundary::geometry, ST_SetSRID(ST_Point($2, $3), 4326)) as is_inside,
+        ST_Distance(centroid::geography, ST_SetSRID(ST_Point($2, $3), 4326)::geography) / 1000.0 as distance_km
       FROM pincodes
       WHERE pincode = $1 AND is_active = true`,
       [pincode, lng, lat],

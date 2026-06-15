@@ -89,13 +89,18 @@ export class ConversionService {
 
     const pincodeEntity = result[0];
 
-    // Parse GeoJSON
+    // Parse GeoJSON (ST_AsGeoJSON returns string)
     const boundary = JSON.parse(pincodeEntity.boundary_geojson);
     const centroid = JSON.parse(pincodeEntity.centroid_geojson);
 
     // Fill polygon with H3 hexagons
+    // polygonToCells expects coordinates array directly (for MultiPolygon, use first polygon)
+    const coordinates = boundary.type === 'MultiPolygon'
+      ? boundary.coordinates[0]  // First polygon of MultiPolygon
+      : boundary.coordinates;      // Regular Polygon
+
     const h3Indexes = polygonToCells(
-      boundary.coordinates,
+      coordinates,
       resolution,
       true, // GeoJSON format
     );
@@ -223,13 +228,17 @@ export class ConversionService {
     }
 
     // Step 5: Multiple candidates → ST_Contains point check
-    const result = await this.pincodeRepository
-      .createQueryBuilder('p')
-      .select(['p.pincode', 'p.office_name', 'p.district', 'p.state'])
-      .where('p.pincode = ANY(:candidates)', { candidates })
-      .andWhere('p.is_active = :active', { active: true })
-      .andWhere('ST_Contains(p.boundary, ST_Point(:lng, :lat))', { lng, lat })
-      .getOne();
+    const results = await this.pincodeRepository.query(
+      `SELECT pincode, office_name, district, state
+       FROM pincodes
+       WHERE pincode = ANY($1)
+         AND is_active = true
+         AND ST_Contains(boundary::geometry, ST_SetSRID(ST_Point($2, $3), 4326))
+       LIMIT 1`,
+      [candidates, lng, lat],
+    );
+
+    const result = results.length > 0 ? results[0] : null;
 
     const primaryPincode = result ? result.pincode : candidates[0];
 
