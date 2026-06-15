@@ -45,17 +45,23 @@ export class AdminAuthGuard implements CanActivate {
     const secret = this.configService.get<string>('ADMIN_API_SECRET');
 
     if (!secret) {
-      this.logger.error('ADMIN_API_SECRET is not configured! Admin endpoints will be inaccessible.');
-      throw new Error('ADMIN_API_SECRET environment variable is required');
+      this.logger.warn('ADMIN_API_SECRET is not configured! Admin endpoints will be inaccessible.');
+      // Don't throw - allow app to start, but admin endpoints will fail at runtime
+      this.adminSecret = '';
+    } else {
+      this.adminSecret = secret;
+      this.logger.log('AdminAuthGuard initialized with secret');
     }
-
-    this.adminSecret = secret;
-
-    this.logger.log('AdminAuthGuard initialized');
   }
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
     const request = context.switchToHttp().getRequest<Request>();
+
+    // Check if admin secret is configured
+    if (!this.adminSecret) {
+      this.logger.error('Admin endpoint accessed but ADMIN_API_SECRET is not configured');
+      throw new UnauthorizedException('Admin endpoints are not configured. Contact the API administrator.');
+    }
 
     // Extract admin secret from X-Admin-Secret header
     const providedSecret = request.headers['x-admin-secret'] as string;
