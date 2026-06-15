@@ -10,6 +10,7 @@ import { AuthModule } from './auth/auth.module';
 import { PincodeModule } from './pincode/pincode.module';
 import { DigipinModule } from './digipin/digipin.module';
 import { H3Module } from './h3/h3.module';
+import { ConversionModule } from './conversion/conversion.module';
 import configuration from './config/configuration';
 
 /**
@@ -43,9 +44,10 @@ import configuration from './config/configuration';
     AuthModule,
 
     // API Endpoints
-    PincodeModule, // Track 1: Pincode Solo Operations
-    DigipinModule, // Track 2: DIGIPIN Solo Operations
-    H3Module,      // Track 3: H3 Solo Operations
+    PincodeModule,     // Track 1: Pincode Solo Operations
+    DigipinModule,     // Track 2: DIGIPIN Solo Operations
+    H3Module,          // Track 3: H3 Solo Operations
+    ConversionModule,  // Track 4: Hybrid & Conversion Operations
 
     // Initialization
     InitializationModule,

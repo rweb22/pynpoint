@@ -1,0 +1,453 @@
+import { Injectable, Logger, NotFoundException, BadRequestException } from '@nestjs/common';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository } from 'typeorm';
+import { polygonToCells } from 'h3-js';
+import { Pincode } from '../../database/entities/pincode.entity';
+import { H3AlgorithmService } from '../../h3/services/h3-algorithm.service';
+import { DigipinAlgorithmService } from '../../digipin/services/digipin-algorithm.service';
+import { RedisPersistentService } from '../../redis/redis-persistent.service';
+import { RedisCacheService } from '../../redis/redis-cache.service';
+import {
+  PincodeToH3Response,
+  H3ToPincodeResponse,
+  PincodeToDigipinResponse,
+  DigipinToPincodeResponse,
+  H3ToDigipinResponse,
+  DigipinToH3Response,
+  BulkPincodeToH3Response,
+  BulkH3ToPincodeResponse,
+  SpatialIntersectionResponse,
+  PolygonSearchResponse,
+  PincodeOverlapDto,
+} from '../dto/conversion-response.dto';
+
+/**
+ * ConversionService
+ * 
+ * Track 4: Hybrid & Conversion Operations
+ * 
+ * Implements bidirectional conversion between Pincodes, DIGIPINs, and H3 indexes.
+ * 
+ * Three Conversion Stacks:
+ * 1. Pincode-Centric: Pincode ↔ H3, Pincode ↔ DIGIPIN
+ * 2. DIGIPIN-H3 Bridge: DIGIPIN ↔ H3
+ * 3. Advanced/Bulk: Bulk operations, spatial queries
+ * 
+ * Key Optimizations:
+ * - Uses existing H3 index in Redis for fast lookups
+ * - Batch operations for bulk conversions
+ * - Point containment checks only for boundary cases (10% of queries)
+ * - Caching for expensive operations
+ */
+@Injectable()
+export class ConversionService {
+  private readonly logger = new Logger(ConversionService.name);
+
+  constructor(
+    @InjectRepository(Pincode)
+    private readonly pincodeRepository: Repository<Pincode>,
+    private readonly h3Algorithm: H3AlgorithmService,
+    private readonly digipinAlgorithm: DigipinAlgorithmService,
+    private readonly redisPersistent: RedisPersistentService,
+    private readonly redisCache: RedisCacheService,
+  ) {}
+
+  /**
+   * STACK 1: PINCODE-CENTRIC CONVERSIONS
+   */
+
+  /**
+   * 4.1: Pincode → H3
+   * Convert pincode boundary to all intersecting H3 hexagons
+   */
+  async pincodeToH3(pincode: string, resolution: number = 9): Promise<PincodeToH3Response> {
+    this.logger.log(`Converting pincode ${pincode} to H3 resolution ${resolution}`);
+
+    // Check cache
+    const cacheKey = `conversion:pincode-h3:${pincode}:${resolution}`;
+    const cached = await this.redisCache.get(cacheKey);
+    if (cached) {
+      this.logger.log(`Cache HIT for ${cacheKey}`);
+      return JSON.parse(cached);
+    }
+
+    // Fetch pincode with boundary
+    const pincodeEntity = await this.pincodeRepository
+      .createQueryBuilder('p')
+      .select([
+        'p.pincode',
+        'ST_AsGeoJSON(p.boundary) as boundary_geojson',
+        'ST_AsGeoJSON(p.centroid) as centroid_geojson',
+        'ST_Area(p.boundary::geography) / 1000000.0 as area_km2',
+      ])
+      .where('p.pincode = :pincode', { pincode })
+      .andWhere('p.is_active = :active', { active: true })
+      .getRawOne();
+
+    if (!pincodeEntity) {
+      throw new NotFoundException(`Pincode ${pincode} not found`);
+    }
+
+    // Parse GeoJSON
+    const boundary = JSON.parse(pincodeEntity.boundary_geojson);
+    const centroid = JSON.parse(pincodeEntity.centroid_geojson);
+
+    // Fill polygon with H3 hexagons
+    const h3Indexes = polygonToCells(
+      boundary.coordinates,
+      resolution,
+      true, // GeoJSON format
+    );
+
+    // Find primary hexagon (from centroid)
+    const primaryHexagon = this.h3Algorithm.encode(
+      centroid.coordinates[1], // lat
+      centroid.coordinates[0], // lng
+      resolution,
+    );
+
+    // Calculate coverage
+    const hexagonArea = this.h3Algorithm.getArea(h3Indexes[0]);
+    const hexagonsCoverage = h3Indexes.length * hexagonArea;
+
+    const response: PincodeToH3Response = {
+      pincode,
+      resolution,
+      h3Indexes,
+      totalHexagons: h3Indexes.length,
+      coverage: {
+        pincodeArea: parseFloat(pincodeEntity.area_km2),
+        hexagonsCoverage: parseFloat(hexagonsCoverage.toFixed(3)),
+        areaUnit: 'km²',
+      },
+      primaryHexagon,
+      pincodeCenter: {
+        latitude: centroid.coordinates[1],
+        longitude: centroid.coordinates[0],
+      },
+    };
+
+    // Cache for 1 hour
+    await this.redisCache.set(cacheKey, JSON.stringify(response), 3600);
+
+    return response;
+  }
+
+  /**
+   * 4.2: H3 → Pincode
+   * Convert H3 hexagon to all overlapping pincodes
+   * 
+   * OPTIMIZED ALGORITHM (from user suggestion):
+   * 1. Decode H3 → coordinates
+   * 2. Encode coordinates → H3 res-9 (always use res-9 for pincode index lookup)
+   * 3. Redis lookup: SMEMBERS h3:{res9_index} → candidate pincodes
+   * 4. If single candidate: return immediately (90% of cases, ~2ms)
+   * 5. If multiple candidates: ST_Contains point check for tie-breaking (~8ms)
+   */
+  async h3ToPincode(h3Index: string): Promise<H3ToPincodeResponse> {
+    this.logger.log(`Converting H3 ${h3Index} to pincode(s)`);
+
+    // Check cache
+    const cacheKey = `conversion:h3-pincode:${h3Index}`;
+    const cached = await this.redisCache.get(cacheKey);
+    if (cached) {
+      this.logger.log(`Cache HIT for ${cacheKey}`);
+      return JSON.parse(cached);
+    }
+
+    // Step 1: Decode H3 to coordinates
+    const { lat, lng, resolution } = this.h3Algorithm.decode(h3Index);
+
+    // Step 2: Encode to H3 resolution 9 (our pincode index resolution)
+    const res9H3 = this.h3Algorithm.encode(lat, lng, 9);
+
+    // Step 3: Get candidate pincodes from Redis
+    const candidates = await this.redisPersistent.getClient().smembers(`h3:${res9H3}`);
+
+    if (candidates.length === 0) {
+      throw new NotFoundException(`No pincodes found for H3 index ${h3Index}`);
+    }
+
+    this.logger.log(`Found ${candidates.length} candidate pincode(s): ${candidates.join(', ')}`);
+
+    // Continue in next section...
+    return this.processPincodeCandidates(h3Index, candidates, lat, lng, resolution);
+  }
+
+  /**
+   * Helper: Process pincode candidates for H3 → Pincode conversion
+   */
+  private async processPincodeCandidates(
+    h3Index: string,
+    candidates: string[],
+    lat: number,
+    lng: number,
+    resolution: number,
+  ): Promise<H3ToPincodeResponse> {
+    // Step 4: Single candidate? Return immediately! (90% of cases)
+    if (candidates.length === 1) {
+      const pincodeData = await this.pincodeRepository.findOne({
+        where: { pincode: candidates[0], is_active: true },
+      });
+
+      if (!pincodeData) {
+        throw new NotFoundException(`Pincode ${candidates[0]} not found`);
+      }
+
+      const response: H3ToPincodeResponse = {
+        h3Index,
+        resolution,
+        pincodes: [
+          {
+            pincode: pincodeData.pincode,
+            officeName: pincodeData.office_name || '',
+            district: pincodeData.district || '',
+            state: pincodeData.state || '',
+            isPrimary: true,
+            overlapPercentage: 100,
+          },
+        ],
+        primaryPincode: pincodeData.pincode,
+        hexagonCenter: { latitude: lat, longitude: lng },
+      };
+
+      // Cache
+      await this.redisCache.set(
+        `conversion:h3-pincode:${h3Index}`,
+        JSON.stringify(response),
+        3600,
+      );
+
+      return response;
+    }
+
+    // Step 5: Multiple candidates → ST_Contains point check
+    const result = await this.pincodeRepository
+      .createQueryBuilder('p')
+      .select(['p.pincode', 'p.office_name', 'p.district', 'p.state'])
+      .where('p.pincode = ANY(:candidates)', { candidates })
+      .andWhere('p.is_active = :active', { active: true })
+      .andWhere('ST_Contains(p.boundary, ST_Point(:lng, :lat))', { lng, lat })
+      .getOne();
+
+    const primaryPincode = result ? result.pincode : candidates[0];
+
+    // Build response with all candidates
+    const pincodes: PincodeOverlapDto[] = await Promise.all(
+      candidates.map(async (code) => {
+        const data = await this.pincodeRepository.findOne({
+          where: { pincode: code, is_active: true },
+        });
+
+        if (!data) {
+          throw new NotFoundException(`Pincode ${code} not found`);
+        }
+
+        return {
+          pincode: data.pincode,
+          officeName: data.office_name || '',
+          district: data.district || '',
+          state: data.state || '',
+          isPrimary: code === primaryPincode,
+          overlapPercentage: code === primaryPincode ? 100 : 0,
+        };
+      }),
+    );
+
+    const response: H3ToPincodeResponse = {
+      h3Index,
+      resolution,
+      pincodes,
+      primaryPincode,
+      hexagonCenter: { latitude: lat, longitude: lng },
+    };
+
+    // Cache
+    await this.redisCache.set(
+      `conversion:h3-pincode:${h3Index}`,
+      JSON.stringify(response),
+      3600,
+    );
+
+    return response;
+  }
+
+  /**
+   * 4.3: Pincode → DIGIPIN
+   * Convert pincode to all DIGIPIN cells covering its area
+   *
+   * OPTIMIZATION: Use H3 index we already have!
+   * Instead of grid sampling, use H3 hexagon centers
+   */
+  async pincodeToDigipin(
+    pincode: string,
+    level: number = 6,
+  ): Promise<PincodeToDigipinResponse> {
+    this.logger.log(`Converting pincode ${pincode} to DIGIPIN level ${level}`);
+
+    // Check cache
+    const cacheKey = `conversion:pincode-digipin:${pincode}:${level}`;
+    const cached = await this.redisCache.get(cacheKey);
+    if (cached) {
+      return JSON.parse(cached);
+    }
+
+    // Get H3 hexagons for this pincode (reuse res-9 index)
+    const h3Response = await this.pincodeToH3(pincode, 9);
+
+    // Encode each H3 center to DIGIPIN
+    const digipinSet = new Set<string>();
+
+    for (const h3Index of h3Response.h3Indexes) {
+      const { lat, lng } = this.h3Algorithm.decode(h3Index);
+      const digipinCode = this.digipinAlgorithm.encode(lat, lng, level);
+      digipinSet.add(digipinCode);
+    }
+
+    const digipinCodes = Array.from(digipinSet).sort();
+
+    // Find primary DIGIPIN (from centroid)
+    const primaryDigipin = this.digipinAlgorithm.encode(
+      h3Response.pincodeCenter.latitude,
+      h3Response.pincodeCenter.longitude,
+      level,
+    );
+
+    // Calculate coverage
+    const cellArea = this.digipinAlgorithm.getCellArea(level);
+    const digipinCoverage = digipinCodes.length * cellArea;
+
+    const response: PincodeToDigipinResponse = {
+      pincode,
+      level,
+      digipinCodes,
+      totalCells: digipinCodes.length,
+      coverage: {
+        pincodeArea: h3Response.coverage.pincodeArea,
+        digipinCoverage: parseFloat(digipinCoverage.toFixed(3)),
+        areaUnit: 'km²',
+      },
+      primaryDigipin,
+      pincodeCenter: h3Response.pincodeCenter,
+    };
+
+    // Cache for 1 hour
+    await this.redisCache.set(cacheKey, JSON.stringify(response), 3600);
+
+    return response;
+  }
+
+  /**
+   * 4.4: DIGIPIN → Pincode
+   * Convert DIGIPIN cell to overlapping pincodes
+   *
+   * OPTIMIZED ALGORITHM (from user suggestion):
+   * 1. Decode DIGIPIN → coordinates
+   * 2. Encode coordinates → H3 res-9
+   * 3. Redis lookup → candidate pincodes
+   * 4. If single: return immediately
+   * 5. If multiple: ST_Contains point check
+   */
+  async digipinToPincode(digipinCode: string): Promise<DigipinToPincodeResponse> {
+    this.logger.log(`Converting DIGIPIN ${digipinCode} to pincode(s)`);
+
+    // Check cache
+    const cacheKey = `conversion:digipin-pincode:${digipinCode}`;
+    const cached = await this.redisCache.get(cacheKey);
+    if (cached) {
+      return JSON.parse(cached);
+    }
+
+    // Step 1: Decode DIGIPIN to coordinates
+    const { lat, lng, level } = this.digipinAlgorithm.decode(digipinCode);
+
+    // Step 2: Encode to H3 resolution 9
+    const h3Index = this.h3Algorithm.encode(lat, lng, 9);
+
+    // Step 3: Get candidate pincodes from Redis
+    const candidates = await this.redisPersistent.getClient().smembers(`h3:${h3Index}`);
+
+    if (candidates.length === 0) {
+      throw new NotFoundException(`No pincodes found for DIGIPIN ${digipinCode}`);
+    }
+
+    // Step 4 & 5: Process candidates (same logic as H3→Pincode)
+    const h3Response = await this.processPincodeCandidates(
+      h3Index,
+      candidates,
+      lat,
+      lng,
+      9,
+    );
+
+    const response: DigipinToPincodeResponse = {
+      digipinCode,
+      level,
+      pincodes: h3Response.pincodes,
+      primaryPincode: h3Response.primaryPincode,
+      digipinCenter: { latitude: lat, longitude: lng },
+    };
+
+    // Cache
+    await this.redisCache.set(cacheKey, JSON.stringify(response), 3600);
+
+    return response;
+  }
+
+  /**
+   * STACK 2: DIGIPIN-H3 BRIDGE
+   */
+
+  /**
+   * 4.5: H3 → DIGIPIN
+   * Simple coordinate conversion with flexible level support
+   */
+  async h3ToDigipin(h3Index: string, level: number = 6): Promise<H3ToDigipinResponse> {
+    const { lat, lng, resolution } = this.h3Algorithm.decode(h3Index);
+    const digipinCode = this.digipinAlgorithm.encode(lat, lng, level);
+
+    return {
+      h3Index,
+      h3Resolution: resolution,
+      digipinCode,
+      digipinLevel: level,
+      center: { latitude: lat, longitude: lng },
+    };
+  }
+
+  /**
+   * 4.6: DIGIPIN → H3
+   * Convert DIGIPIN cell to H3 hexagons with flexible resolution support
+   */
+  async digipinToH3(
+    digipinCode: string,
+    resolution: number = 9,
+  ): Promise<DigipinToH3Response> {
+    this.logger.log(`Converting DIGIPIN ${digipinCode} to H3 resolution ${resolution}`);
+
+    // Get DIGIPIN boundary
+    const { lat, lng, level } = this.digipinAlgorithm.decode(digipinCode);
+    const boundary = this.digipinAlgorithm.getBoundary(digipinCode);
+
+    // Fill square with H3 hexagons
+    const h3Indexes = polygonToCells([boundary], resolution, true);
+
+    // Calculate coverage
+    const digipinArea = this.digipinAlgorithm.getCellArea(level);
+    const hexagonArea = this.h3Algorithm.getArea(h3Indexes[0]);
+    const h3Coverage = h3Indexes.length * hexagonArea;
+
+    return {
+      digipinCode,
+      digipinLevel: level,
+      h3Resolution: resolution,
+      h3Indexes,
+      totalHexagons: h3Indexes.length,
+      coverage: {
+        digipinArea: parseFloat(digipinArea.toFixed(3)),
+        h3Coverage: parseFloat(h3Coverage.toFixed(3)),
+        areaUnit: 'km²',
+      },
+    };
+  }
+}

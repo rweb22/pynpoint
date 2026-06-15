@@ -153,6 +153,52 @@ export class DigipinAlgorithmService {
   }
 
   /**
+   * Get polygon boundary for a DIGIPIN code (GeoJSON format)
+   *
+   * @param code - DIGIPIN code
+   * @returns Array of [lng, lat] coordinates (5 points for closed square)
+   */
+  getBoundary(code: string): number[][] {
+    const bounds = this.getBounds(code);
+
+    // Return square boundary as GeoJSON coordinates (closed polygon)
+    return [
+      [bounds.minLng, bounds.minLat], // Bottom-left
+      [bounds.maxLng, bounds.minLat], // Bottom-right
+      [bounds.maxLng, bounds.maxLat], // Top-right
+      [bounds.minLng, bounds.maxLat], // Top-left
+      [bounds.minLng, bounds.minLat], // Close the polygon
+    ];
+  }
+
+  /**
+   * Get cell area for a DIGIPIN level
+   *
+   * @param level - DIGIPIN level (1-10)
+   * @returns Area in km²
+   */
+  getCellArea(level: number): number {
+    if (level < 1 || level > 10) {
+      throw new BadRequestException('Level must be between 1 and 10');
+    }
+
+    // India bounding box dimensions
+    const latRange = this.INDIA_BBOX.maxLat - this.INDIA_BBOX.minLat; // ~27 degrees
+    const lngRange = this.INDIA_BBOX.maxLng - this.INDIA_BBOX.minLng; // ~29 degrees
+
+    // Each level subdivides by 4x4, so area divides by 16
+    const cellsPerSide = Math.pow(4, level);
+    const latCellSize = latRange / cellsPerSide;
+    const lngCellSize = lngRange / cellsPerSide;
+
+    // Approximate area in km² (1 degree ≈ 111 km)
+    // This is an approximation; actual area varies with latitude
+    const areaKm2 = (latCellSize * 111) * (lngCellSize * 111);
+
+    return areaKm2;
+  }
+
+  /**
    * Get bounding box of DIGIPIN cell
    *
    * @param code - DIGIPIN code
