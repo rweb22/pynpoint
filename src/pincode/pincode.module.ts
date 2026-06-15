@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { Pincode } from '../database/entities/pincode.entity';
 import { PostOffice } from '../database/entities/postoffice.entity';
+import { ApiUsage } from '../database/entities/api-usage.entity';
 import { PincodeService } from './services/pincode.service';
 import { AdministrativeService } from './services/administrative.service';
 import { PincodeController, AdministrativeController } from './controllers/pincode.controller';
@@ -39,7 +40,7 @@ import { AuthModule } from '../auth/auth.module';
  */
 @Module({
   imports: [
-    TypeOrmModule.forFeature([Pincode, PostOffice]),
+    TypeOrmModule.forFeature([Pincode, PostOffice, ApiUsage]), // ApiUsage needed for UsageTrackingInterceptor
     RedisModule, // For RedisCacheService
     AuthModule,  // For guards and interceptors
   ],
