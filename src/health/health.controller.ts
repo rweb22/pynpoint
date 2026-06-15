@@ -116,22 +116,39 @@ export class HealthController {
   @Get('status')
   async status() {
     try {
-      const [dbStatus, redisPersistentStatus, redisCacheStatus, initStatus] = await Promise.allSettled([
-        this.db.pingCheck('database'),
-        this.redisPersistent.ping(),
-        this.redisCache.ping(),
-        this.healthService.isReady(),
-      ]);
+      // Measure latency for each service
+      const dbStart = Date.now();
+      const dbResult = await this.db.pingCheck('database');
+      const dbLatency = Date.now() - dbStart;
+
+      const redisPersistentStart = Date.now();
+      const redisPersistentResult = await this.redisPersistent.ping();
+      const redisPersistentLatency = Date.now() - redisPersistentStart;
+
+      const redisCacheStart = Date.now();
+      const redisCacheResult = await this.redisCache.ping();
+      const redisCacheLatency = Date.now() - redisCacheStart;
+
+      const isReady = this.healthService.isReady();
 
       return {
         status: 'ok',
         timestamp: new Date().toISOString(),
         uptime: process.uptime(),
         checks: {
-          database: dbStatus.status === 'fulfilled' ? 'up' : 'down',
-          redisPersistent: redisPersistentStatus.status === 'fulfilled' ? 'up' : 'down',
-          redisCache: redisCacheStatus.status === 'fulfilled' ? 'up' : 'down',
-          initialization: initStatus.status === 'fulfilled' && initStatus.value ? 'complete' : 'pending',
+          database: {
+            status: 'up',
+            latency_ms: dbLatency,
+          },
+          redisPersistent: {
+            status: 'up',
+            latency_ms: redisPersistentLatency,
+          },
+          redisCache: {
+            status: 'up',
+            latency_ms: redisCacheLatency,
+          },
+          initialization: isReady ? 'complete' : 'pending',
         },
       };
     } catch (error) {
