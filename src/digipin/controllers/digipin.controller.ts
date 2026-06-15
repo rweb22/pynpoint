@@ -48,18 +48,10 @@ export class DigipinController {
   constructor(private readonly digipinService: DigipinService) {}
 
   /**
-   * GET /digipin/:code
-   * Get detailed information about a DIGIPIN cell
-   */
-  @Get(':code')
-  async getCell(@Param('code') code: string): Promise<DigipinCellResponse> {
-    this.logger.log(`GET /digipin/${code}`);
-    return this.digipinService.getCellDetails(code);
-  }
-
-  /**
    * POST /digipin/encode
    * Convert coordinates to DIGIPIN codes
+   *
+   * IMPORTANT: POST routes should come before parameterized GET routes
    */
   @Post('encode')
   async encode(@Body() dto: EncodeDigipinDto): Promise<EncodeDigipinResponse> {
@@ -78,6 +70,19 @@ export class DigipinController {
   }
 
   /**
+   * GET /digipin/nearby
+   * Find DIGIPIN cells within radius
+   *
+   * IMPORTANT: Specific GET routes must come BEFORE parameterized routes like :code
+   * Otherwise /nearby would match /:code with code="nearby"
+   */
+  @Get('nearby')
+  async getNearby(@Query() query: NearbyDigipinQueryDto): Promise<DigipinNearbyResponse> {
+    this.logger.log(`GET /digipin/nearby?lat=${query.lat}&lng=${query.lng}&radius=${query.radius}`);
+    return this.digipinService.getNearby(query);
+  }
+
+  /**
    * GET /digipin/neighbors/:code
    * Get neighboring DIGIPIN cells (same level)
    */
@@ -88,12 +93,14 @@ export class DigipinController {
   }
 
   /**
-   * GET /digipin/nearby
-   * Find DIGIPIN cells within radius
+   * GET /digipin/:code
+   * Get detailed information about a DIGIPIN cell
+   *
+   * IMPORTANT: This route must come LAST among GET routes because it's a catch-all
    */
-  @Get('nearby')
-  async getNearby(@Query() query: NearbyDigipinQueryDto): Promise<DigipinNearbyResponse> {
-    this.logger.log(`GET /digipin/nearby?lat=${query.lat}&lng=${query.lng}&radius=${query.radius}`);
-    return this.digipinService.getNearby(query);
+  @Get(':code')
+  async getCell(@Param('code') code: string): Promise<DigipinCellResponse> {
+    this.logger.log(`GET /digipin/${code}`);
+    return this.digipinService.getCellDetails(code);
   }
 }
