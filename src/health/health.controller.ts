@@ -6,6 +6,7 @@ import {
 } from '@nestjs/terminus';
 import { HealthService } from '../initialization/health.service';
 import { RedisPersistentService } from '../redis/redis-persistent.service';
+import { RedisCacheService } from '../redis/redis-cache.service';
 
 /**
  * HealthController
@@ -25,7 +26,8 @@ export class HealthController {
     private readonly health: HealthCheckService,
     private readonly db: TypeOrmHealthIndicator,
     private readonly healthService: HealthService,
-    private readonly redisService: RedisPersistentService,
+    private readonly redisPersistent: RedisPersistentService,
+    private readonly redisCache: RedisCacheService,
   ) {}
 
   /**
@@ -39,13 +41,23 @@ export class HealthController {
       // Database connectivity
       () => this.db.pingCheck('database'),
       
-      // Redis connectivity
+      // Redis Persistent connectivity
       async () => {
         try {
-          await this.redisService.ping();
-          return { redis: { status: 'up' } };
+          await this.redisPersistent.ping();
+          return { redisPersistent: { status: 'up' } };
         } catch (error) {
-          return { redis: { status: 'down', error: error.message } };
+          return { redisPersistent: { status: 'down', error: error.message } };
+        }
+      },
+
+      // Redis Cache connectivity
+      async () => {
+        try {
+          await this.redisCache.ping();
+          return { redisCache: { status: 'up' } };
+        } catch (error) {
+          return { redisCache: { status: 'down', error: error.message } };
         }
       },
       
@@ -104,9 +116,10 @@ export class HealthController {
   @Get('status')
   async status() {
     try {
-      const [dbStatus, redisStatus, initStatus] = await Promise.allSettled([
+      const [dbStatus, redisPersistentStatus, redisCacheStatus, initStatus] = await Promise.allSettled([
         this.db.pingCheck('database'),
-        this.redisService.ping(),
+        this.redisPersistent.ping(),
+        this.redisCache.ping(),
         this.healthService.isReady(),
       ]);
 
@@ -116,7 +129,8 @@ export class HealthController {
         uptime: process.uptime(),
         checks: {
           database: dbStatus.status === 'fulfilled' ? 'up' : 'down',
-          redis: redisStatus.status === 'fulfilled' ? 'up' : 'down',
+          redisPersistent: redisPersistentStatus.status === 'fulfilled' ? 'up' : 'down',
+          redisCache: redisCacheStatus.status === 'fulfilled' ? 'up' : 'down',
           initialization: initStatus.status === 'fulfilled' && initStatus.value ? 'complete' : 'pending',
         },
       };

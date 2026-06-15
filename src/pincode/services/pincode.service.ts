@@ -45,21 +45,30 @@ export class PincodeService {
     includePostOffices = true,
     includeBoundary = false,
   ): Promise<PincodeDetailResponseDto> {
+    const startTime = Date.now();
+
     // Check cache first
     const cacheKey = `pincode:${pincode}:${includePostOffices}:${includeBoundary}`;
+    this.logger.log(`🔍 Checking cache for key: ${cacheKey}`);
+
     const cached = await this.redisCache.get(cacheKey);
-    
+
     if (cached) {
-      this.logger.debug(`Cache HIT for pincode ${pincode}`);
+      const cacheTime = Date.now() - startTime;
+      this.logger.log(`✅ Cache HIT for pincode ${pincode} (${cacheTime}ms)`);
       return JSON.parse(cached);
     }
 
-    this.logger.debug(`Cache MISS for pincode ${pincode}, querying DB`);
+    const missTime = Date.now() - startTime;
+    this.logger.log(`❌ Cache MISS for pincode ${pincode} (${missTime}ms) - querying DB...`);
 
     // Query database
+    const dbStartTime = Date.now();
     const pincodeEntity = await this.pincodeRepository.findOne({
       where: { pincode, is_active: true },
     });
+    const dbTime = Date.now() - dbStartTime;
+    this.logger.log(`📊 DB query completed in ${dbTime}ms`);
 
     if (!pincodeEntity) {
       throw new NotFoundException(`Pincode ${pincode} not found`);
@@ -73,7 +82,13 @@ export class PincodeService {
     );
 
     // Cache the result
+    const cacheSetStart = Date.now();
     await this.redisCache.set(cacheKey, JSON.stringify(response), this.CACHE_TTL_SINGLE);
+    const cacheSetTime = Date.now() - cacheSetStart;
+    this.logger.log(`💾 Cached result for ${pincode} (TTL: ${this.CACHE_TTL_SINGLE}s) in ${cacheSetTime}ms`);
+
+    const totalTime = Date.now() - startTime;
+    this.logger.log(`⏱️  Total request time: ${totalTime}ms`);
 
     return response;
   }

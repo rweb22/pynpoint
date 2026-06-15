@@ -157,14 +157,31 @@ export class RedisCacheService implements OnModuleInit, OnModuleDestroy {
   // === Generic Operations ===
 
   async get(key: string): Promise<string | null> {
-    return this.client.get(key);
+    try {
+      const result = await this.client.get(key);
+      this.logger.debug(`GET ${key}: ${result ? 'HIT' : 'MISS'}`);
+      return result;
+    } catch (error) {
+      this.logger.error(`Redis GET error for key ${key}:`, error);
+      return null; // Graceful degradation
+    }
   }
 
   async set(key: string, value: string | number, ttl?: number): Promise<'OK'> {
-    if (ttl) {
-      return this.client.setex(key, ttl, value.toString());
+    try {
+      let result: 'OK';
+      if (ttl) {
+        result = await this.client.setex(key, ttl, value.toString());
+        this.logger.debug(`SET ${key} (TTL: ${ttl}s): OK`);
+      } else {
+        result = await this.client.set(key, value);
+        this.logger.debug(`SET ${key} (no TTL): OK`);
+      }
+      return result;
+    } catch (error) {
+      this.logger.error(`Redis SET error for key ${key}:`, error);
+      return 'OK'; // Graceful degradation - pretend it worked
     }
-    return this.client.set(key, value);
   }
 
   async del(...keys: string[]): Promise<number> {
