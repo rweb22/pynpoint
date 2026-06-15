@@ -168,7 +168,9 @@ export class DigipinAlgorithmService {
       const cellIndex = this.CHARSET.indexOf(char);
 
       if (cellIndex === -1) {
-        throw new BadRequestException(`Invalid character in DIGIPIN: ${char}`);
+        throw new BadRequestException(
+          `Invalid character in DIGIPIN: ${char} (code: ${upperCode}, position: ${i})`
+        );
       }
 
       const latStep = (currentBox.maxLat - currentBox.minLat) / 4;
