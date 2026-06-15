@@ -12,7 +12,7 @@ import {
   BatchDistanceResponse,
 } from '../dto/distance-response.dto';
 
-@Controller('distance')
+@Controller('api/v1/distance')
 @UseGuards(ApiKeyGuard)
 @UseInterceptors(RateLimitInterceptor, UsageTrackingInterceptor)
 export class DistanceController {
