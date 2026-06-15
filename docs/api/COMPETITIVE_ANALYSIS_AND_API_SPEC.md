@@ -934,24 +934,47 @@ Find all pincodes within a custom polygon.
 
 ## 📏 Track 5: Distance & Measurement Operations
 
-High-performance distance calculations between various spatial entities.
+High-performance distance calculations between any spatial entities with automatic type detection.
 
 ---
 
-### **5.1 GET /distance/pincodes**
-Calculate distance between two pincodes (center-to-center).
+### **5.1 POST /distance/calculate**
+Universal distance calculator - supports any combination of pincodes, DIGIPIN codes, H3 indexes, or coordinates.
 
-**Query Parameters**:
-- `from` (string, required) - Starting pincode
-- `to` (string, required) - Destination pincode
-- `unit` (enum, optional: km, mi, m) - Distance unit (default: km)
+**Request Body**:
+```json
+{
+  "from": {
+    "pincode": "110001"
+    // OR "digipin": "2C45KL6M8P"
+    // OR "h3": "89283082803ffff"
+    // OR "coordinate": {"lat": 28.6139, "lng": 77.2090}
+  },
+  "to": {
+    "pincode": "400001"
+    // OR "digipin": "3F89TMW4X2"
+    // OR "h3": "8928308a4b7ffff"
+    // OR "coordinate": {"lat": 19.0760, "lng": 72.8777}
+  },
+  "unit": "km",  // Optional: "km" (default), "mi", "m"
+  "includeGridDistance": false  // Optional: for H3-to-H3 calculations only
+}
+```
 
-**Example**: `/distance/pincodes?from=110001&to=400001&unit=km`
+**Example 1: Pincode to Pincode**
+```json
+{
+  "from": {"pincode": "110001"},
+  "to": {"pincode": "400001"},
+  "unit": "km"
+}
+```
 
 **Response**:
 ```json
 {
   "from": {
+    "type": "pincode",
     "pincode": "110001",
     "officeName": "Parliament House",
     "coordinates": {
@@ -960,6 +983,7 @@ Calculate distance between two pincodes (center-to-center).
     }
   },
   "to": {
+    "type": "pincode",
     "pincode": "400001",
     "officeName": "Mumbai GPO",
     "coordinates": {
@@ -971,80 +995,30 @@ Calculate distance between two pincodes (center-to-center).
     "value": 1151.3,
     "unit": "km"
   },
-  "haversineDistance": 1151.3,
   "method": "haversine"
 }
 ```
 
-**Performance**: ~2-5ms (cached pincode lookups + haversine formula)
-
----
-
-### **5.2 GET /distance/digipins**
-Calculate distance between two DIGIPIN cells (center-to-center).
-
-**Query Parameters**:
-- `from` (string, required) - Starting DIGIPIN code
-- `to` (string, required) - Destination DIGIPIN code
-- `unit` (enum, optional: km, mi, m) - Distance unit (default: km)
-
-**Example**: `/distance/digipins?from=2C45KL&to=3F89TM&unit=km`
+**Example 2: Coordinate to H3**
+```json
+{
+  "from": {"coordinate": {"lat": 28.6139, "lng": 77.2090}},
+  "to": {"h3": "8928308a4b7ffff"}
+}
+```
 
 **Response**:
 ```json
 {
   "from": {
-    "digipinCode": "2C45KL",
-    "level": 6,
-    "center": {
+    "type": "coordinate",
+    "coordinates": {
       "latitude": 28.6139,
       "longitude": 77.2090
     }
   },
   "to": {
-    "digipinCode": "3F89TM",
-    "level": 6,
-    "center": {
-      "latitude": 19.0760,
-      "longitude": 72.8777
-    }
-  },
-  "distance": {
-    "value": 1151.3,
-    "unit": "km"
-  },
-  "haversineDistance": 1151.3,
-  "method": "haversine"
-}
-```
-
-**Performance**: ~0.5ms (pure algorithm: decode + haversine)
-
----
-
-### **5.3 GET /distance/h3**
-Calculate distance between two H3 hexagons (center-to-center).
-
-**Query Parameters**:
-- `from` (string, required) - Starting H3 index
-- `to` (string, required) - Destination H3 index
-- `unit` (enum, optional: km, mi, m) - Distance unit (default: km)
-- `includeGridDistance` (boolean, optional) - Include H3 grid distance (default: false)
-
-**Example**: `/distance/h3?from=89283082803ffff&to=8928308a4b7ffff&unit=km&includeGridDistance=true`
-
-**Response**:
-```json
-{
-  "from": {
-    "h3Index": "89283082803ffff",
-    "resolution": 9,
-    "center": {
-      "latitude": 28.6139,
-      "longitude": 77.2090
-    }
-  },
-  "to": {
+    "type": "h3",
     "h3Index": "8928308a4b7ffff",
     "resolution": 9,
     "center": {
@@ -1056,74 +1030,118 @@ Calculate distance between two H3 hexagons (center-to-center).
     "value": 1151.3,
     "unit": "km"
   },
-  "haversineDistance": 1151.3,
+  "method": "haversine"
+}
+```
+
+**Example 3: DIGIPIN to DIGIPIN**
+```json
+{
+  "from": {"digipin": "2C45KL6M8P"},
+  "to": {"digipin": "3F89TMW4X2"}
+}
+```
+
+**Response**:
+```json
+{
+  "from": {
+    "type": "digipin",
+    "digipinCode": "2C45KL6M8P",
+    "level": 10,
+    "center": {
+      "latitude": 28.6139,
+      "longitude": 77.2090
+    }
+  },
+  "to": {
+    "type": "digipin",
+    "digipinCode": "3F89TMW4X2",
+    "level": 10,
+    "center": {
+      "latitude": 19.0760,
+      "longitude": 72.8777
+    }
+  },
+  "distance": {
+    "value": 1151.3,
+    "unit": "km"
+  },
+  "method": "haversine"
+}
+```
+
+**Example 4: H3 to H3 with Grid Distance**
+```json
+{
+  "from": {"h3": "89283082803ffff"},
+  "to": {"h3": "8928308a4b7ffff"},
+  "includeGridDistance": true
+}
+```
+
+**Response**:
+```json
+{
+  "from": {
+    "type": "h3",
+    "h3Index": "89283082803ffff",
+    "resolution": 9,
+    "center": {
+      "latitude": 28.6139,
+      "longitude": 77.2090
+    }
+  },
+  "to": {
+    "type": "h3",
+    "h3Index": "8928308a4b7ffff",
+    "resolution": 9,
+    "center": {
+      "latitude": 19.0760,
+      "longitude": 72.8777
+    }
+  },
+  "distance": {
+    "value": 1151.3,
+    "unit": "km"
+  },
   "gridDistance": 6542,
   "method": "haversine",
   "note": "Grid distance is the number of H3 cells between the two points"
 }
 ```
 
-**Performance**: ~1ms (h3 decode + haversine, grid distance adds ~2ms)
+**Performance**:
+- Coordinate ↔ Coordinate: ~0.1ms
+- DIGIPIN ↔ Any: ~0.5-5ms
+- H3 ↔ Any: ~1-5ms
+- Pincode ↔ Any: ~2-10ms (depends on cache hit)
+
+**Validation Rules**:
+- Each location object must have exactly ONE property: `pincode`, `digipin`, `h3`, or `coordinate`
+- Coordinates must have both `lat` and `lng`
+- `includeGridDistance` only applicable when both `from` and `to` are H3 indexes
 
 ---
 
-### **5.4 GET /distance/coordinates**
-Calculate distance between two coordinate pairs.
-
-**Query Parameters**:
-- `fromLat` (float, required) - Starting latitude
-- `fromLng` (float, required) - Starting longitude
-- `toLat` (float, required) - Destination latitude
-- `toLng` (float, required) - Destination longitude
-- `unit` (enum, optional: km, mi, m) - Distance unit (default: km)
-
-**Example**: `/distance/coordinates?fromLat=28.6139&fromLng=77.2090&toLat=19.0760&toLng=72.8777&unit=km`
-
-**Response**:
-```json
-{
-  "from": {
-    "latitude": 28.6139,
-    "longitude": 77.2090
-  },
-  "to": {
-    "latitude": 19.0760,
-    "longitude": 72.8777
-  },
-  "distance": {
-    "value": 1151.3,
-    "unit": "km"
-  },
-  "haversineDistance": 1151.3,
-  "method": "haversine"
-}
-```
-
-**Performance**: ~0.1ms (pure haversine calculation)
-
----
-
-### **5.5 POST /distance/batch**
-Calculate distances between multiple pairs (up to 100).
+### **5.2 POST /distance/batch**
+Calculate distances for multiple location pairs (up to 100).
 
 **Request Body**:
 ```json
 {
   "pairs": [
     {
-      "type": "pincode",
-      "from": "110001",
-      "to": "400001"
+      "from": {"pincode": "110001"},
+      "to": {"pincode": "400001"}
     },
     {
-      "type": "coordinates",
-      "from": {"lat": 28.6139, "lng": 77.2090},
-      "to": {"lat": 19.0760, "lng": 72.8777}
+      "from": {"coordinate": {"lat": 28.6139, "lng": 77.2090}},
+      "to": {"coordinate": {"lat": 19.0760, "lng": 72.8777}}
     },
     {
-      "type": "h3",
-      "from": "89283082803ffff",
-      "to": "8928308a4b7ffff"
+      "from": {"h3": "89283082803ffff"},
+      "to": {"digipin": "3F89TMW4X2"}
     }
   ],
   "unit": "km"
@@ -1137,28 +1155,25 @@ Calculate distances between multiple pairs (up to 100).
   "unit": "km",
   "results": [
     {
-      "type": "pincode",
-      "from": "110001",
-      "to": "400001",
+      "from": {"type": "pincode", "pincode": "110001"},
+      "to": {"type": "pincode", "pincode": "400001"},
       "distance": 1151.3
     },
     {
-      "type": "coordinates",
-      "from": {"lat": 28.6139, "lng": 77.2090},
-      "to": {"lat": 19.0760, "lng": 72.8777},
+      "from": {"type": "coordinate", "coordinates": {"lat": 28.6139, "lng": 77.2090}},
+      "to": {"type": "coordinate", "coordinates": {"lat": 19.0760, "lng": 72.8777}},
       "distance": 1151.3
     },
     {
-      "type": "h3",
-      "from": "89283082803ffff",
-      "to": "8928308a4b7ffff",
-      "distance": 1151.3
+      "from": {"type": "h3", "h3Index": "89283082803ffff"},
+      "to": {"type": "digipin", "digipinCode": "3F89TMW4X2"},
+      "distance": 523.7
     }
   ]
 }
 ```
 
-**Performance**: ~5-50ms depending on types and cache hits
+**Performance**: ~5-100ms depending on pair count, types, and cache hits
 
 ---
 
@@ -1178,6 +1193,9 @@ Calculate distances between multiple pairs (up to 100).
 |---------------|----------------|----------------|
 | Pincode Lookup | < 10ms | Redis (1 hour TTL) |
 | H3 Operations | < 5ms | Redis (permanent) |
+| Distance (Coordinates) | < 1ms | Pure calculation |
+| Distance (DIGIPIN/H3) | < 5ms | Decode + haversine |
+| Distance (Pincode) | < 10ms | Cache + haversine |
 | Bulk Operations | < 50ms | Batch processing |
 | Spatial Search | < 100ms | Spatial index |
 | Polygon Search | < 200ms | H3 polyfill |
