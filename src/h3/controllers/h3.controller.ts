@@ -42,7 +42,7 @@ import {
  * IMPORTANT: Route ordering matters! Specific routes (encode, decode, nearby, 
  * neighbors) must come BEFORE the parameterized :h3Index route.
  */
-@Controller('api/v1/h3')
+@Controller({ path: 'h3', version: '1' })
 @UseGuards(ApiKeyGuard)
 @UseInterceptors(RateLimitInterceptor, UsageTrackingInterceptor)
 export class H3Controller {

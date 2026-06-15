@@ -39,7 +39,7 @@ import {
  * - Rate limited by RateLimitInterceptor
  * - Usage tracked by UsageTrackingInterceptor
  */
-@Controller('api/v1/digipin')
+@Controller({ path: 'digipin', version: '1' })
 @UseGuards(ApiKeyGuard)
 @UseInterceptors(RateLimitInterceptor, UsageTrackingInterceptor)
 export class DigipinController {

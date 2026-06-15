@@ -28,7 +28,7 @@ import { PincodeQueryDto, BulkPincodeLookupDto, DistrictQueryDto } from '../dto/
  * 
  * Base path: /api/v1/pincodes
  */
-@Controller('api/v1/pincodes')
+@Controller({ path: 'pincodes', version: '1' })
 @UseGuards(ApiKeyGuard)
 @UseInterceptors(RateLimitInterceptor, UsageTrackingInterceptor)
 export class PincodeController {
@@ -86,7 +86,7 @@ export class PincodeController {
  * 
  * Base path: /api/v1/administrative
  */
-@Controller('api/v1/administrative')
+@Controller({ path: 'administrative', version: '1' })
 @UseGuards(ApiKeyGuard)
 @UseInterceptors(RateLimitInterceptor, UsageTrackingInterceptor)
 export class AdministrativeController {

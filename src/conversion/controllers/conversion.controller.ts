@@ -60,7 +60,7 @@ import {
  * - GET /spatial/intersection
  * - POST /spatial/polygon-search
  */
-@Controller('api/v1')
+@Controller({ version: '1' })
 @UseGuards(ApiKeyGuard)
 @UseInterceptors(RateLimitInterceptor, UsageTrackingInterceptor)
 export class ConversionController {
