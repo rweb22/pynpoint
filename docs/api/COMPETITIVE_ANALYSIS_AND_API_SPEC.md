@@ -102,12 +102,18 @@
    - Fair usage across customer tiers
    - Transparent rate limit headers
 
-4. **Hybrid Operations**
-   - Bidirectional Pincode ↔ H3 conversion
+4. **Multi-System Support**
+   - Traditional Pincodes (India Post)
+   - DIGIPIN (India Post's grid system)
+   - H3 Hexagonal Index (Uber's spatial system)
+   - Bidirectional conversions between all three
+
+5. **Hybrid Operations**
+   - Pincode ↔ H3 ↔ DIGIPIN conversions
    - Spatial intersection logic
    - Multi-pincode hexagon containment
 
-5. **Developer-First Design**
+6. **Developer-First Design**
    - RESTful + clean JSON
    - Comprehensive error messages
    - Pagination + filtering built-in
@@ -248,16 +254,199 @@ Lookup multiple pincodes in one request (up to 100).
 
 ## 🔷 Track 2: DIGIPIN Solo Operations
 
-Endpoints dedicated to H3-based Digital Postal Index Number (our H3 implementation).
+Endpoints for India Post's official Digital Postal Index Number (DIGIPIN) system.
 
-**Note**: We use H3 as our "DIGIPIN" implementation - superior to India Post's grid system.
+**Note**: DIGIPIN is India Post's official grid-based addressing system using 16-symbol alphanumeric codes (2-9, C, F, J, K, L, M, P, T).
 
 ---
 
-### **2.1 GET /digipin/:h3Index**
-Get detailed information about an H3 hexagon (our DIGIPIN cell).
+### **2.1 GET /digipin/:digipinCode**
+Get detailed information about a DIGIPIN cell.
 
-**URL**: `/digipin/89283082803ffff`
+**URL**: `/digipin/2C45KL`
+
+**Response**:
+```json
+{
+  "digipinCode": "2C45KL",
+  "level": 6,
+  "center": {
+    "latitude": 28.6139,
+    "longitude": 77.2090
+  },
+  "boundary": {
+    "type": "Polygon",
+    "coordinates": [
+      [
+        [77.208, 28.614],
+        [77.220, 28.614],
+        [77.220, 28.626],
+        [77.208, 28.626],
+        [77.208, 28.614]
+      ]
+    ]
+  },
+  "area": {
+    "value": 1.2,
+    "unit": "km²"
+  },
+  "pincodes": ["110001", "110002"],
+  "pincodeCount": 2,
+  "parentDigipin": "2C45K",
+  "hierarchy": {
+    "level1": "2",
+    "level2": "2C",
+    "level3": "2C4",
+    "level4": "2C45",
+    "level5": "2C45K",
+    "level6": "2C45KL"
+  }
+}
+```
+
+---
+
+### **2.2 POST /digipin/encode**
+Convert coordinates to DIGIPIN code.
+
+**Request Body**:
+```json
+{
+  "coordinates": [
+    {"latitude": 28.6139, "longitude": 77.2090},
+    {"latitude": 19.0760, "longitude": 72.8777}
+  ],
+  "level": 6
+}
+```
+
+**Response**:
+```json
+{
+  "level": 6,
+  "results": [
+    {
+      "input": {"latitude": 28.6139, "longitude": 77.2090},
+      "digipinCode": "2C45KL",
+      "pincodes": ["110001"]
+    },
+    {
+      "input": {"latitude": 19.0760, "longitude": 72.8777},
+      "digipinCode": "3F89TM",
+      "pincodes": ["400001", "400002"]
+    }
+  ]
+}
+```
+
+---
+
+### **2.3 POST /digipin/decode**
+Convert DIGIPIN codes to center coordinates.
+
+**Request Body**:
+```json
+{
+  "digipinCodes": ["2C45KL", "3F89TM"]
+}
+```
+
+**Response**:
+```json
+{
+  "results": [
+    {
+      "digipinCode": "2C45KL",
+      "center": {"latitude": 28.6139, "longitude": 77.2090},
+      "level": 6
+    },
+    {
+      "digipinCode": "3F89TM",
+      "center": {"latitude": 19.0760, "longitude": 72.8777},
+      "level": 6
+    }
+  ]
+}
+```
+
+---
+
+### **2.4 GET /digipin/neighbors/:digipinCode**
+Get neighboring DIGIPIN cells (same level).
+
+**URL**: `/digipin/neighbors/2C45KL`
+
+**Response**:
+```json
+{
+  "center": "2C45KL",
+  "level": 6,
+  "neighbors": [
+    "2C45KM",
+    "2C45KP",
+    "2C45KF",
+    "2C45KT",
+    "2C45K2",
+    "2C45K3",
+    "2C45K4",
+    "2C45K5"
+  ],
+  "totalCount": 8,
+  "note": "Grid cells have 8 neighbors (4x4 grid system)"
+}
+```
+
+---
+
+### **2.5 GET /digipin/nearby**
+Find all DIGIPIN cells within a radius.
+
+**Query Parameters**:
+- `lat` (float, required) - Latitude
+- `lng` (float, required) - Longitude
+- `radius` (float, default: 5, max: 50) - Radius in km
+- `level` (integer, default: 6, range: 1-8) - DIGIPIN level
+
+**Example**: `/digipin/nearby?lat=28.6139&lng=77.2090&radius=5&level=6`
+
+**Response**:
+```json
+{
+  "center": {"latitude": 28.6139, "longitude": 77.2090},
+  "radius": 5,
+  "radiusUnit": "km",
+  "level": 6,
+  "cells": [
+    {
+      "digipinCode": "2C45KL",
+      "distance": 0,
+      "pincodes": ["110001"],
+      "center": {"latitude": 28.6139, "longitude": 77.2090}
+    },
+    {
+      "digipinCode": "2C45KM",
+      "distance": 1.2,
+      "pincodes": ["110002"],
+      "center": {"latitude": 28.6150, "longitude": 77.2100}
+    }
+  ],
+  "totalCells": 12,
+  "uniquePincodes": 8
+}
+```
+
+---
+
+## 🔶 Track 3: H3 Spatial Index Operations
+
+Endpoints for Uber H3 hexagonal spatial indexing (our internal spatial index).
+
+---
+
+### **3.1 GET /h3/:h3Index**
+Get detailed information about an H3 hexagon.
+
+**URL**: `/h3/89283082803ffff`
 
 **Response**:
 ```json
@@ -288,20 +477,20 @@ Get detailed information about an H3 hexagon (our DIGIPIN cell).
   },
   "pincodes": ["110001", "110002"],
   "pincodeCount": 2,
-  "isPrimary": true,
   "metadata": {
     "edgeLength": {
       "average": 0.174,
       "unit": "km"
-    }
+    },
+    "isPentagon": false
   }
 }
 ```
 
 ---
 
-### **2.2 POST /digipin/encode**
-Convert coordinates to H3 index (DIGIPIN).
+### **3.2 POST /h3/encode**
+Convert coordinates to H3 indexes.
 
 **Request Body**:
 ```json
@@ -335,7 +524,7 @@ Convert coordinates to H3 index (DIGIPIN).
 
 ---
 
-### **2.3 POST /digipin/decode**
+### **3.3 POST /h3/decode**
 Convert H3 indexes to center coordinates.
 
 **Request Body**:
@@ -352,7 +541,14 @@ Convert H3 indexes to center coordinates.
     {
       "h3Index": "89283082803ffff",
       "center": {"latitude": 28.6139, "longitude": 77.2090},
-      "resolution": 9
+      "resolution": 9,
+      "pincodes": ["110001"]
+    },
+    {
+      "h3Index": "8928308a4b7ffff",
+      "center": {"latitude": 19.0760, "longitude": 72.8777},
+      "resolution": 9,
+      "pincodes": ["400001", "400002"]
     }
   ]
 }
@@ -360,10 +556,10 @@ Convert H3 indexes to center coordinates.
 
 ---
 
-### **2.4 GET /digipin/neighbors/:h3Index**
+### **3.4 GET /h3/neighbors/:h3Index**
 Get neighboring H3 cells (k-ring).
 
-**URL**: `/digipin/neighbors/89283082803ffff?k=1`
+**URL**: `/h3/neighbors/89283082803ffff?k=1`
 
 **Query Parameters**:
 - `k` (integer, default: 1, max: 5) - Ring distance
@@ -382,22 +578,22 @@ Get neighboring H3 cells (k-ring).
     "8928308281bffff"
   ],
   "totalCount": 6,
-  "hexagonsCovered": 7
+  "totalWithCenter": 7
 }
 ```
 
 ---
 
-### **2.5 GET /digipin/nearby**
-Find all H3 cells (DIGIPINs) within a radius.
+### **3.5 GET /h3/nearby**
+Find all H3 cells within a radius.
 
 **Query Parameters**:
 - `lat` (float, required) - Latitude
 - `lng` (float, required) - Longitude
 - `radius` (float, default: 5, max: 50) - Radius in km
-- `resolution` (integer, default: 9, range: 6-10) - H3 resolution
+- `resolution` (integer, default: 9, range: 6-12) - H3 resolution
 
-**Example**: `/digipin/nearby?lat=28.6139&lng=77.2090&radius=5`
+**Example**: `/h3/nearby?lat=28.6139&lng=77.2090&radius=5&resolution=9`
 
 **Response**:
 ```json
@@ -421,19 +617,19 @@ Find all H3 cells (DIGIPINs) within a radius.
 
 ---
 
-## 🔀 Track 3: Hybrid & Conversion Operations
+## 🔀 Track 4: Hybrid & Conversion Operations
 
-High-performance bidirectional conversion between Pincodes and DIGIPINs (H3).
+High-performance bidirectional conversion between Pincodes, DIGIPINs, and H3 indexes.
 
 ---
 
-### **3.1 GET /convert/pincode-to-digipin/:pincode**
+### **4.1 GET /convert/pincode-to-h3/:pincode**
 Convert pincode to all intersecting H3 cells.
 
-**URL**: `/convert/pincode-to-digipin/110001?resolution=9`
+**URL**: `/convert/pincode-to-h3/110001?resolution=9`
 
 **Query Parameters**:
-- `resolution` (integer, default: 9, range: 6-10) - H3 resolution
+- `resolution` (integer, default: 9, range: 6-12) - H3 resolution
 
 **Response**:
 ```json
@@ -460,10 +656,10 @@ Convert pincode to all intersecting H3 cells.
 
 ---
 
-### **3.2 GET /convert/digipin-to-pincode/:h3Index**
+### **4.2 GET /convert/h3-to-pincode/:h3Index**
 Convert H3 cell to all intersecting pincodes.
 
-**URL**: `/convert/digipin-to-pincode/89283082803ffff`
+**URL**: `/convert/h3-to-pincode/89283082803ffff`
 
 **Response**:
 ```json
@@ -498,7 +694,132 @@ Convert H3 cell to all intersecting pincodes.
 
 ---
 
-### **3.3 POST /convert/bulk/pincode-to-digipin**
+### **4.3 GET /convert/pincode-to-digipin/:pincode**
+Convert pincode to DIGIPIN code(s).
+
+**URL**: `/convert/pincode-to-digipin/110001?level=6`
+
+**Query Parameters**:
+- `level` (integer, default: 6, range: 1-8) - DIGIPIN level
+
+**Response**:
+```json
+{
+  "pincode": "110001",
+  "level": 6,
+  "digipinCodes": [
+    "2C45KL",
+    "2C45KM"
+  ],
+  "totalCells": 2,
+  "coverage": {
+    "pincodeArea": 23.5,
+    "digipinCoverage": 2.4,
+    "areaUnit": "km²"
+  },
+  "primaryDigipin": "2C45KL",
+  "pincodeCenter": {
+    "latitude": 28.6139,
+    "longitude": 77.2090
+  }
+}
+```
+
+---
+
+### **4.4 GET /convert/digipin-to-pincode/:digipinCode**
+Convert DIGIPIN cell to all intersecting pincodes.
+
+**URL**: `/convert/digipin-to-pincode/2C45KL`
+
+**Response**:
+```json
+{
+  "digipinCode": "2C45KL",
+  "level": 6,
+  "pincodes": [
+    {
+      "pincode": "110001",
+      "officeName": "Parliament House",
+      "district": "Central Delhi",
+      "state": "Delhi",
+      "isPrimary": true,
+      "overlapPercentage": 75.5
+    },
+    {
+      "pincode": "110002",
+      "officeName": "Indraprastha Estate",
+      "district": "Central Delhi",
+      "state": "Delhi",
+      "isPrimary": false,
+      "overlapPercentage": 24.5
+    }
+  ],
+  "primaryPincode": "110001",
+  "digipinCenter": {
+    "latitude": 28.6139,
+    "longitude": 77.2090
+  }
+}
+```
+
+---
+
+### **4.5 GET /convert/h3-to-digipin/:h3Index**
+Convert H3 cell to DIGIPIN code.
+
+**URL**: `/convert/h3-to-digipin/89283082803ffff?level=6`
+
+**Query Parameters**:
+- `level` (integer, default: 6, range: 1-8) - DIGIPIN level
+
+**Response**:
+```json
+{
+  "h3Index": "89283082803ffff",
+  "h3Resolution": 9,
+  "digipinCode": "2C45KL",
+  "digipinLevel": 6,
+  "center": {
+    "latitude": 28.6139,
+    "longitude": 77.2090
+  }
+}
+```
+
+---
+
+### **4.6 GET /convert/digipin-to-h3/:digipinCode**
+Convert DIGIPIN cell to H3 cells.
+
+**URL**: `/convert/digipin-to-h3/2C45KL?resolution=9`
+
+**Query Parameters**:
+- `resolution` (integer, default: 9, range: 6-12) - H3 resolution
+
+**Response**:
+```json
+{
+  "digipinCode": "2C45KL",
+  "digipinLevel": 6,
+  "h3Resolution": 9,
+  "h3Indexes": [
+    "89283082803ffff",
+    "89283082807ffff",
+    "8928308280bffff"
+  ],
+  "totalHexagons": 3,
+  "coverage": {
+    "digipinArea": 1.2,
+    "h3Coverage": 0.315,
+    "areaUnit": "km²"
+  }
+}
+```
+
+---
+
+### **4.7 POST /convert/bulk/pincode-to-h3**
 Bulk convert pincodes to H3 (up to 50 pincodes).
 
 **Request Body**:
@@ -529,7 +850,7 @@ Bulk convert pincodes to H3 (up to 50 pincodes).
 
 ---
 
-### **3.4 POST /convert/bulk/digipin-to-pincode**
+### **4.8 POST /convert/bulk/h3-to-pincode**
 Bulk convert H3 cells to pincodes (up to 100 cells).
 
 **Request Body**:
@@ -541,7 +862,7 @@ Bulk convert H3 cells to pincodes (up to 100 cells).
 
 ---
 
-### **3.5 GET /spatial/intersection**
+### **4.9 GET /spatial/intersection**
 Find spatial intersection between pincode and coordinate.
 
 **Query Parameters**:
@@ -573,7 +894,7 @@ Find spatial intersection between pincode and coordinate.
 
 ---
 
-### **3.6 POST /spatial/polygon-search**
+### **4.10 POST /spatial/polygon-search**
 Find all pincodes within a custom polygon.
 
 **Request Body**:
