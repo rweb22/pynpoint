@@ -48,16 +48,15 @@ export class ConversionAdvancedService {
     this.logger.log(`Bulk converting ${pincodes.length} pincodes to H3 resolution ${resolution}`);
 
     // Fetch all boundaries in one query
-    const boundaries = await this.pincodeRepository
-      .createQueryBuilder('p')
-      .select([
-        'p.pincode',
-        'ST_AsGeoJSON(p.boundary) as boundary_geojson',
-        'ST_AsGeoJSON(p.centroid) as centroid_geojson',
-      ])
-      .where('p.pincode = ANY(:pincodes)', { pincodes })
-      .andWhere('p.is_active = :active', { active: true })
-      .getRawMany();
+    const boundaries = await this.pincodeRepository.query(
+      `SELECT
+        pincode,
+        ST_AsGeoJSON(boundary) as boundary_geojson,
+        ST_AsGeoJSON(centroid) as centroid_geojson
+      FROM pincodes
+      WHERE pincode = ANY($1) AND is_active = true`,
+      [pincodes],
+    );
 
     // Process in parallel
     const results = await Promise.all(
@@ -67,7 +66,7 @@ export class ConversionAdvancedService {
           const h3Indexes = polygonToCells(boundary.coordinates, resolution, true);
 
           return {
-            pincode: row.p_pincode,
+            pincode: row.pincode,
             result: {
               h3Indexes,
               totalHexagons: h3Indexes.length,
@@ -76,7 +75,7 @@ export class ConversionAdvancedService {
           };
         } catch (error) {
           return {
-            pincode: row.p_pincode,
+            pincode: row.pincode,
             result: {
               h3Indexes: [],
               totalHexagons: 0,
@@ -209,21 +208,21 @@ export class ConversionAdvancedService {
     this.logger.log(`Checking if (${lat}, ${lng}) is inside pincode ${pincode}`);
 
     // Check containment and calculate distance
-    const result = await this.pincodeRepository
-      .createQueryBuilder('p')
-      .select([
-        'p.pincode',
-        'ST_Contains(p.boundary, ST_Point(:lng, :lat)) as is_inside',
-        'ST_Distance(p.centroid::geography, ST_Point(:lng, :lat)::geography) / 1000.0 as distance_km',
-      ])
-      .where('p.pincode = :pincode', { pincode })
-      .andWhere('p.is_active = :active', { active: true })
-      .setParameters({ lng, lat })
-      .getRawOne();
+    const results = await this.pincodeRepository.query(
+      `SELECT
+        pincode,
+        ST_Contains(boundary, ST_Point($2, $3)) as is_inside,
+        ST_Distance(centroid::geography, ST_Point($2, $3)::geography) / 1000.0 as distance_km
+      FROM pincodes
+      WHERE pincode = $1 AND is_active = true`,
+      [pincode, lng, lat],
+    );
 
-    if (!result) {
+    if (results.length === 0) {
       throw new NotFoundException(`Pincode ${pincode} not found`);
     }
+
+    const result = results[0];
 
     // Get H3 and DIGIPIN representations
     const h3Index = this.h3Algorithm.encode(lat, lng, 9);
@@ -256,21 +255,19 @@ export class ConversionAdvancedService {
     this.logger.log(`Searching for pincodes within custom polygon`);
 
     // Find intersecting pincodes
-    const pincodes = await this.pincodeRepository
-      .createQueryBuilder('p')
-      .select([
-        'p.pincode',
-        'p.office_name',
-        'p.district',
-        'p.state',
-        'ST_Area(ST_Intersection(p.boundary::geography, ST_GeomFromGeoJSON(:polygon)::geography)) / 1000000.0 as intersection_area',
-        'ST_Area(p.boundary::geography) / 1000000.0 as pincode_area',
-      ])
-      .where('ST_Intersects(p.boundary, ST_GeomFromGeoJSON(:polygon))', {
-        polygon: JSON.stringify(polygon),
-      })
-      .andWhere('p.is_active = :active', { active: true })
-      .getRawMany();
+    const pincodes = await this.pincodeRepository.query(
+      `SELECT
+        pincode,
+        office_name,
+        district,
+        state,
+        ST_Area(ST_Intersection(boundary::geography, ST_GeomFromGeoJSON($1)::geography)) / 1000000.0 as intersection_area,
+        ST_Area(boundary::geography) / 1000000.0 as pincode_area
+      FROM pincodes
+      WHERE ST_Intersects(boundary, ST_GeomFromGeoJSON($1))
+        AND is_active = true`,
+      [JSON.stringify(polygon)],
+    );
 
     // Calculate search area
     const areaResult = await this.pincodeRepository.query(
@@ -280,10 +277,10 @@ export class ConversionAdvancedService {
 
     // Build response
     const results = pincodes.map((p) => ({
-      pincode: p.p_pincode,
-      officeName: p.p_office_name || '',
-      district: p.p_district || '',
-      state: p.p_state || '',
+      pincode: p.pincode,
+      officeName: p.office_name || '',
+      district: p.district || '',
+      state: p.state || '',
       overlapPercentage: parseFloat(
         ((p.intersection_area / p.pincode_area) * 100).toFixed(1),
       ),

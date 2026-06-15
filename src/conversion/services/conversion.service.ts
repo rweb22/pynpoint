@@ -71,22 +71,23 @@ export class ConversionService {
       return JSON.parse(cached);
     }
 
-    // Fetch pincode with boundary
-    const pincodeEntity = await this.pincodeRepository
-      .createQueryBuilder('p')
-      .select([
-        'p.pincode',
-        'ST_AsGeoJSON(p.boundary) as boundary_geojson',
-        'ST_AsGeoJSON(p.centroid) as centroid_geojson',
-        'ST_Area(p.boundary::geography) / 1000000.0 as area_km2',
-      ])
-      .where('p.pincode = :pincode', { pincode })
-      .andWhere('p.is_active = :active', { active: true })
-      .getRawOne();
+    // Fetch pincode with boundary using raw query
+    const result = await this.pincodeRepository.query(
+      `SELECT
+        pincode,
+        ST_AsGeoJSON(boundary) as boundary_geojson,
+        ST_AsGeoJSON(centroid) as centroid_geojson,
+        ST_Area(boundary::geography) / 1000000.0 as area_km2
+      FROM pincodes
+      WHERE pincode = $1 AND is_active = true`,
+      [pincode],
+    );
 
-    if (!pincodeEntity) {
+    if (result.length === 0) {
       throw new NotFoundException(`Pincode ${pincode} not found`);
     }
+
+    const pincodeEntity = result[0];
 
     // Parse GeoJSON
     const boundary = JSON.parse(pincodeEntity.boundary_geojson);
