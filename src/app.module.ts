@@ -8,6 +8,7 @@ import { InitializationModule } from './initialization/initialization.module';
 import { HealthModule } from './health/health.module';
 import { AuthModule } from './auth/auth.module';
 import { PincodeModule } from './pincode/pincode.module';
+import { DigipinModule } from './digipin/digipin.module';
 import configuration from './config/configuration';
 
 /**
@@ -42,6 +43,7 @@ import configuration from './config/configuration';
 
     // API Endpoints
     PincodeModule, // Track 1: Pincode Solo Operations
+    DigipinModule, // Track 2: DIGIPIN Solo Operations
 
     // Initialization
     InitializationModule,
