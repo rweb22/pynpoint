@@ -2,7 +2,8 @@
 
 **Date:** 2026-06-16
 **Project:** PinPoint India - High-Performance Spatial Data API
-**Repository:** https://github.com/rweb22/pinpointindia
+**Main Repository:** https://github.com/rweb22/pynpoint
+**Library Repository:** https://github.com/rweb22/h3-digipin
 **Status:** Active Development - Integration Phase
 
 ---
@@ -24,7 +25,7 @@ PinPoint India is a **high-performance NestJS API** providing spatial intelligen
 - **Database:** PostgreSQL 15 with PostGIS extension
 - **Cache:** Redis (2 instances - cache & persistent)
 - **Spatial Libraries:** h3-js, custom DIGIPIN implementation
-- **Deployment:** Railway (production), Docker support
+- **Deployment:** Railway (production)
 - **Testing:** Jest (120 tests, 100% passing in h3-digipin library)
 
 ---
@@ -104,7 +105,7 @@ We've built a **production-ready TypeScript library** that handles complete spat
 
 **Repository:** https://github.com/rweb22/h3-digipin
 **Status:** ✅ 100% Complete, 120 tests passing, production-ready
-**Installation:** `npm install github:rweb22/h3-digipin`
+**Installation:** `npm install https://github.com/rweb22/h3-digipin.git`
 
 ---
 
@@ -330,8 +331,9 @@ export class ValidationController {
 ## 🗂️ File Structure
 
 ```
-pinpointindia/
-├── pynpoint/                    # Main NestJS API
+pinpointindia/                   # Local project directory (NOT a git repo)
+├── pynpoint/                    # Main NestJS API (Git: github.com/rweb22/pynpoint)
+│   ├── .git/                    # Git repository root
 │   ├── src/
 │   │   ├── conversion/
 │   │   │   ├── services/
@@ -344,9 +346,11 @@ pinpointindia/
 │   │   ├── neighbors/           # 🆕 CREATE THIS
 │   │   ├── validation/          # 🆕 CREATE THIS
 │   │   └── ...
-│   └── package.json             # ⚠️ Add h3-digipin dependency
+│   ├── package.json             # ⚠️ Add h3-digipin dependency
+│   └── HANDOFF.md               # This document
 │
-├── h3-digipin/                  # Standalone library (separate repo)
+├── h3-digipin/                  # Standalone library (Git: github.com/rweb22/h3-digipin)
+│   ├── .git/                    # Separate git repository
 │   ├── src/
 │   │   ├── converter.ts         # Main API surface
 │   │   ├── conversion.ts        # H3 ↔ DIGIPIN logic
@@ -359,8 +363,14 @@ pinpointindia/
 │   ├── EDGE_CASE_TESTING.md
 │   └── README.md
 │
-└── HANDOFF.md                   # This document
+└── [other files]                # CSVs, GeoJSON, docs, etc.
 ```
+
+**Important Notes:**
+- `pinpointindia/` is just a local workspace directory, NOT a git repository
+- `pynpoint/` is the main API git repository
+- `h3-digipin/` is a separate git repository for the library
+- Both repos are independent and have their own `.git/` directories
 
 ---
 
@@ -369,22 +379,22 @@ pinpointindia/
 ### Running the API Locally
 
 ```bash
-# Start PostgreSQL + Redis (Docker)
-docker-compose up -d
+# From workspace root (pinpointindia/)
+cd pynpoint
 
 # Install dependencies
-cd pynpoint
 npm install
 
-# Run migrations (if any)
-npm run migration:run
-
-# Start dev server
+# Start dev server (uses Railway-provided PostgreSQL and Redis)
 npm run start:dev
 
 # API available at http://localhost:3000
 # Health check: http://localhost:3000/api/v1/health
 ```
+
+**Note:** The project does NOT use Docker locally. PostgreSQL and Redis are provided by Railway in production. For local development, you'll need to either:
+- Configure local PostgreSQL + Redis instances, OR
+- Connect to Railway's database instances (not recommended for development)
 
 ### Testing the h3-digipin Library
 
@@ -407,11 +417,27 @@ npm test -- edge-cases.test.ts
 npm run lint
 ```
 
-### Deployment
+### Deployment (Railway)
 
-- **Production:** Railway (auto-deploy from `main` branch)
+- **Platform:** Railway (https://railway.app)
+- **Auto-Deploy:** Push to `main` branch in github.com/rweb22/pynpoint
 - **Health Check:** `/api/v1/health` (must return 200)
 - **Timeout:** 300 seconds (5 minutes)
+- **Database:** PostgreSQL provided by Railway
+- **Cache:** Redis provided by Railway (2 instances)
+- **Build Command:** `npm install && npm run build`
+- **Start Command:** `npm run start:prod`
+
+**Important for h3-digipin Installation:**
+Railway will run `npm install` which reads `package.json`. Since the h3-digipin repo is public, use HTTPS URL:
+```json
+{
+  "dependencies": {
+    "@pinpoint/h3-digipin": "https://github.com/rweb22/h3-digipin.git"
+  }
+}
+```
+This works without SSH authentication on Railway.
 
 ---
 
@@ -432,16 +458,22 @@ npm run lint
 
 ## ⚠️ Known Issues & Gotchas
 
-1. **npm Authentication**: npm CLI is not authenticated. Use GitHub installation: `npm install github:rweb22/h3-digipin`
+1. **npm Installation**: Use HTTPS URL for public GitHub repos (works on Railway without SSH):
+   - ✅ `npm install https://github.com/rweb22/h3-digipin.git`
+   - ❌ `npm install github:rweb22/h3-digipin` (requires SSH auth)
 
-2. **Response DTO Breaking Change**: Changing `digipinCode` (string) to `digipinCodes` (array) is a breaking change. Consider:
+2. **Railway Deployment**: No Docker. Railway provides managed PostgreSQL and Redis instances.
+
+3. **Response DTO Breaking Change**: Changing `digipinCode` (string) to `digipinCodes` (array) is a breaking change. Consider:
    - Version bump to v2
    - OR keep backward compatibility with both fields
    - OR deprecation notice
 
-3. **Redis Memory**: Current H3-9 index is 2GB. Don't add DIGIPIN-6 index (would be 6GB). Use algorithmic conversion instead.
+4. **Local Development**: Project doesn't use Docker. You'll need local PostgreSQL + Redis or connect to Railway instances.
 
-4. **Performance**: First conversion will be slower (~15-20ms). Add Redis caching for results (1 hour TTL).
+5. **Redis Memory**: Current H3-9 index is 2GB. Don't add DIGIPIN-6 index (would be 6GB). Use algorithmic conversion instead.
+
+6. **Performance**: First conversion will be slower (~15-20ms). Add Redis caching for results (1 hour TTL).
 
 ---
 
@@ -469,10 +501,11 @@ After integration, we should see:
 
 ## 👥 Contact & Resources
 
-- **Repository:** https://github.com/rweb22/pinpointindia
+- **Main API Repository:** https://github.com/rweb22/pynpoint
 - **h3-digipin Library:** https://github.com/rweb22/h3-digipin
 - **Railway Dashboard:** [Your Railway project URL]
-- **API Docs:** Available in `docs/api/` directory
+- **API Docs:** Available in `pynpoint/docs/api/` directory
+- **Workspace:** `pinpointindia/` (local directory only, not a git repo)
 
 ---
 
@@ -495,27 +528,36 @@ Before starting integration:
 ## 🚀 Quick Start for Next Session
 
 ```bash
-# 1. Install library
-cd pynpoint
-npm install github:rweb22/h3-digipin
+# 1. Navigate to pynpoint repository
+cd pinpointindia/pynpoint
 
-# 2. Import in conversion.service.ts
+# 2. Install library from GitHub (HTTPS - works with Railway)
+npm install https://github.com/rweb22/h3-digipin.git
+
+# 3. Import in conversion.service.ts
 import { SpatialConverter } from '@pinpoint/h3-digipin';
 
-# 3. Initialize in constructor
+# 4. Initialize in constructor
 private spatialConverter = new SpatialConverter();
 
-# 4. Start with simplest change - h3ToDigipin()
+# 5. Start with simplest change - h3ToDigipin()
 # Replace lines 415-426 in conversion.service.ts
 
-# 5. Update DTO
+# 6. Update DTO
 # Update H3ToDigipinResponse to include digipinCodes[]
 
-# 6. Test locally
+# 7. Test locally
 npm run start:dev
 # GET http://localhost:3000/api/v1/convert/h3-to-digipin/893da11462fffff?level=6
 
-# 7. Verify response now includes ALL overlapping cells
+# 8. Verify response now includes ALL overlapping cells
+
+# 9. Commit and push
+git add -A
+git commit -m "Integrate h3-digipin library for complete spatial coverage"
+git push origin main
+
+# 10. Railway will auto-deploy from main branch
 ```
 
 ---
@@ -538,8 +580,11 @@ npm run start:dev
 
 **Install Library**
 ```bash
+# From project root (pinpointindia/)
 cd pynpoint
-npm install github:rweb22/h3-digipin
+
+# Install from GitHub (HTTPS - works with Railway and no SSH)
+npm install https://github.com/rweb22/h3-digipin.git
 ```
 
 **Replace Conversion Logic**
