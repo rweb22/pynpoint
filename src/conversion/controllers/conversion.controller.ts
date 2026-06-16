@@ -87,7 +87,7 @@ export class ConversionController {
     @Query() query: PincodeToH3QueryDto,
   ): Promise<PincodeToH3Response> {
     this.logger.log(`GET /convert/pincode-to-h3/${pincode}?resolution=${query.resolution}&relationship=${query.relationship}`);
-    return this.conversionService.pincodeToH3(pincode, query.resolution, query.relationship, query.includeMetadata);
+    return this.conversionService.pincodeToH3(pincode, query.resolution);
   }
 
   /**
@@ -100,7 +100,7 @@ export class ConversionController {
     @Query() query: H3ToPincodeQueryDto,
   ): Promise<H3ToPincodeResponse> {
     this.logger.log(`GET /convert/h3-to-pincode/${h3Index}?relationship=${query.relationship}`);
-    return this.conversionService.h3ToPincode(h3Index, query.relationship, query.includeMetadata);
+    return this.conversionService.h3ToPincode(h3Index);
   }
 
   /**
@@ -113,7 +113,7 @@ export class ConversionController {
     @Query() query: PincodeToDigipinQueryDto,
   ): Promise<PincodeToDigipinResponse> {
     this.logger.log(`GET /convert/pincode-to-digipin/${pincode}?level=${query.level}&relationship=${query.relationship}`);
-    return this.conversionService.pincodeToDigipin(pincode, query.level, query.relationship, query.includeMetadata);
+    return this.conversionService.pincodeToDigipin(pincode, query.level);
   }
 
   /**
@@ -126,7 +126,7 @@ export class ConversionController {
     @Query() query: DigipinToPincodeQueryDto,
   ): Promise<DigipinToPincodeResponse> {
     this.logger.log(`GET /convert/digipin-to-pincode/${digipinCode}?relationship=${query.relationship}`);
-    return this.conversionService.digipinToPincode(digipinCode, query.relationship, query.includeMetadata);
+    return this.conversionService.digipinToPincode(digipinCode);
   }
 
   /**
@@ -143,7 +143,7 @@ export class ConversionController {
     @Query() query: H3ToDigipinQueryDto,
   ): Promise<H3ToDigipinResponse> {
     this.logger.log(`GET /convert/h3-to-digipin/${h3Index}?level=${query.level}&relationship=${query.relationship}`);
-    return this.conversionService.h3ToDigipin(h3Index, query.level, query.relationship, query.includeMetadata);
+    return this.conversionService.h3ToDigipin(h3Index, query.level);
   }
 
   /**
@@ -156,7 +156,7 @@ export class ConversionController {
     @Query() query: DigipinToH3QueryDto,
   ): Promise<DigipinToH3Response> {
     this.logger.log(`GET /convert/digipin-to-h3/${digipinCode}?resolution=${query.resolution}&relationship=${query.relationship}`);
-    return this.conversionService.digipinToH3(digipinCode, query.resolution, query.relationship, query.includeMetadata);
+    return this.conversionService.digipinToH3(digipinCode, query.resolution);
   }
 
   /**

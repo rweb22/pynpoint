@@ -38,6 +38,7 @@
     "class-validator": "^0.15.1",
     "csv-parse": "^6.2.1",
     "dotenv": "^16.4.5",
+    "h3-digipin": "github:rweb22/h3-digipin",
     "h3-js": "^4.4.0",
     "ioredis": "^5.4.1",
     "nest-commander": "^3.15.0",
