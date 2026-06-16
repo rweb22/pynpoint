@@ -2,6 +2,8 @@
  * Response DTOs for Track 4: Conversion Operations
  */
 
+import { SpatialRelationship } from './conversion-request.dto';
+
 /**
  * Coverage information (area comparison)
  */
@@ -15,7 +17,41 @@ export interface CoverageDto {
 }
 
 /**
- * Pincode with overlap information
+ * H3 cell with metadata
+ */
+export interface H3CellMetadata {
+  h3Index: string;
+  resolution: number;
+  overlapPercentage: number;
+  area: {
+    value: number;
+    unit: string;
+  };
+  center: {
+    latitude: number;
+    longitude: number;
+  };
+}
+
+/**
+ * DIGIPIN cell with metadata
+ */
+export interface DigipinCellMetadata {
+  code: string;
+  level: number;
+  overlapPercentage: number;
+  area: {
+    value: number;
+    unit: string;
+  };
+  center: {
+    latitude: number;
+    longitude: number;
+  };
+}
+
+/**
+ * Pincode with overlap information and metadata
  */
 export interface PincodeOverlapDto {
   pincode: string;
@@ -24,6 +60,20 @@ export interface PincodeOverlapDto {
   state: string;
   isPrimary: boolean;
   overlapPercentage: number;
+}
+
+/**
+ * Pincode with extended metadata
+ */
+export interface PincodeMetadata extends PincodeOverlapDto {
+  area: {
+    value: number;
+    unit: string;
+  };
+  center: {
+    latitude: number;
+    longitude: number;
+  };
 }
 
 /**
@@ -36,9 +86,13 @@ export interface PincodeToH3Response {
   totalHexagons: number;
   coverage: CoverageDto;
   primaryHexagon: string;
+  relationship: SpatialRelationship;
   pincodeCenter: {
     latitude: number;
     longitude: number;
+  };
+  metadata?: {
+    h3Details: H3CellMetadata[];
   };
 }
 
@@ -49,10 +103,15 @@ export interface H3ToPincodeResponse {
   h3Index: string;
   resolution: number;
   pincodes: PincodeOverlapDto[];
+  totalPincodes: number;
   primaryPincode: string;
+  relationship: SpatialRelationship;
   hexagonCenter: {
     latitude: number;
     longitude: number;
+  };
+  metadata?: {
+    pincodeDetails: PincodeMetadata[];
   };
 }
 
@@ -66,9 +125,13 @@ export interface PincodeToDigipinResponse {
   totalCells: number;
   coverage: CoverageDto;
   primaryDigipin: string;
+  relationship: SpatialRelationship;
   pincodeCenter: {
     latitude: number;
     longitude: number;
+  };
+  metadata?: {
+    digipinDetails: DigipinCellMetadata[];
   };
 }
 
@@ -79,24 +142,37 @@ export interface DigipinToPincodeResponse {
   digipinCode: string;
   level: number;
   pincodes: PincodeOverlapDto[];
+  totalPincodes: number;
   primaryPincode: string;
+  relationship: SpatialRelationship;
   digipinCenter: {
     latitude: number;
     longitude: number;
+  };
+  metadata?: {
+    pincodeDetails: PincodeMetadata[];
   };
 }
 
 /**
  * Response for h3-to-digipin conversion
+ *
+ * BREAKING CHANGE: digipinCode is now digipinCodes (array)
  */
 export interface H3ToDigipinResponse {
   h3Index: string;
   h3Resolution: number;
-  digipinCode: string;
+  digipinCodes: string[];  // ✅ Changed from singular to array
+  totalDigipinCells: number;
+  primaryDigipin: string;  // Centroid-based primary cell
   digipinLevel: number;
+  relationship: SpatialRelationship;
   center: {
     latitude: number;
     longitude: number;
+  };
+  metadata?: {
+    digipinDetails: DigipinCellMetadata[];
   };
 }
 
@@ -109,7 +185,12 @@ export interface DigipinToH3Response {
   h3Resolution: number;
   h3Indexes: string[];
   totalHexagons: number;
+  primaryH3: string;
   coverage: CoverageDto;
+  relationship: SpatialRelationship;
+  metadata?: {
+    h3Details: H3CellMetadata[];
+  };
 }
 
 /**

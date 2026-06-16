@@ -1,10 +1,55 @@
-import { IsString, IsArray, IsNumber, IsOptional, IsBoolean, Min, Max, ArrayMaxSize, ValidateNested } from 'class-validator';
+import { IsString, IsArray, IsNumber, IsOptional, IsBoolean, IsEnum, Min, Max, ArrayMaxSize, ValidateNested } from 'class-validator';
 import { Type, Transform } from 'class-transformer';
+
+/**
+ * Spatial Relationship Types
+ *
+ * Defines how two spatial objects relate to each other.
+ */
+export enum SpatialRelationship {
+  /**
+   * A completely contains B (B is fully inside A)
+   * Example: Pincode contains H3 cell
+   */
+  CONTAINS = 'contains',
+
+  /**
+   * A is completely contained by B (A is fully inside B)
+   * Example: H3 cell is contained by pincode
+   */
+  CONTAINED_BY = 'contained_by',
+
+  /**
+   * A and B share any area (includes contains, contained_by, and partial overlaps)
+   * This is the default and matches current API behavior.
+   */
+  INTERSECTS = 'intersects',
+
+  /**
+   * A and B partially overlap (excludes contains and contained_by)
+   * Example: H3 cell on pincode boundary
+   */
+  OVERLAPS = 'overlaps',
+}
+
+/**
+ * Base query DTO for spatial operations
+ */
+export class BaseSpatialQueryDto {
+  @IsOptional()
+  @IsEnum(SpatialRelationship)
+  relationship?: SpatialRelationship = SpatialRelationship.INTERSECTS;
+
+  @IsOptional()
+  @IsBoolean()
+  @Transform(({ value }) => value === 'true' || value === true)
+  includeMetadata?: boolean = false;
+}
 
 /**
  * Query DTO for pincode-to-h3 conversion
  */
-export class PincodeToH3QueryDto {
+export class PincodeToH3QueryDto extends BaseSpatialQueryDto {
   @IsOptional()
   @IsNumber()
   @Min(0)
@@ -15,9 +60,16 @@ export class PincodeToH3QueryDto {
 }
 
 /**
+ * Query DTO for h3-to-pincode conversion
+ */
+export class H3ToPincodeQueryDto extends BaseSpatialQueryDto {
+  // No additional params - resolution derived from h3Index
+}
+
+/**
  * Query DTO for pincode-to-digipin conversion
  */
-export class PincodeToDigipinQueryDto {
+export class PincodeToDigipinQueryDto extends BaseSpatialQueryDto {
   @IsOptional()
   @IsNumber()
   @Min(1)
@@ -28,9 +80,16 @@ export class PincodeToDigipinQueryDto {
 }
 
 /**
+ * Query DTO for digipin-to-pincode conversion
+ */
+export class DigipinToPincodeQueryDto extends BaseSpatialQueryDto {
+  // No additional params - level derived from digipinCode
+}
+
+/**
  * Query DTO for h3-to-digipin conversion
  */
-export class H3ToDigipinQueryDto {
+export class H3ToDigipinQueryDto extends BaseSpatialQueryDto {
   @IsOptional()
   @IsNumber()
   @Min(1)
@@ -43,7 +102,7 @@ export class H3ToDigipinQueryDto {
 /**
  * Query DTO for digipin-to-h3 conversion
  */
-export class DigipinToH3QueryDto {
+export class DigipinToH3QueryDto extends BaseSpatialQueryDto {
   @IsOptional()
   @IsNumber()
   @Min(0)

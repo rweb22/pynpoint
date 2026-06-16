@@ -16,7 +16,9 @@ import { ConversionService } from '../services/conversion.service';
 import { ConversionAdvancedService } from '../services/conversion-advanced.service';
 import {
   PincodeToH3QueryDto,
+  H3ToPincodeQueryDto,
   PincodeToDigipinQueryDto,
+  DigipinToPincodeQueryDto,
   H3ToDigipinQueryDto,
   DigipinToH3QueryDto,
   BulkPincodeToH3Dto,
@@ -84,8 +86,8 @@ export class ConversionController {
     @Param('pincode') pincode: string,
     @Query() query: PincodeToH3QueryDto,
   ): Promise<PincodeToH3Response> {
-    this.logger.log(`GET /convert/pincode-to-h3/${pincode}?resolution=${query.resolution}`);
-    return this.conversionService.pincodeToH3(pincode, query.resolution);
+    this.logger.log(`GET /convert/pincode-to-h3/${pincode}?resolution=${query.resolution}&relationship=${query.relationship}`);
+    return this.conversionService.pincodeToH3(pincode, query.resolution, query.relationship, query.includeMetadata);
   }
 
   /**
@@ -93,9 +95,12 @@ export class ConversionController {
    * Convert H3 cell to all intersecting pincodes
    */
   @Get('convert/h3-to-pincode/:h3Index')
-  async h3ToPincode(@Param('h3Index') h3Index: string): Promise<H3ToPincodeResponse> {
-    this.logger.log(`GET /convert/h3-to-pincode/${h3Index}`);
-    return this.conversionService.h3ToPincode(h3Index);
+  async h3ToPincode(
+    @Param('h3Index') h3Index: string,
+    @Query() query: H3ToPincodeQueryDto,
+  ): Promise<H3ToPincodeResponse> {
+    this.logger.log(`GET /convert/h3-to-pincode/${h3Index}?relationship=${query.relationship}`);
+    return this.conversionService.h3ToPincode(h3Index, query.relationship, query.includeMetadata);
   }
 
   /**
@@ -107,8 +112,8 @@ export class ConversionController {
     @Param('pincode') pincode: string,
     @Query() query: PincodeToDigipinQueryDto,
   ): Promise<PincodeToDigipinResponse> {
-    this.logger.log(`GET /convert/pincode-to-digipin/${pincode}?level=${query.level}`);
-    return this.conversionService.pincodeToDigipin(pincode, query.level);
+    this.logger.log(`GET /convert/pincode-to-digipin/${pincode}?level=${query.level}&relationship=${query.relationship}`);
+    return this.conversionService.pincodeToDigipin(pincode, query.level, query.relationship, query.includeMetadata);
   }
 
   /**
@@ -118,9 +123,10 @@ export class ConversionController {
   @Get('convert/digipin-to-pincode/:digipinCode')
   async digipinToPincode(
     @Param('digipinCode') digipinCode: string,
+    @Query() query: DigipinToPincodeQueryDto,
   ): Promise<DigipinToPincodeResponse> {
-    this.logger.log(`GET /convert/digipin-to-pincode/${digipinCode}`);
-    return this.conversionService.digipinToPincode(digipinCode);
+    this.logger.log(`GET /convert/digipin-to-pincode/${digipinCode}?relationship=${query.relationship}`);
+    return this.conversionService.digipinToPincode(digipinCode, query.relationship, query.includeMetadata);
   }
 
   /**
@@ -129,15 +135,15 @@ export class ConversionController {
 
   /**
    * 4.5: GET /convert/h3-to-digipin/:h3Index
-   * Convert H3 cell to DIGIPIN code
+   * Convert H3 cell to DIGIPIN code(s)
    */
   @Get('convert/h3-to-digipin/:h3Index')
   async h3ToDigipin(
     @Param('h3Index') h3Index: string,
     @Query() query: H3ToDigipinQueryDto,
   ): Promise<H3ToDigipinResponse> {
-    this.logger.log(`GET /convert/h3-to-digipin/${h3Index}?level=${query.level}`);
-    return this.conversionService.h3ToDigipin(h3Index, query.level);
+    this.logger.log(`GET /convert/h3-to-digipin/${h3Index}?level=${query.level}&relationship=${query.relationship}`);
+    return this.conversionService.h3ToDigipin(h3Index, query.level, query.relationship, query.includeMetadata);
   }
 
   /**
@@ -149,8 +155,8 @@ export class ConversionController {
     @Param('digipinCode') digipinCode: string,
     @Query() query: DigipinToH3QueryDto,
   ): Promise<DigipinToH3Response> {
-    this.logger.log(`GET /convert/digipin-to-h3/${digipinCode}?resolution=${query.resolution}`);
-    return this.conversionService.digipinToH3(digipinCode, query.resolution);
+    this.logger.log(`GET /convert/digipin-to-h3/${digipinCode}?resolution=${query.resolution}&relationship=${query.relationship}`);
+    return this.conversionService.digipinToH3(digipinCode, query.resolution, query.relationship, query.includeMetadata);
   }
 
   /**

@@ -1,0 +1,107 @@
+╔══════════════════════════════════════════════════════════════════════════════╗
+║           NEW API REQUEST/RESPONSE STRUCTURE - QUICK REFERENCE               ║
+╚══════════════════════════════════════════════════════════════════════════════╝
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ 📊 SUMMARY                                                                   │
+├──────────────────────────────────────────────────────────────────────────────┤
+│ Total Endpoints:        10                                                   │
+│ Modified:               6 (endpoints 1-6)                                    │
+│ Breaking Changes:       1 (endpoint 5 only)                                  │
+│ Backward Compatible:    9 out of 10 ✅                                       │
+└──────────────────────────────────────────────────────────────────────────────┘
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ 🆕 NEW QUERY PARAMETERS (Endpoints 1-6)                                     │
+├──────────────────────────────────────────────────────────────────────────────┤
+│                                                                              │
+│ relationship?: 'contains' | 'contained_by' | 'intersects' | 'overlaps'      │
+│   Default: 'intersects'                                                      │
+│   - contains:      A completely contains B                                   │
+│   - contained_by:  A is within B                                            │
+│   - intersects:    Any overlap (default, current behavior)                  │
+│   - overlaps:      Partial overlap only                                     │
+│                                                                              │
+│ includeMetadata?: boolean                                                    │
+│   Default: false                                                             │
+│   When true: Returns detailed overlap %, areas, centers                     │
+│                                                                              │
+└──────────────────────────────────────────────────────────────────────────────┘
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ ⚠️  BREAKING CHANGE - Endpoint 5 Only                                        │
+├──────────────────────────────────────────────────────────────────────────────┤
+│                                                                              │
+│ GET /api/v1/convert/h3-to-digipin/:h3Index                                  │
+│                                                                              │
+│ BEFORE:                       AFTER:                                         │
+│ {                             {                                              │
+│   digipinCode: "NJ4VJM"  →      digipinCodes: ["NJ4VJM"],                   │
+│ }                               totalDigipinCells: 1,                        │
+│                                 primaryDigipin: "NJ4VJM"  ← Use this!       │
+│                               }                                              │
+│                                                                              │
+│ MIGRATION:                                                                   │
+│ const { digipinCode } = ...      // ❌ Undefined                             │
+│ const { primaryDigipin } = ...   // ✅ Single value                          │
+│ const { digipinCodes } = ...     // ✅ Array of all                          │
+│                                                                              │
+└──────────────────────────────────────────────────────────────────────────────┘
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ 📋 ENDPOINT STATUS                                                           │
+├────┬─────────────────────────────────────────────┬─────────┬────────────────┤
+│ #  │ Endpoint                                    │ Breaking│ Query Params   │
+├────┼─────────────────────────────────────────────┼─────────┼────────────────┤
+│ 1  │ GET /pincode-to-h3/:pincode                 │ ❌ No   │ ✅ Added       │
+│ 2  │ GET /h3-to-pincode/:h3Index                 │ ❌ No   │ ✅ Added       │
+│ 3  │ GET /pincode-to-digipin/:pincode            │ ❌ No   │ ✅ Added       │
+│ 4  │ GET /digipin-to-pincode/:code               │ ❌ No   │ ✅ Added       │
+│ 5  │ GET /h3-to-digipin/:h3Index                 │ ⚠️  YES │ ✅ Added       │
+│ 6  │ GET /digipin-to-h3/:code                    │ ❌ No   │ ✅ Added       │
+│ 7  │ POST /bulk/pincode-to-h3                    │ ❌ No   │ ❌ None        │
+│ 8  │ POST /bulk/h3-to-pincode                    │ ❌ No   │ ❌ None        │
+│ 9  │ GET /spatial/intersection                   │ ❌ No   │ ❌ None        │
+│ 10 │ POST /spatial/polygon-search                │ ❌ No   │ ❌ None        │
+└────┴─────────────────────────────────────────────┴─────────┴────────────────┘
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ 💡 EXAMPLE USE CASES                                                         │
+├──────────────────────────────────────────────────────────────────────────────┤
+│                                                                              │
+│ Find H3 cells FULLY INSIDE pincode:                                         │
+│   GET /pincode-to-h3/110001?relationship=contains&resolution=9              │
+│                                                                              │
+│ Find pincodes that CONTAIN an H3 cell:                                      │
+│   GET /h3-to-pincode/89283082803ffff?relationship=contained_by              │
+│                                                                              │
+│ Get boundary cells only:                                                    │
+│   GET /pincode-to-h3/110001?relationship=overlaps                           │
+│                                                                              │
+│ Include detailed metadata:                                                  │
+│   GET /pincode-to-h3/110001?includeMetadata=true                            │
+│                                                                              │
+└──────────────────────────────────────────────────────────────────────────────┘
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ ✅ MIGRATION CHECKLIST                                                       │
+├──────────────────────────────────────────────────────────────────────────────┤
+│                                                                              │
+│ Endpoints 1-4, 6 (Non-Breaking):                                            │
+│   □ No action required - existing code works                                │
+│   □ Optional: Add relationship parameter for advanced queries               │
+│                                                                              │
+│ Endpoint 5 (Breaking):                                                      │
+│   □ REQUIRED: Change digipinCode → primaryDigipin                           │
+│   □ Test existing integrations                                              │
+│   □ Update documentation                                                    │
+│                                                                              │
+│ Endpoints 7-10:                                                             │
+│   □ No action required                                                      │
+│                                                                              │
+└──────────────────────────────────────────────────────────────────────────────┘
+
+For detailed documentation, see:
+  • EXECUTIVE_SUMMARY_NEW_API_STRUCTURE.md
+  • REFACTORING_SUMMARY.md
+  • BEFORE_AFTER_COMPARISON.md
