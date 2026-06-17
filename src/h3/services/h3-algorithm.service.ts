@@ -153,6 +153,100 @@ export class H3AlgorithmService {
   }
 
   /**
+   * Get parent H3 cell at coarser resolution
+   *
+   * @param h3Index - Child H3 index
+   * @param parentResolution - Target parent resolution (optional, defaults to current - 1)
+   * @returns Parent H3 index
+   */
+  getParent(h3Index: string, parentResolution?: number): string {
+    if (!isValidCell(h3Index)) {
+      throw new BadRequestException(`Invalid H3 index: ${h3Index}`);
+    }
+
+    const currentResolution = getResolution(h3Index);
+
+    // Default to immediate parent (one level up)
+    const targetResolution = parentResolution !== undefined ? parentResolution : currentResolution - 1;
+
+    if (targetResolution < 0 || targetResolution > 15) {
+      throw new BadRequestException(`Parent resolution must be between 0 and 15, got ${targetResolution}`);
+    }
+
+    if (targetResolution >= currentResolution) {
+      throw new BadRequestException(
+        `Parent resolution (${targetResolution}) must be less than current resolution (${currentResolution})`
+      );
+    }
+
+    try {
+      return cellToParent(h3Index, targetResolution);
+    } catch (error) {
+      throw new BadRequestException(
+        `Failed to get parent for ${h3Index} at resolution ${targetResolution}: ${error.message}`
+      );
+    }
+  }
+
+  /**
+   * Get children H3 cells at finer resolution
+   *
+   * @param h3Index - Parent H3 index
+   * @param childResolution - Target child resolution (optional, defaults to current + 1)
+   * @returns Array of child H3 indices
+   */
+  getChildren(h3Index: string, childResolution?: number): string[] {
+    if (!isValidCell(h3Index)) {
+      throw new BadRequestException(`Invalid H3 index: ${h3Index}`);
+    }
+
+    const currentResolution = getResolution(h3Index);
+
+    // Default to immediate children (one level down)
+    const targetResolution = childResolution !== undefined ? childResolution : currentResolution + 1;
+
+    if (targetResolution < 0 || targetResolution > 15) {
+      throw new BadRequestException(`Child resolution must be between 0 and 15, got ${targetResolution}`);
+    }
+
+    if (targetResolution <= currentResolution) {
+      throw new BadRequestException(
+        `Child resolution (${targetResolution}) must be greater than current resolution (${currentResolution})`
+      );
+    }
+
+    try {
+      return cellToChildren(h3Index, targetResolution);
+    } catch (error) {
+      throw new BadRequestException(
+        `Failed to get children for ${h3Index} at resolution ${targetResolution}: ${error.message}`
+      );
+    }
+  }
+
+  /**
+   * Get all ancestors from current cell to resolution 0
+   *
+   * @param h3Index - Starting H3 index
+   * @returns Array of ancestor H3 indices (ordered from immediate parent to resolution 0)
+   */
+  getAncestors(h3Index: string): string[] {
+    if (!isValidCell(h3Index)) {
+      throw new BadRequestException(`Invalid H3 index: ${h3Index}`);
+    }
+
+    const currentResolution = getResolution(h3Index);
+    const ancestors: string[] = [];
+
+    // Build ancestor chain from parent to resolution 0
+    for (let res = currentResolution - 1; res >= 0; res--) {
+      ancestors.push(cellToParent(h3Index, res));
+    }
+
+    return ancestors;
+  }
+
+  /**
    * Haversine distance between two points (same as DIGIPIN)
    */
   haversineDistance(lat1: number, lng1: number, lat2: number, lng2: number): number {

@@ -9,33 +9,37 @@ import { AuthModule } from '../auth/auth.module';
 
 /**
  * H3Module
- * 
- * Track 3: H3 Solo Operations
- * 
- * Provides:
+ *
+ * Track 3: H3 Solo Operations (PURE - No Cross-System References)
+ *
+ * Provides PURE H3 hexagonal spatial indexing operations:
  * - H3 encoding/decoding (coordinates ↔ H3 indices)
- * - H3 cell information
- * - Neighbor finding
- * - Nearby cell search
- * 
- * Endpoints:
- * 1. GET /api/v1/h3/:h3Index
- * 2. POST /api/v1/h3/encode
- * 3. POST /api/v1/h3/decode
- * 4. GET /api/v1/h3/neighbors/:h3Index
- * 5. GET /api/v1/h3/nearby
- * 
+ * - H3 cell information (boundary, area, center)
+ * - Neighbor finding (6 surrounding hexagons)
+ * - Nearby cell search (BFS within radius)
+ * - Hierarchy navigation (parent, children, ancestors)
+ *
+ * Endpoints (8 total):
+ * 1. POST /api/v1/h3/encode - Convert coordinates to H3
+ * 2. POST /api/v1/h3/decode - Convert H3 to coordinates
+ * 3. GET /api/v1/h3/:h3Index - Cell details (geometry only)
+ * 4. GET /api/v1/h3/neighbors/:h3Index - 6 neighbors
+ * 5. GET /api/v1/h3/nearby - Cells within radius
+ * 6. GET /api/v1/h3/:h3Index/parent - Parent cell
+ * 7. GET /api/v1/h3/:h3Index/children - Children cells
+ * 8. GET /api/v1/h3/:h3Index/ancestors - Full hierarchy to root
+ *
  * Data Sources:
- * - H3AlgorithmService: Pure H3 math (encode/decode/neighbors)
- * - RedisPersistentService: H3 → Pincode mapping (built during initialization)
- * - RedisCacheService: Cache expensive operations (nearby search, cell details)
- * 
+ * - H3AlgorithmService: Pure H3 math (h3-js library)
+ * - RedisCacheService: Cache expensive operations (nearby, cell details)
+ * - NO database access, NO pincode lookups (Track 4 handles cross-system)
+ *
  * Caching Strategy:
  * - encode/decode: NOT cached (pure algorithm, <0.1ms)
- * - getCellDetails: 1 hour TTL (includes Redis lookup for pincodes)
- * - nearby: 1 hour TTL (expensive BFS + multiple Redis lookups)
- * - neighbors: NOT cached (pure algorithm, <0.1ms)
- * 
+ * - getCellDetails: 1 hour TTL (caches geometry calculations)
+ * - nearby: 1 hour TTL (expensive BFS search)
+ * - neighbors/parent/children/ancestors: NOT cached (pure algorithm)
+ *
  * Authentication:
  * - All endpoints protected by ApiKeyGuard
  * - Rate limiting enforced by RateLimitInterceptor

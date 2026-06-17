@@ -24,6 +24,9 @@ import {
   DecodeH3Response,
   H3NeighborsResponse,
   H3NearbyResponse,
+  H3ParentResponse,
+  H3ChildrenResponse,
+  H3AncestorsResponse,
 } from '../dto/h3-response.dto';
 
 /**
@@ -96,9 +99,47 @@ export class H3Controller {
   }
 
   /**
+   * GET /h3/:h3Index/parent
+   * Get parent H3 cell at coarser resolution
+   *
+   * IMPORTANT: Specific parameterized routes must come BEFORE the catch-all :h3Index route
+   */
+  @Get(':h3Index/parent')
+  async getParent(
+    @Param('h3Index') h3Index: string,
+    @Query('resolution') resolution?: number,
+  ): Promise<H3ParentResponse> {
+    this.logger.log(`GET /h3/${h3Index}/parent`);
+    return this.h3Service.getParent(h3Index, resolution);
+  }
+
+  /**
+   * GET /h3/:h3Index/children
+   * Get children H3 cells at finer resolution
+   */
+  @Get(':h3Index/children')
+  async getChildren(
+    @Param('h3Index') h3Index: string,
+    @Query('resolution') resolution?: number,
+  ): Promise<H3ChildrenResponse> {
+    this.logger.log(`GET /h3/${h3Index}/children`);
+    return this.h3Service.getChildren(h3Index, resolution);
+  }
+
+  /**
+   * GET /h3/:h3Index/ancestors
+   * Get all ancestor H3 cells from child to resolution 0
+   */
+  @Get(':h3Index/ancestors')
+  async getAncestors(@Param('h3Index') h3Index: string): Promise<H3AncestorsResponse> {
+    this.logger.log(`GET /h3/${h3Index}/ancestors`);
+    return this.h3Service.getAncestors(h3Index);
+  }
+
+  /**
    * GET /h3/:h3Index
    * Get detailed information about an H3 cell
-   * 
+   *
    * IMPORTANT: This route must come LAST among GET routes because it's a catch-all
    */
   @Get(':h3Index')

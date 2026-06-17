@@ -14,7 +14,7 @@ export class H3BoundaryResponse {
 
 /**
  * GET /h3/:h3Index
- * Detailed H3 cell information
+ * Detailed H3 cell information (PURE H3 - no cross-system references)
  */
 export class H3CellResponse {
   h3Index: string;
@@ -25,22 +25,17 @@ export class H3CellResponse {
     value: number;
     unit: string;
   };
-  pincodes: string[];
-  pincodeCount: number;
-  parentH3?: string;
-  children?: string[];
 }
 
 /**
  * POST /h3/encode
- * Encode coordinates to H3 indices
+ * Encode coordinates to H3 indices (PURE H3 - no cross-system references)
  */
 export class EncodeH3Response {
   resolution: number;
   results: Array<{
     input: CoordinateResponse;
     h3Index: string;
-    pincodes: string[];
   }>;
 }
 
@@ -70,7 +65,7 @@ export class H3NeighborsResponse {
 
 /**
  * GET /h3/nearby
- * Find H3 cells within radius
+ * Find H3 cells within radius (PURE H3 - no cross-system references)
  */
 export class H3NearbyResponse {
   center: CoordinateResponse;
@@ -80,9 +75,56 @@ export class H3NearbyResponse {
   cells: Array<{
     h3Index: string;
     distance: number;
-    pincodes: string[];
     center: CoordinateResponse;
   }>;
   totalCells: number;
-  uniquePincodes: number;
+}
+
+/**
+ * GET /h3/:h3Index/parent
+ * Get parent H3 cell at coarser resolution
+ */
+export class H3ParentResponse {
+  child: string;
+  childResolution: number;
+  parent: string;
+  parentResolution: number;
+  center: CoordinateResponse;
+  boundary: H3BoundaryResponse;
+  area: {
+    value: number;
+    unit: string;
+  };
+}
+
+/**
+ * GET /h3/:h3Index/children
+ * Get children H3 cells at finer resolution
+ */
+export class H3ChildrenResponse {
+  parent: string;
+  parentResolution: number;
+  childResolution: number;
+  children: string[];
+  totalCount: number;
+  note: string;
+}
+
+/**
+ * GET /h3/:h3Index/ancestors
+ * Get all ancestor H3 cells from child to resolution 0
+ */
+export class H3AncestorsResponse {
+  h3Index: string;
+  resolution: number;
+  ancestors: Array<{
+    h3Index: string;
+    resolution: number;
+    center: CoordinateResponse;
+    area: {
+      value: number;
+      unit: string;
+    };
+  }>;
+  totalCount: number;
 }

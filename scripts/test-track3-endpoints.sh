@@ -138,6 +138,27 @@ echo ""
 test_endpoint "Get nearby cells (Delhi, 5km radius)" "GET" \
   "/api/v1/h3/nearby?lat=28.6139&lng=77.2090&radius=5&resolution=9"
 
+# Test 6: Get Parent Cell
+echo -e "${YELLOW}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+echo -e "${YELLOW}Test 6: GET /h3/:h3Index/parent (Hierarchy - Parent)${NC}"
+echo -e "${YELLOW}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+echo ""
+test_endpoint "Get parent of $h3_index" "GET" "/api/v1/h3/$h3_index/parent"
+
+# Test 7: Get Children Cells
+echo -e "${YELLOW}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+echo -e "${YELLOW}Test 7: GET /h3/:h3Index/children (Hierarchy - Children)${NC}"
+echo -e "${YELLOW}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+echo ""
+test_endpoint "Get children of $h3_index" "GET" "/api/v1/h3/$h3_index/children"
+
+# Test 8: Get Ancestors
+echo -e "${YELLOW}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+echo -e "${YELLOW}Test 8: GET /h3/:h3Index/ancestors (Hierarchy - Full Chain)${NC}"
+echo -e "${YELLOW}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+echo ""
+test_endpoint "Get all ancestors of $h3_index" "GET" "/api/v1/h3/$h3_index/ancestors"
+
 echo -e "${GREEN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
-echo -e "${GREEN}✅ Track 3 Testing Complete!${NC}"
+echo -e "${GREEN}✅ Track 3 Testing Complete! (8 endpoints)${NC}"
 echo -e "${GREEN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
