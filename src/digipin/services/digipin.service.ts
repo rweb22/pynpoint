@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, BadRequestException } from '@nestjs/common';
 import { RedisCacheService } from '../../redis/redis-cache.service';
 import { DigipinAlgorithmService } from './digipin-algorithm.service';
 import {
@@ -246,7 +246,7 @@ export class DigipinService {
     const level = this.algorithm.getLevel(code);
 
     if (level === 1) {
-      throw new Error('Level 1 DIGIPIN cells have no parent');
+      throw new BadRequestException('Level 1 DIGIPIN cells have no parent');
     }
 
     const parent = this.algorithm.getParent(code);
@@ -279,7 +279,7 @@ export class DigipinService {
     const level = this.algorithm.getLevel(code);
 
     if (level >= 10) {
-      throw new Error('Level 10 is the maximum DIGIPIN level, no children available');
+      throw new BadRequestException('Level 10 is the maximum DIGIPIN level, no children available');
     }
 
     const children = this.algorithm.getChildren(code);
