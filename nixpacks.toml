@@ -6,7 +6,6 @@ nixPkgs = ["nodejs_20"]
 
 [phases.install]
 # Install ALL dependencies including devDependencies
-# Use NODE_ENV=development to force devDependencies installation
 cmds = [
   "NODE_ENV=development npm install"
 ]
