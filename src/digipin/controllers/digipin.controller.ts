@@ -24,16 +24,28 @@ import {
   DecodeDigipinResponse,
   DigipinNeighborsResponse,
   DigipinNearbyResponse,
+  DigipinParentResponse,
+  DigipinChildrenResponse,
+  DigipinAncestorsResponse,
 } from '../dto/digipin-response.dto';
 
 /**
  * DigipinController
- * 
- * Track 2: DIGIPIN Solo Operations
- * 
+ *
+ * Track 2: DIGIPIN Solo Operations (PURE - no database dependencies)
+ *
  * Endpoints for India Post's Digital Postal Index Number (DIGIPIN) system.
- * DIGIPIN is a hierarchical grid-based geocoding system.
- * 
+ * DIGIPIN is a hierarchical 4x4 grid-based geocoding system with 10 levels.
+ *
+ * All operations are pure algorithmic calculations:
+ * - No database queries
+ * - No pincode lookups (use Conversion endpoints for that)
+ * - All responses include complete grid geometry (center, bounds)
+ *
+ * Total endpoints: 9
+ * - 2 POST: encode, decode
+ * - 7 GET: nearby, neighbors, parent, children, ancestors, cell details
+ *
  * All endpoints:
  * - Protected by ApiKeyGuard (requires valid API key)
  * - Rate limited by RateLimitInterceptor
@@ -90,6 +102,42 @@ export class DigipinController {
   async getNeighbors(@Param('code') code: string): Promise<DigipinNeighborsResponse> {
     this.logger.log(`GET /digipin/neighbors/${code}`);
     return this.digipinService.getNeighbors(code);
+  }
+
+  /**
+   * GET /digipin/:code/parent
+   * Get parent DIGIPIN cell (one level up)
+   *
+   * IMPORTANT: Must come BEFORE /:code route
+   */
+  @Get(':code/parent')
+  async getParent(@Param('code') code: string): Promise<DigipinParentResponse> {
+    this.logger.log(`GET /digipin/${code}/parent`);
+    return this.digipinService.getParent(code);
+  }
+
+  /**
+   * GET /digipin/:code/children
+   * Get children DIGIPIN cells (one level down, 16 cells in 4x4 grid)
+   *
+   * IMPORTANT: Must come BEFORE /:code route
+   */
+  @Get(':code/children')
+  async getChildren(@Param('code') code: string): Promise<DigipinChildrenResponse> {
+    this.logger.log(`GET /digipin/${code}/children`);
+    return this.digipinService.getChildren(code);
+  }
+
+  /**
+   * GET /digipin/:code/ancestors
+   * Get all ancestor DIGIPIN cells (from level 1 to parent)
+   *
+   * IMPORTANT: Must come BEFORE /:code route
+   */
+  @Get(':code/ancestors')
+  async getAncestors(@Param('code') code: string): Promise<DigipinAncestorsResponse> {
+    this.logger.log(`GET /digipin/${code}/ancestors`);
+    return this.digipinService.getAncestors(code);
   }
 
   /**

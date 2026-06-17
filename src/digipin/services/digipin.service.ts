@@ -237,4 +237,89 @@ export class DigipinService {
   private toRadians(degrees: number): number {
     return degrees * (Math.PI / 180);
   }
+
+  /**
+   * GET /digipin/:code/parent
+   * Get parent DIGIPIN cell (one level up)
+   */
+  async getParent(code: string) {
+    const level = this.algorithm.getLevel(code);
+
+    if (level === 1) {
+      throw new Error('Level 1 DIGIPIN cells have no parent');
+    }
+
+    const parent = this.algorithm.getParent(code);
+    const parentLevel = level - 1;
+    const center = this.algorithm.getCenter(code);
+    const parentCenter = this.algorithm.getCenter(parent);
+    const parentBounds = this.algorithm.getBounds(parent);
+
+    return {
+      digipinCode: code.toUpperCase(),
+      level,
+      parent: parent.toUpperCase(),
+      parentLevel,
+      center: { latitude: center.lat, longitude: center.lng },
+      parentCenter: { latitude: parentCenter.lat, longitude: parentCenter.lng },
+      parentBounds: {
+        minLat: parentBounds.minLat,
+        maxLat: parentBounds.maxLat,
+        minLng: parentBounds.minLng,
+        maxLng: parentBounds.maxLng,
+      },
+    };
+  }
+
+  /**
+   * GET /digipin/:code/children
+   * Get children DIGIPIN cells (one level down, 16 children in 4x4 grid)
+   */
+  async getChildren(code: string) {
+    const level = this.algorithm.getLevel(code);
+
+    if (level >= 10) {
+      throw new Error('Level 10 is the maximum DIGIPIN level, no children available');
+    }
+
+    const children = this.algorithm.getChildren(code);
+    const childrenLevel = level + 1;
+    const center = this.algorithm.getCenter(code);
+
+    return {
+      digipinCode: code.toUpperCase(),
+      level,
+      children: children.map(c => c.toUpperCase()),
+      childrenLevel,
+      totalChildren: children.length,
+      center: { latitude: center.lat, longitude: center.lng },
+    };
+  }
+
+  /**
+   * GET /digipin/:code/ancestors
+   * Get all ancestor DIGIPIN cells (from level 1 to parent)
+   */
+  async getAncestors(code: string) {
+    const level = this.algorithm.getLevel(code);
+    const ancestors = this.algorithm.getAncestors(code);
+    const center = this.algorithm.getCenter(code);
+
+    const ancestorInfo = ancestors.map(ancestorCode => {
+      const ancestorCenter = this.algorithm.getCenter(ancestorCode);
+      return {
+        cell: ancestorCode.toUpperCase(),
+        level: ancestorCode.length,
+        center: { latitude: ancestorCenter.lat, longitude: ancestorCenter.lng },
+      };
+    });
+
+    return {
+      digipinCode: code.toUpperCase(),
+      level,
+      ancestors: ancestorInfo,
+      totalAncestors: ancestors.length,
+      center: { latitude: center.lat, longitude: center.lng },
+    };
+  }
 }

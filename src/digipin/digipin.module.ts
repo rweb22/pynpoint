@@ -15,23 +15,28 @@ import { AuthModule } from '../auth/auth.module';
  * Provides:
  * - DIGIPIN encoding/decoding (coordinates ↔ DIGIPIN code)
  * - DIGIPIN cell information (center, bounds, area, hierarchy)
+ * - Hierarchy navigation (parent, children, ancestors)
  * - Neighbor finding (8-neighbor grid system)
  * - Nearby cell search (radius-based)
  *
  * NOTE: This module is PURE and does NOT query pincodes or any other database entities.
  * For DIGIPIN ↔ Pincode conversions, see ConversionModule.
  *
- * Endpoints:
- * 1. GET /api/v1/digipin/:code - Get cell details
- * 2. POST /api/v1/digipin/encode - Encode coordinates to DIGIPIN
- * 3. POST /api/v1/digipin/decode - Decode DIGIPIN to coordinates
+ * Endpoints (9 total):
+ * 1. POST /api/v1/digipin/encode - Encode coordinates to DIGIPIN
+ * 2. POST /api/v1/digipin/decode - Decode DIGIPIN to coordinates
+ * 3. GET /api/v1/digipin/nearby - Find cells within radius
  * 4. GET /api/v1/digipin/neighbors/:code - Get neighboring cells
- * 5. GET /api/v1/digipin/nearby - Find cells within radius
+ * 5. GET /api/v1/digipin/:code/parent - Get parent cell
+ * 6. GET /api/v1/digipin/:code/children - Get children cells (16 cells, 4x4 grid)
+ * 7. GET /api/v1/digipin/:code/ancestors - Get all ancestors
+ * 8. GET /api/v1/digipin/:code - Get cell details
  *
  * Caching Strategy:
  * - Uses RedisCacheService for cell details and nearby searches
  * - encode/decode NOT cached (pure algorithm, < 0.1ms)
  * - neighbors NOT cached (pure algorithm, < 1ms)
+ * - parent/children/ancestors NOT cached (pure algorithm, < 1ms)
  * - Cell details: 1 hour TTL
  * - Nearby results: 1 hour TTL
  *

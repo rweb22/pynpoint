@@ -371,4 +371,86 @@ export class DigipinAlgorithmService {
   private toRadians(degrees: number): number {
     return degrees * (Math.PI / 180);
   }
+
+  /**
+   * Get parent DIGIPIN cell (one level up)
+   *
+   * @param code - DIGIPIN code
+   * @returns Parent DIGIPIN code (one character shorter)
+   */
+  getParent(code: string): string {
+    const upperCode = code.toUpperCase();
+
+    if (upperCode.length === 0) {
+      throw new BadRequestException('Cannot get parent of empty DIGIPIN code');
+    }
+
+    if (upperCode.length === 1) {
+      throw new BadRequestException('Level 1 DIGIPIN cells have no parent');
+    }
+
+    // Parent is simply the code with the last character removed
+    return upperCode.substring(0, upperCode.length - 1);
+  }
+
+  /**
+   * Get children DIGIPIN cells (one level down)
+   *
+   * @param code - DIGIPIN code
+   * @returns Array of 16 children codes (4x4 grid)
+   */
+  getChildren(code: string): string[] {
+    const upperCode = code.toUpperCase();
+
+    if (upperCode.length >= 10) {
+      throw new BadRequestException('Level 10 is the maximum DIGIPIN level, no children available');
+    }
+
+    // Each DIGIPIN cell has exactly 16 children (4x4 grid)
+    const children: string[] = [];
+
+    for (const char of this.CHARSET) {
+      children.push(upperCode + char);
+    }
+
+    return children;
+  }
+
+  /**
+   * Get all ancestor DIGIPIN cells (from level 1 to parent)
+   *
+   * @param code - DIGIPIN code
+   * @returns Array of ancestor codes from level 1 to immediate parent
+   */
+  getAncestors(code: string): string[] {
+    const upperCode = code.toUpperCase();
+    const level = upperCode.length;
+
+    if (level === 0) {
+      return [];
+    }
+
+    if (level === 1) {
+      return []; // Level 1 has no ancestors
+    }
+
+    const ancestors: string[] = [];
+
+    // Build ancestors from level 1 to current level - 1
+    for (let i = 1; i < level; i++) {
+      ancestors.push(upperCode.substring(0, i));
+    }
+
+    return ancestors;
+  }
+
+  /**
+   * Get DIGIPIN level (number of characters in code)
+   *
+   * @param code - DIGIPIN code
+   * @returns Level (1-10)
+   */
+  getLevel(code: string): number {
+    return code.length;
+  }
 }

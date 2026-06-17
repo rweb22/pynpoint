@@ -103,3 +103,51 @@ export class DigipinNearbyResponse {
   }>;
   totalCells: number;
 }
+
+/**
+ * GET /digipin/:code/parent
+ * Get parent DIGIPIN cell
+ */
+export class DigipinParentResponse {
+  digipinCode: string;
+  level: number;
+  parent: string;
+  parentLevel: number;
+  center: CoordinateResponse;
+  parentCenter: CoordinateResponse;
+  parentBounds: DigipinBoundsResponse;
+}
+
+/**
+ * GET /digipin/:code/children
+ * Get children DIGIPIN cells
+ */
+export class DigipinChildrenResponse {
+  digipinCode: string;
+  level: number;
+  children: string[];
+  childrenLevel: number;
+  totalChildren: number;
+  center: CoordinateResponse;
+}
+
+/**
+ * Ancestor info for hierarchy
+ */
+export class DigipinAncestorInfo {
+  cell: string;
+  level: number;
+  center: CoordinateResponse;
+}
+
+/**
+ * GET /digipin/:code/ancestors
+ * Get all ancestor DIGIPIN cells
+ */
+export class DigipinAncestorsResponse {
+  digipinCode: string;
+  level: number;
+  ancestors: DigipinAncestorInfo[];
+  totalAncestors: number;
+  center: CoordinateResponse;
+}
