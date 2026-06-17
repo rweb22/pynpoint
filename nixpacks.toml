@@ -5,13 +5,13 @@
 nixPkgs = ["nodejs_20"]
 
 [phases.install]
-cmds = ["npm ci"]
+# Install ALL dependencies (including devDependencies needed for build)
+# Use --include=dev to override NODE_ENV=production
+cmds = ["npm ci --include=dev"]
 
 [phases.build]
+# Build the TypeScript project (requires @nestjs/cli from devDependencies)
 cmds = ["npm run build"]
 
 [start]
 cmd = "npm run start:prod"
-
-[variables]
-NODE_ENV = "production"
