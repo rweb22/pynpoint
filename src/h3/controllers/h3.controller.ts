@@ -107,9 +107,10 @@ export class H3Controller {
   @Get(':h3Index/parent')
   async getParent(
     @Param('h3Index') h3Index: string,
-    @Query('resolution') resolution?: number,
+    @Query('resolution') resolutionParam?: string,
   ): Promise<H3ParentResponse> {
     this.logger.log(`GET /h3/${h3Index}/parent`);
+    const resolution = resolutionParam !== undefined ? parseInt(resolutionParam, 10) : undefined;
     return this.h3Service.getParent(h3Index, resolution);
   }
 
@@ -120,9 +121,10 @@ export class H3Controller {
   @Get(':h3Index/children')
   async getChildren(
     @Param('h3Index') h3Index: string,
-    @Query('resolution') resolution?: number,
+    @Query('resolution') resolutionParam?: string,
   ): Promise<H3ChildrenResponse> {
     this.logger.log(`GET /h3/${h3Index}/children`);
+    const resolution = resolutionParam !== undefined ? parseInt(resolutionParam, 10) : undefined;
     return this.h3Service.getChildren(h3Index, resolution);
   }
 
