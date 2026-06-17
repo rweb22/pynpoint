@@ -5,25 +5,18 @@
 nixPkgs = ["nodejs_20"]
 
 [phases.install]
-# Install ALL dependencies (including devDependencies needed for build)
-# Railway's build phase runs "npm install && npm run build" by default
-# We need to ensure devDependencies are installed even with NODE_ENV=production
+# Install ALL dependencies including devDependencies
+# Use NODE_ENV=development to force devDependencies installation
 cmds = [
-  "npm config set include dev",
-  "npm ci --include=dev || npm install --include=dev"
+  "NODE_ENV=development npm install"
 ]
 
 [phases.build]
-# Build the TypeScript project (requires @nestjs/cli from devDependencies)
+# Build the TypeScript project
 cmds = [
-  "echo '=== Checking for nest binary ==='",
-  "ls -la node_modules/.bin/ | grep nest || echo 'nest binary not found!'",
-  "which nest || echo 'nest not in PATH'",
-  "echo '=== Running build ==='",
-  "npm run build",
-  "echo '=== Verifying build output ==='",
-  "ls -la dist/ || echo 'dist directory not created!'",
-  "ls -la dist/main.js || echo 'main.js not found!'"
+  "npx nest build",
+  "ls -la dist/",
+  "test -f dist/main.js && echo 'Build successful!' || (echo 'Build failed - main.js not found' && exit 1)"
 ]
 
 [start]
