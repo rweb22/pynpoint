@@ -56,8 +56,8 @@ export class PincodeH3Controller {
     @Param('pincode') pincode: string,
     @Query() query: PincodeToH3QueryDto,
   ): Promise<PincodeToH3Response> {
-    this.logger.log(`GET /convert/pincode-to-h3/${pincode}?resolution=${query.resolution}`);
-    return this.pincodeH3Service.pincodeToH3(pincode, query.resolution);
+    this.logger.log(`GET /convert/pincode-to-h3/${pincode}?relationship=${query.relationship || 'overlaps'}`);
+    return this.pincodeH3Service.pincodeToH3(pincode, query.relationship);
   }
 
   /**
@@ -69,8 +69,8 @@ export class PincodeH3Controller {
     @Param('h3Index') h3Index: string,
     @Query() query: H3ToPincodeQueryDto,
   ): Promise<H3ToPincodeResponse> {
-    this.logger.log(`GET /convert/h3-to-pincode/${h3Index}`);
-    return this.pincodeH3Service.h3ToPincode(h3Index);
+    this.logger.log(`GET /convert/h3-to-pincode/${h3Index}?relationship=${query.relationship || 'overlaps'}`);
+    return this.pincodeH3Service.h3ToPincode(h3Index, query.relationship);
   }
 
   /**
@@ -80,7 +80,7 @@ export class PincodeH3Controller {
   @Post('convert/bulk/pincode-to-h3')
   async bulkPincodeToH3(@Body() dto: BulkPincodeToH3Dto): Promise<BulkPincodeToH3Response> {
     this.logger.log(`POST /convert/bulk/pincode-to-h3 (${dto.pincodes.length} pincodes)`);
-    return this.pincodeH3Service.bulkPincodeToH3(dto.pincodes, dto.resolution);
+    return this.pincodeH3Service.bulkPincodeToH3(dto.pincodes, dto.relationship);
   }
 
   /**
@@ -90,6 +90,6 @@ export class PincodeH3Controller {
   @Post('convert/bulk/h3-to-pincode')
   async bulkH3ToPincode(@Body() dto: BulkH3ToPincodeDto): Promise<BulkH3ToPincodeResponse> {
     this.logger.log(`POST /convert/bulk/h3-to-pincode (${dto.h3Indexes.length} H3 cells)`);
-    return this.pincodeH3Service.bulkH3ToPincode(dto.h3Indexes);
+    return this.pincodeH3Service.bulkH3ToPincode(dto.h3Indexes, dto.relationship);
   }
 }

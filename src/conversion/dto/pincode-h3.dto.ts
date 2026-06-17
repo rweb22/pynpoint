@@ -11,31 +11,27 @@ import { Type } from 'class-transformer';
 
 /**
  * Query parameters for pincode-to-h3 conversion
+ * Resolution is fixed at 9 (not configurable)
  */
 export class PincodeToH3QueryDto {
   @IsOptional()
-  @Type(() => Number)
-  @IsInt()
-  @Min(0)
-  @Max(15)
-  resolution?: number = 9;
-
-  @IsOptional()
-  @IsEnum(['contains', 'intersects', 'within'])
-  relationship?: 'contains' | 'intersects' | 'within' = 'intersects';
+  @IsEnum(['overlaps', 'contains'])
+  relationship?: 'overlaps' | 'contains' = 'overlaps';
 }
 
 /**
  * Query parameters for h3-to-pincode conversion
+ * Only accepts H3 resolution 9 cells
  */
 export class H3ToPincodeQueryDto {
   @IsOptional()
-  @IsEnum(['contains', 'intersects', 'within'])
-  relationship?: 'contains' | 'intersects' | 'within' = 'intersects';
+  @IsEnum(['overlaps', 'contains'])
+  relationship?: 'overlaps' | 'contains' = 'overlaps';
 }
 
 /**
  * Bulk pincode-to-h3 conversion
+ * Resolution is fixed at 9 (not configurable)
  */
 export class BulkPincodeToH3Dto {
   @IsArray()
@@ -44,21 +40,23 @@ export class BulkPincodeToH3Dto {
   pincodes: string[];
 
   @IsOptional()
-  @Type(() => Number)
-  @IsInt()
-  @Min(0)
-  @Max(15)
-  resolution?: number = 9;
+  @IsEnum(['overlaps', 'contains'])
+  relationship?: 'overlaps' | 'contains' = 'overlaps';
 }
 
 /**
  * Bulk h3-to-pincode conversion
+ * Only accepts H3 resolution 9 cells
  */
 export class BulkH3ToPincodeDto {
   @IsArray()
   @ArrayMaxSize(100)
   @IsString({ each: true })
   h3Indexes: string[];
+
+  @IsOptional()
+  @IsEnum(['overlaps', 'contains'])
+  relationship?: 'overlaps' | 'contains' = 'overlaps';
 }
 
 // ==================== RESPONSE DTOs ====================
@@ -68,13 +66,11 @@ export class BulkH3ToPincodeDto {
  */
 export class PincodeToH3Response {
   pincode: string;
-  resolution: number;
+  resolution: 9; // Always 9
   h3Cells: string[];
   totalCells: number;
-  boundary?: {
-    type: string;
-    coordinates: number[][][];
-  };
+  relationship: 'overlaps' | 'contains';
+  note?: string;
 }
 
 /**
@@ -82,24 +78,28 @@ export class PincodeToH3Response {
  */
 export class H3ToPincodeResponse {
   h3Index: string;
-  resolution: number;
+  resolution: 9; // Validated to be 9
   pincodes: string[];
   totalPincodes: number;
+  relationship: 'overlaps' | 'contains';
   center: {
     latitude: number;
     longitude: number;
   };
+  note?: string;
 }
 
 /**
  * Response for bulk pincode-to-h3 conversion
  */
 export class BulkPincodeToH3Response {
-  resolution: number;
+  resolution: 9; // Always 9
+  relationship: 'overlaps' | 'contains';
   results: Array<{
     pincode: string;
     h3Cells: string[];
     totalCells: number;
+    note?: string;
   }>;
   totalProcessed: number;
   totalCells: number;
@@ -109,11 +109,13 @@ export class BulkPincodeToH3Response {
  * Response for bulk h3-to-pincode conversion
  */
 export class BulkH3ToPincodeResponse {
+  relationship: 'overlaps' | 'contains';
   results: Array<{
     h3Index: string;
-    resolution: number;
+    resolution: 9; // Validated to be 9
     pincodes: string[];
     totalPincodes: number;
+    note?: string;
   }>;
   totalProcessed: number;
   uniquePincodes: number;

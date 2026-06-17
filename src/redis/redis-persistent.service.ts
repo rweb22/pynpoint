@@ -138,6 +138,15 @@ export class RedisPersistentService implements OnModuleInit, OnModuleDestroy {
     return keys.length;
   }
 
+  // H3 Set operations (for Many-to-Many mapping)
+  async smembers(key: string): Promise<string[]> {
+    return this.client.smembers(key);
+  }
+
+  async sadd(key: string, ...members: string[]): Promise<number> {
+    return this.client.sadd(key, ...members);
+  }
+
   // Generic operations (use sparingly)
   async get(key: string): Promise<string | null> {
     return this.client.get(key);
