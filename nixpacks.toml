@@ -6,7 +6,8 @@ nixPkgs = ["nodejs_20"]
 
 [phases.install]
 # Install ALL dependencies (including devDependencies needed for build)
-# Use --include=dev to override NODE_ENV=production
+# Railway's build phase runs "npm install && npm run build" by default
+# We need to ensure devDependencies are installed even with NODE_ENV=production
 cmds = ["npm ci --include=dev"]
 
 [phases.build]
@@ -15,3 +16,6 @@ cmds = ["npm run build"]
 
 [start]
 cmd = "npm run start:prod"
+
+[variables]
+# Don't set NODE_ENV here - it causes npm ci to skip devDependencies in install phase
