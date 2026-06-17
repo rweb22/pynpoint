@@ -12,6 +12,7 @@ import { DigipinModule } from './digipin/digipin.module';
 import { H3Module } from './h3/h3.module';
 import { ConversionModule } from './conversion/conversion.module';
 import { DistanceModule } from './distance/distance.module';
+import { AdminModule } from './admin/admin.module';
 import configuration from './config/configuration';
 
 /**
@@ -50,6 +51,9 @@ import configuration from './config/configuration';
     H3Module,          // Track 3: H3 Solo Operations
     ConversionModule,  // Track 4: Conversion Operations (3 stacks)
     DistanceModule,    // Track 5: Distance & Measurement Operations
+
+    // Admin & Migration
+    AdminModule,
 
     // Initialization
     InitializationModule,

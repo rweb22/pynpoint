@@ -3,6 +3,8 @@ import { DataIngestionService } from './data-ingestion.service';
 import { CSVIngestionService } from './csv-ingestion.service';
 import { H3IndexService } from './h3-index.service';
 import { HealthService } from './health.service';
+import { DatabaseCapabilityService } from '../admin/services/database-capability.service';
+import { RedisStatusService } from '../admin/services/redis-status.service';
 
 /**
  * InitializationService
@@ -40,6 +42,8 @@ export class InitializationService implements OnApplicationBootstrap {
     private readonly csvIngestionService: CSVIngestionService,
     private readonly h3IndexService: H3IndexService,
     private readonly healthService: HealthService,
+    private readonly databaseCapability: DatabaseCapabilityService,
+    private readonly redisStatus: RedisStatusService,
   ) {}
 
   async onApplicationBootstrap(): Promise<void> {
@@ -55,6 +59,11 @@ export class InitializationService implements OnApplicationBootstrap {
     const startTime = Date.now();
 
     try {
+      // Phase 0: System capability assessment (for H3 migration planning)
+      this.logger.log('Phase 0: Assessing system capabilities...');
+      await this.databaseCapability.logCapabilitiesOnStartup();
+      await this.redisStatus.logStatusOnStartup();
+
       // Phase 1: Validate database connectivity and PostGIS extension
       this.logger.log('Phase 1: Validating database...');
       await this.healthService.checkPostGIS();
