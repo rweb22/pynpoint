@@ -29,7 +29,7 @@ import { ApiUsage } from './entities/api-usage.entity';
         type: 'postgres',
         url: configService.get<string>('DATABASE_URL'),
         entities: [Pincode, PostOffice, ApiKey, ApiUsage],
-        migrations: ['dist/database/migrations/*.js'],
+        migrations: ['dist/src/database/migrations/*.js'],
         migrationsTableName: 'typeorm_migrations',
         migrationsRun: configService.get<string>('RUN_MIGRATIONS') === 'true',
         synchronize: false, // Always false - use migrations instead
