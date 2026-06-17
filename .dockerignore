@@ -4,8 +4,8 @@ npm-debug.log
 yarn-error.log
 
 # Build outputs
-dist
-build
+# dist - COMMENTED OUT: We need dist/ in production container
+# build
 *.tsbuildinfo
 
 # Environment files
