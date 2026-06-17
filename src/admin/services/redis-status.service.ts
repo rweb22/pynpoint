@@ -264,4 +264,102 @@ export class RedisStatusService {
       this.logger.error('Failed to check Redis status:', error);
     }
   }
+
+  /**
+   * Count all H3 keys in Redis (complete scan)
+   *
+   * This performs a full SCAN of Redis to count all keys matching 'h3:*'.
+   * Unlike getH3KeyCount which samples, this counts ALL keys.
+   *
+   * WARNING: This may take 10-30 seconds depending on the number of keys.
+   *
+   * @returns Object with total count, metadata keys, data keys, and stats
+   */
+  async countAllH3Keys(): Promise<any> {
+    try {
+      const client = this.redis.getClient();
+
+      let cursor = '0';
+      let totalH3Keys = 0;
+      let metadataKeys = 0;
+      let dataKeys = 0;
+      let iterations = 0;
+
+      const startTime = Date.now();
+
+      // Scan all keys
+      do {
+        const [newCursor, keys] = await client.scan(
+          cursor,
+          'MATCH', 'h3:*',
+          'COUNT', '10000' // Scan 10K keys at a time
+        );
+
+        cursor = newCursor;
+        iterations++;
+
+        // Count different types of keys
+        for (const key of keys) {
+          totalH3Keys++;
+          if (key.startsWith('h3:stats:') || key === 'h3:metadata') {
+            metadataKeys++;
+          } else {
+            dataKeys++;
+          }
+        }
+
+        // Progress logging every 100K keys
+        if (totalH3Keys > 0 && totalH3Keys % 100000 === 0) {
+          this.logger.log(`Progress: ${(totalH3Keys / 1000000).toFixed(1)}M keys scanned...`);
+        }
+
+      } while (cursor !== '0');
+
+      const duration = Date.now() - startTime;
+
+      // Get metadata for comparison
+      const totalHexagons = await this.redis.get('h3:stats:total_hexagons');
+      const totalPincodes = await this.redis.get('h3:stats:total_pincodes');
+
+      const result = {
+        actualCount: {
+          total: totalH3Keys,
+          data: dataKeys,
+          metadata: metadataKeys,
+        },
+        metadataCount: {
+          totalHexagons: totalHexagons ? parseInt(totalHexagons) : null,
+          totalPincodes: totalPincodes ? parseInt(totalPincodes) : null,
+        },
+        scanStats: {
+          iterations,
+          duration: `${(duration / 1000).toFixed(2)}s`,
+          keysPerSecond: Math.round(totalH3Keys / (duration / 1000)),
+        },
+        discrepancy: null as any,
+      };
+
+      // Calculate discrepancy if metadata exists
+      if (totalHexagons) {
+        const expected = parseInt(totalHexagons);
+        const actual = dataKeys;
+        const diff = expected - actual;
+        const percentDiff = ((diff / expected) * 100).toFixed(2);
+
+        result.discrepancy = {
+          expected,
+          actual,
+          difference: diff,
+          percentageDiff: `${percentDiff}%`,
+          status: Math.abs(diff) < 1000 ? 'MATCH' : 'MISMATCH',
+        };
+      }
+
+      return result;
+
+    } catch (error) {
+      this.logger.error('Failed to count H3 keys:', error);
+      throw error;
+    }
+  }
 }

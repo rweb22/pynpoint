@@ -154,4 +154,27 @@ export class MigrationController {
 
     return 'WARNING: Unable to determine best approach. Review assessment details.';
   }
+
+  /**
+   * Count actual H3 keys in Redis
+   *
+   * Performs a complete SCAN of Redis to count all h3:* keys.
+   * This may take 10-30 seconds depending on the number of keys.
+   *
+   * Use this to get the actual count vs the estimated count from the assessment.
+   */
+  @Get('count-h3-keys')
+  async countH3Keys() {
+    this.logger.log('Counting actual H3 keys in Redis (this may take 10-30 seconds)...');
+
+    const startTime = Date.now();
+    const result = await this.redisStatus.countAllH3Keys();
+    const duration = Date.now() - startTime;
+
+    return {
+      timestamp: new Date().toISOString(),
+      duration: `${(duration / 1000).toFixed(2)}s`,
+      ...result,
+    };
+  }
 }
