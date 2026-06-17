@@ -11,7 +11,6 @@ import { PincodeModule } from './pincode/pincode.module';
 import { DigipinModule } from './digipin/digipin.module';
 import { H3Module } from './h3/h3.module';
 import { ConversionModule } from './conversion/conversion.module';
-import { HierarchyModule } from './hierarchy/hierarchy.module';
 import { DistanceModule } from './distance/distance.module';
 import configuration from './config/configuration';
 
@@ -49,9 +48,8 @@ import configuration from './config/configuration';
     PincodeModule,     // Track 1: Pincode Solo Operations
     DigipinModule,     // Track 2: DIGIPIN Solo Operations
     H3Module,          // Track 3: H3 Solo Operations
-    ConversionModule,  // Track 4: Hybrid & Conversion Operations
-    HierarchyModule,   // Track 5: Hierarchy Operations
-    DistanceModule,    // Track 6: Distance & Measurement Operations
+    ConversionModule,  // Track 4: Conversion Operations (3 stacks)
+    DistanceModule,    // Track 5: Distance & Measurement Operations
 
     // Initialization
     InitializationModule,
