@@ -29,12 +29,13 @@ export class DigipinHierarchyResponse {
 
 /**
  * GET /digipin/:code
- * Detailed DIGIPIN cell information
+ * Detailed DIGIPIN cell information (PURE - no pincode references)
  */
 export class DigipinCellResponse {
   digipinCode: string;
   level: number;
   center: CoordinateResponse;
+  bounds: DigipinBoundsResponse;
   boundary: {
     type: 'Polygon';
     coordinates: number[][][];
@@ -43,22 +44,21 @@ export class DigipinCellResponse {
     value: number;
     unit: string;
   };
-  pincodes: string[];
-  pincodeCount: number;
   parentDigipin: string | null;
   hierarchy: DigipinHierarchyResponse;
 }
 
 /**
  * POST /digipin/encode
- * Encode coordinates to DIGIPIN codes
+ * Encode coordinates to DIGIPIN codes (PURE - no pincode references)
  */
 export class EncodeDigipinResponse {
   level: number;
   results: Array<{
     input: CoordinateResponse;
     digipinCode: string;
-    pincodes: string[];
+    center: CoordinateResponse;
+    bounds: DigipinBoundsResponse;
   }>;
 }
 
@@ -88,7 +88,7 @@ export class DigipinNeighborsResponse {
 
 /**
  * GET /digipin/nearby
- * Find DIGIPIN cells within radius
+ * Find DIGIPIN cells within radius (PURE - no pincode references)
  */
 export class DigipinNearbyResponse {
   center: CoordinateResponse;
@@ -98,9 +98,8 @@ export class DigipinNearbyResponse {
   cells: Array<{
     digipinCode: string;
     distance: number;
-    pincodes: string[];
     center: CoordinateResponse;
+    bounds: DigipinBoundsResponse;
   }>;
   totalCells: number;
-  uniquePincodes: number;
 }

@@ -1,7 +1,4 @@
-import { Injectable, Logger, NotFoundException } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
-import { Pincode } from '../../database/entities/pincode.entity';
+import { Injectable, Logger } from '@nestjs/common';
 import { RedisCacheService } from '../../redis/redis-cache.service';
 import { DigipinAlgorithmService } from './digipin-algorithm.service';
 import {
@@ -15,14 +12,15 @@ import { EncodeDigipinDto, DecodeDigipinDto, NearbyDigipinQueryDto } from '../dt
 
 /**
  * DigipinService
- * 
- * Business logic service for DIGIPIN operations.
- * Combines pure algorithmic operations with database queries.
- * 
+ *
+ * PURE DIGIPIN operations - no database dependencies, no pincode references.
+ * All operations are algorithmic grid calculations with optional Redis caching.
+ *
  * Caching Strategy:
  * - encode/decode: NO cache (< 0.1ms, pure algorithm)
- * - getCellDetails: YES cache (1h TTL, includes DB query)
- * - nearby: YES cache (1h TTL, expensive calculation)
+ * - getCellDetails: YES cache (1h TTL, pure calculation but still cached for performance)
+ * - nearby: YES cache (1h TTL, expensive calculation with many cells)
+ * - neighbors: NO cache (<1ms, pure algorithm)
  */
 @Injectable()
 export class DigipinService {
@@ -32,14 +30,12 @@ export class DigipinService {
 
   constructor(
     private readonly algorithm: DigipinAlgorithmService,
-    @InjectRepository(Pincode)
-    private readonly pincodeRepository: Repository<Pincode>,
     private readonly redisCache: RedisCacheService,
   ) {}
 
   /**
    * GET /digipin/:code
-   * Get detailed information about a DIGIPIN cell
+   * Get detailed information about a DIGIPIN cell (PURE - no DB queries)
    */
   async getCellDetails(code: string): Promise<DigipinCellResponse> {
     const cacheKey = `digipin:cell:${code.toUpperCase()}`;
@@ -73,9 +69,6 @@ export class DigipinService {
     const lngDiff = bounds.maxLng - bounds.minLng;
     const areaKm2 = latDiff * lngDiff * 111 * 111 * Math.cos(center.lat * Math.PI / 180);
 
-    // Find overlapping pincodes
-    const pincodes = await this.findOverlappingPincodes(bounds);
-
     // Build hierarchy
     const hierarchy: any = {};
     for (let i = 1; i <= level; i++) {
@@ -86,13 +79,17 @@ export class DigipinService {
       digipinCode: code.toUpperCase(),
       level,
       center: { latitude: center.lat, longitude: center.lng },
+      bounds: {
+        minLat: bounds.minLat,
+        maxLat: bounds.maxLat,
+        minLng: bounds.minLng,
+        maxLng: bounds.maxLng,
+      },
       boundary,
       area: {
         value: parseFloat(areaKm2.toFixed(2)),
         unit: 'km²',
       },
-      pincodes: pincodes.map(p => p.pincode),
-      pincodeCount: pincodes.length,
       parentDigipin: level > 1 ? code.substring(0, level - 1).toUpperCase() : null,
       hierarchy,
     };
@@ -105,29 +102,28 @@ export class DigipinService {
 
   /**
    * POST /digipin/encode
-   * Convert coordinates to DIGIPIN codes
+   * Convert coordinates to DIGIPIN codes (PURE - no DB queries)
    */
   async encode(dto: EncodeDigipinDto): Promise<EncodeDigipinResponse> {
     const level = dto.level || 6;
-    const results: Array<{
-      input: { latitude: number; longitude: number };
-      digipinCode: string;
-      pincodes: string[];
-    }> = [];
 
-    for (const coord of dto.coordinates) {
+    const results = dto.coordinates.map(coord => {
       const digipinCode = this.algorithm.encode(coord.latitude, coord.longitude, level);
-
-      // Get pincodes for this cell
+      const center = this.algorithm.getCenter(digipinCode);
       const bounds = this.algorithm.getBounds(digipinCode);
-      const pincodes = await this.findOverlappingPincodes(bounds);
 
-      results.push({
+      return {
         input: { latitude: coord.latitude, longitude: coord.longitude },
         digipinCode,
-        pincodes: pincodes.map(p => p.pincode),
-      });
-    }
+        center: { latitude: center.lat, longitude: center.lng },
+        bounds: {
+          minLat: bounds.minLat,
+          maxLat: bounds.maxLat,
+          minLng: bounds.minLng,
+          maxLng: bounds.maxLng,
+        },
+      };
+    });
 
     return { level, results };
   }
@@ -167,7 +163,7 @@ export class DigipinService {
 
   /**
    * GET /digipin/nearby
-   * Find DIGIPIN cells within radius
+   * Find DIGIPIN cells within radius (PURE - no DB queries)
    */
   async getNearby(query: NearbyDigipinQueryDto): Promise<DigipinNearbyResponse> {
     const { lat, lng, radius = 5, level = 6 } = query;
@@ -184,32 +180,24 @@ export class DigipinService {
     // Get nearby cells using algorithm
     const nearbyCells = this.algorithm.getNearby(lat, lng, radius, level);
 
-    // Get pincodes and calculate distances for each cell
-    const cells: Array<{
-      digipinCode: string;
-      distance: number;
-      pincodes: string[];
-      center: { latitude: number; longitude: number };
-    }> = [];
-    const allPincodes = new Set<string>();
-
-    for (const cellCode of nearbyCells) {
+    // Calculate distances for each cell
+    const cells = nearbyCells.map(cellCode => {
       const cellCenter = this.algorithm.getCenter(cellCode);
       const distance = this.haversineDistance(lat, lng, cellCenter.lat, cellCenter.lng);
-
-      // Get pincodes for this cell
       const bounds = this.algorithm.getBounds(cellCode);
-      const pincodes = await this.findOverlappingPincodes(bounds);
 
-      pincodes.forEach(p => allPincodes.add(p.pincode));
-
-      cells.push({
+      return {
         digipinCode: cellCode,
         distance: parseFloat(distance.toFixed(2)),
-        pincodes: pincodes.map(p => p.pincode),
         center: { latitude: cellCenter.lat, longitude: cellCenter.lng },
-      });
-    }
+        bounds: {
+          minLat: bounds.minLat,
+          maxLat: bounds.maxLat,
+          minLng: bounds.minLng,
+          maxLng: bounds.maxLng,
+        },
+      };
+    });
 
     // Sort by distance
     cells.sort((a, b) => a.distance - b.distance);
@@ -221,34 +209,12 @@ export class DigipinService {
       level,
       cells,
       totalCells: cells.length,
-      uniquePincodes: allPincodes.size,
     };
 
     // Cache the result
     await this.redisCache.set(cacheKey, JSON.stringify(response), this.CACHE_TTL_NEARBY);
 
     return response;
-  }
-
-  /**
-   * Find pincodes that overlap with DIGIPIN cell bounds
-   */
-  private async findOverlappingPincodes(bounds: { minLat: number; maxLat: number; minLng: number; maxLng: number }): Promise<Pincode[]> {
-    // Query pincodes whose centroid falls within the DIGIPIN cell
-    // Using raw SQL for PostGIS spatial query
-    const pincodes = await this.pincodeRepository
-      .createQueryBuilder('pincode')
-      .where('ST_Intersects(centroid, ST_MakeEnvelope(:minLng, :minLat, :maxLng, :maxLat, 4326))', {
-        minLng: bounds.minLng,
-        minLat: bounds.minLat,
-        maxLng: bounds.maxLng,
-        maxLat: bounds.maxLat,
-      })
-      .andWhere('is_active = :active', { active: true })
-      .limit(100) // Safety limit
-      .getMany();
-
-    return pincodes;
   }
 
   /**
