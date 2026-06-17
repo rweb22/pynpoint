@@ -138,6 +138,46 @@ echo ""
 test_endpoint "Get nearby cells (Delhi, 5km radius)" "GET" \
   "/api/v1/digipin/nearby?lat=28.6139&lng=77.2090&radius=5&level=6"
 
+# Test 6: Get Parent Cell
+echo -e "${YELLOW}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+echo -e "${YELLOW}Test 6: GET /digipin/:code/parent (Parent Cell)${NC}"
+echo -e "${YELLOW}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+echo ""
+test_endpoint "Get parent of $digipin_code" "GET" "/api/v1/digipin/$digipin_code/parent"
+
+# Test 7: Get Children Cells
+echo -e "${YELLOW}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+echo -e "${YELLOW}Test 7: GET /digipin/:code/children (16 Children in 4x4 Grid)${NC}"
+echo -e "${YELLOW}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+echo ""
+test_endpoint "Get children of $digipin_code" "GET" "/api/v1/digipin/$digipin_code/children"
+
+# Test 8: Get Ancestors
+echo -e "${YELLOW}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+echo -e "${YELLOW}Test 8: GET /digipin/:code/ancestors (Complete Hierarchy)${NC}"
+echo -e "${YELLOW}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+echo ""
+test_endpoint "Get ancestors of $digipin_code" "GET" "/api/v1/digipin/$digipin_code/ancestors"
+
+# Test 9: Test with Level 1 Cell (should error on parent)
+echo -e "${YELLOW}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+echo -e "${YELLOW}Test 9: Edge Case - Parent of Level 1 (Should Error)${NC}"
+echo -e "${YELLOW}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+echo ""
+# Get a level 1 code
+level1_code=$(echo "$digipin_code" | cut -c1)
+test_endpoint "Get parent of level 1 cell: $level1_code (expect error)" "GET" "/api/v1/digipin/$level1_code/parent"
+
 echo -e "${GREEN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
 echo -e "${GREEN}✅ Track 2 Testing Complete!${NC}"
+echo -e "${GREEN}Total Endpoints Tested: 9${NC}"
+echo -e "${GREEN}  - Encode (bulk)${NC}"
+echo -e "${GREEN}  - Decode (bulk)${NC}"
+echo -e "${GREEN}  - Cell Details${NC}"
+echo -e "${GREEN}  - Neighbors (8 adjacent)${NC}"
+echo -e "${GREEN}  - Nearby (radius search)${NC}"
+echo -e "${GREEN}  - Parent (hierarchy up)${NC}"
+echo -e "${GREEN}  - Children (4x4 grid, 16 cells)${NC}"
+echo -e "${GREEN}  - Ancestors (complete lineage)${NC}"
+echo -e "${GREEN}  - Edge case (level 1 parent error)${NC}"
 echo -e "${GREEN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
