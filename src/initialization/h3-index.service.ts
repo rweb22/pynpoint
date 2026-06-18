@@ -129,16 +129,14 @@ export class H3IndexService {
   private async processPincode(pincode: any): Promise<string[]> {
     try {
       // Use PostgreSQL's native H3 function
-      // h3_polygon_to_cells expects: (exterior polygon, holes polygon[], resolution int)
-      // ST_ExteriorRing gets the outer boundary as a LINESTRING, ST_MakePolygon converts it to POLYGON
+      // h3_polygon_to_cells returns SETOF h3index (already a set, not an array)
+      // So we query it directly without unnest()
       const result = await this.dataSource.query(
         `
-        SELECT DISTINCT unnest(
-          h3_polygon_to_cells(
-            ST_MakePolygon(ST_ExteriorRing(boundary::geometry))::polygon,
-            ARRAY[]::polygon[],
-            $1::int
-          )
+        SELECT h3_polygon_to_cells(
+          ST_MakePolygon(ST_ExteriorRing(boundary::geometry))::polygon,
+          ARRAY[]::polygon[],
+          $1::int
         )::text as h3_index
         FROM pincodes
         WHERE pincode = $2
