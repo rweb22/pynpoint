@@ -119,9 +119,15 @@ export class InitializationService implements OnApplicationBootstrap {
 
       // Phase 4: Ensure H3 spatial index exists
       this.logger.log('Phase 4: Checking H3 spatial index...');
+      const forceRebuildH3 = process.env.FORCE_REBUILD_H3_INDEX === 'true';
       const indexExists = await this.h3IndexService.checkIndexExists();
 
-      if (!indexExists) {
+      if (forceRebuildH3) {
+        // Force rebuild requested - rebuild even if index exists
+        this.logger.log('Force rebuild requested, rebuilding H3 index...');
+        await this.h3IndexService.buildIndex(true);
+        this.logger.log('✅ H3 index rebuilt');
+      } else if (!indexExists) {
         if (isProduction) {
           // Production: Fail fast - index should be pre-built
           this.logger.error(
