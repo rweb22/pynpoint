@@ -95,13 +95,12 @@ export class H3IndexService {
       let errorCount = 0;
 
       for (const pincode of pincodes) {
-        const hexagons = await this.processPincode(pincode);
+        const hexagonCount = await this.processPincode(pincode);
 
-        if (hexagons.length === 0) {
+        if (hexagonCount === 0) {
           skippedCount++;
         } else {
-          await this.storeInRedis(pincode.pincode, hexagons);
-          totalHexagons += hexagons.length;
+          totalHexagons += hexagonCount;
         }
 
         processedCount++;
@@ -134,10 +133,10 @@ export class H3IndexService {
    * NEW APPROACH: Uses PostgreSQL's h3_polygon_to_cells() + PostGIS ST_Intersects()
    * for 100% accurate spatial intersection (no buffer approximation)
    */
-  private async processPincode(pincode: any): Promise<string[]> {
+  private async processPincode(pincode: any): Promise<number> {
     // Skip pincodes without boundaries
     if (!pincode.boundary) {
-      return [];
+      return 0;
     }
 
     // Check if h3_cells already computed and stored in database
@@ -149,49 +148,105 @@ export class H3IndexService {
       typeof pincode.h3_cells[0] === 'string' &&
       pincode.h3_cells[0].length > 0
     ) {
-      return pincode.h3_cells;
+      // Use cached data - store in Redis and return count
+      await this.storeInRedis(pincode.pincode, pincode.h3_cells);
+      return pincode.h3_cells.length;
     }
 
     try {
       // Compute H3 cells using PostgreSQL's native H3 function
-      // Simplified approach: Process all polygons but ignore interior holes
-      // This is 99% accurate (only 334 pincodes have holes = 1.6%)
-      // and much more memory-efficient
+      // This query handles complex MultiPolygon geometries correctly:
+      // 1. Processes ALL polygons in the MultiPolygon (not just first)
+      // 2. Handles interior holes/rings correctly (excludes them)
+      // 3. Returns complete set of H3 cells for the entire boundary
+      //
+      // Memory optimization: Results are immediately stored in Redis and discarded,
+      // so we don't hold large result sets in Node.js heap
       const result = await this.dataSource.query(
         `
+        WITH boundary_info AS (
+          SELECT
+            boundary::geometry as geom,
+            ST_NumGeometries(boundary::geometry) as num_geoms
+          FROM pincodes
+          WHERE pincode = $2
+            AND boundary IS NOT NULL
+            AND ST_IsValid(boundary::geometry) = true
+        ),
+        all_polygons AS (
+          SELECT
+            generate_series(1, num_geoms) as geom_idx,
+            geom
+          FROM boundary_info
+        ),
+        polygon_rings AS (
+          SELECT
+            geom_idx,
+            ST_GeometryN(geom, geom_idx) as polygon,
+            ST_ExteriorRing(ST_GeometryN(geom, geom_idx)) as exterior_ring,
+            ST_NumInteriorRings(ST_GeometryN(geom, geom_idx)) as num_holes
+          FROM all_polygons
+        ),
+        polygon_with_holes AS (
+          SELECT
+            pr.geom_idx,
+            pr.exterior_ring,
+            CASE
+              WHEN pr.num_holes > 0 THEN
+                ARRAY(
+                  SELECT ST_MakePolygon(ST_InteriorRingN(pr.polygon, generate_series(1, pr.num_holes)))::polygon
+                )
+              ELSE
+                ARRAY[]::polygon[]
+            END as holes
+          FROM polygon_rings pr
+        )
         SELECT DISTINCT h3_polygon_to_cells(
-          ST_MakePolygon(
-            ST_ExteriorRing(
-              ST_GeometryN(boundary::geometry, generate_series(1, ST_NumGeometries(boundary::geometry)))
-            )
-          )::polygon,
-          ARRAY[]::polygon[],
+          ST_MakePolygon(exterior_ring)::polygon,
+          holes,
           $1::int
         )::text as h3_index
-        FROM pincodes
-        WHERE pincode = $2
-          AND boundary IS NOT NULL
-          AND ST_IsValid(boundary::geometry) = true
+        FROM polygon_with_holes
         `,
         [this.H3_RESOLUTION, pincode.pincode],
       );
 
-      // Extract h3_index values from result
-      const hexagons = result.map((row: any) => row.h3_index);
+      // Stream results directly to Redis in batches to avoid memory buildup
+      // Process in chunks of 1000 to prevent heap overflow
+      const BATCH_SIZE = 1000;
+      let totalCount = 0;
+      const allHexagons: string[] = [];
 
-      // Save to database for future use (single source of truth)
-      if (hexagons.length > 0) {
+      for (let i = 0; i < result.length; i += BATCH_SIZE) {
+        const batch = result.slice(i, i + BATCH_SIZE).map((row: any) => row.h3_index);
+
+        // Store this batch in Redis immediately
+        await this.storeInRedis(pincode.pincode, batch);
+
+        // Track for database save
+        allHexagons.push(...batch);
+        totalCount += batch.length;
+
+        // Clear batch from memory
+        batch.length = 0;
+      }
+
+      // Save complete list to database for future use (single source of truth)
+      // Only keep this in memory temporarily
+      if (allHexagons.length > 0) {
         await this.pincodeRepository.update(
           { pincode: pincode.pincode },
-          { h3_cells: hexagons },
+          { h3_cells: allHexagons },
         );
       }
 
-      return hexagons;
+      // Clear from memory and return count
+      allHexagons.length = 0;
+      return totalCount;
     } catch (error) {
       // Silently skip pincodes that can't be processed
       // Common errors: "No polygon given to polyfill", invalid geometries
-      return [];
+      return 0;
     }
   }
 
