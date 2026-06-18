@@ -206,20 +206,40 @@ export class H3IndexService {
   }
 
   /**
-   * Clear existing H3 index from Redis
+   * Clear existing H3 index from Redis using SCAN (memory-efficient)
    */
   private async clearExistingIndex(): Promise<void> {
-    const keys = await this.redisService.keys('h3:*');
+    this.logger.log('Clearing existing H3 index...');
 
-    if (keys.length > 0) {
-      // Delete in batches to avoid blocking Redis
-      const batchSize = 1000;
-      for (let i = 0; i < keys.length; i += batchSize) {
-        const batch = keys.slice(i, i + batchSize);
-        await this.redisService.del(...batch);
+    let cursor = '0';
+    let totalDeleted = 0;
+    const batchSize = 1000;
+
+    do {
+      // Use SCAN to get keys in batches (avoids loading all keys into memory)
+      const result = await this.redisService.scan(
+        cursor,
+        'MATCH',
+        'h3:*',
+        'COUNT',
+        batchSize,
+      );
+
+      cursor = result[0];
+      const keys = result[1];
+
+      if (keys.length > 0) {
+        // Delete this batch
+        await this.redisService.del(...keys);
+        totalDeleted += keys.length;
+
+        // Log progress every 100K keys
+        if (totalDeleted % 100000 === 0) {
+          this.logger.log(`Progress: ${totalDeleted.toLocaleString()} keys deleted...`);
+        }
       }
+    } while (cursor !== '0');
 
-      this.logger.log(`Deleted ${keys.length} existing H3 keys`);
-    }
+    this.logger.log(`✅ Deleted ${totalDeleted.toLocaleString()} existing H3 keys`);
   }
 }
