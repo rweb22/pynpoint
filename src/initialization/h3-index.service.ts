@@ -154,25 +154,59 @@ export class H3IndexService {
 
     try {
       // Compute H3 cells using PostgreSQL's native H3 function
-      // Note: Boundaries are MultiPolygon, so we need to:
-      // 1. Extract first geometry from MultiPolygon using ST_GeometryN(..., 1)
-      // 2. Get exterior ring from that polygon
-      // 3. Convert to H3 cells
+      // This query handles complex MultiPolygon geometries correctly:
+      // 1. Processes ALL polygons in the MultiPolygon (not just first)
+      // 2. Handles interior holes/rings correctly (excludes them)
+      // 3. Returns complete set of H3 cells for the entire boundary
+      //
+      // The query uses generate_series to loop through all geometries in the MultiPolygon,
+      // then for each polygon, extracts exterior ring and interior holes, and passes them
+      // to h3_polygon_to_cells() which correctly excludes holes from the result.
       const result = await this.dataSource.query(
         `
-        SELECT h3_polygon_to_cells(
-          ST_MakePolygon(
-            ST_ExteriorRing(
-              ST_GeometryN(boundary::geometry, 1)
-            )
-          )::polygon,
-          ARRAY[]::polygon[],
+        WITH boundary_info AS (
+          SELECT
+            boundary::geometry as geom,
+            ST_NumGeometries(boundary::geometry) as num_geoms
+          FROM pincodes
+          WHERE pincode = $2
+            AND boundary IS NOT NULL
+            AND ST_IsValid(boundary::geometry) = true
+        ),
+        all_polygons AS (
+          SELECT
+            generate_series(1, num_geoms) as geom_idx,
+            geom
+          FROM boundary_info
+        ),
+        polygon_rings AS (
+          SELECT
+            geom_idx,
+            ST_GeometryN(geom, geom_idx) as polygon,
+            ST_ExteriorRing(ST_GeometryN(geom, geom_idx)) as exterior_ring,
+            ST_NumInteriorRings(ST_GeometryN(geom, geom_idx)) as num_holes
+          FROM all_polygons
+        ),
+        polygon_with_holes AS (
+          SELECT
+            pr.geom_idx,
+            pr.exterior_ring,
+            CASE
+              WHEN pr.num_holes > 0 THEN
+                ARRAY(
+                  SELECT ST_MakePolygon(ST_InteriorRingN(pr.polygon, generate_series(1, pr.num_holes)))::polygon
+                )
+              ELSE
+                ARRAY[]::polygon[]
+            END as holes
+          FROM polygon_rings pr
+        )
+        SELECT DISTINCT h3_polygon_to_cells(
+          ST_MakePolygon(exterior_ring)::polygon,
+          holes,
           $1::int
         )::text as h3_index
-        FROM pincodes
-        WHERE pincode = $2
-          AND boundary IS NOT NULL
-          AND ST_IsValid(boundary::geometry) = true
+        FROM polygon_with_holes
         `,
         [this.H3_RESOLUTION, pincode.pincode],
       );
