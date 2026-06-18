@@ -154,10 +154,18 @@ export class H3IndexService {
 
     try {
       // Compute H3 cells using PostgreSQL's native H3 function
+      // Note: Boundaries are MultiPolygon, so we need to:
+      // 1. Extract first geometry from MultiPolygon using ST_GeometryN(..., 1)
+      // 2. Get exterior ring from that polygon
+      // 3. Convert to H3 cells
       const result = await this.dataSource.query(
         `
         SELECT h3_polygon_to_cells(
-          ST_MakePolygon(ST_ExteriorRing(boundary::geometry))::polygon,
+          ST_MakePolygon(
+            ST_ExteriorRing(
+              ST_GeometryN(boundary::geometry, 1)
+            )
+          )::polygon,
           ARRAY[]::polygon[],
           $1::int
         )::text as h3_index
@@ -165,7 +173,6 @@ export class H3IndexService {
         WHERE pincode = $2
           AND boundary IS NOT NULL
           AND ST_IsValid(boundary::geometry) = true
-          AND ST_NPoints(boundary::geometry) >= 4
         `,
         [this.H3_RESOLUTION, pincode.pincode],
       );
