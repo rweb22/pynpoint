@@ -91,18 +91,26 @@ export class H3IndexService {
       // Step 3: Process each pincode and build index
       let totalHexagons = 0;
       let processedCount = 0;
+      let skippedCount = 0;
+      let errorCount = 0;
 
       for (const pincode of pincodes) {
         const hexagons = await this.processPincode(pincode);
-        await this.storeInRedis(pincode.pincode, hexagons);
 
-        totalHexagons += hexagons.length;
+        if (hexagons.length === 0) {
+          skippedCount++;
+        } else {
+          await this.storeInRedis(pincode.pincode, hexagons);
+          totalHexagons += hexagons.length;
+        }
+
         processedCount++;
 
-        if (processedCount % 1000 === 0) {
+        // Log progress every 2000 pincodes to reduce Railway rate limit issues
+        if (processedCount % 2000 === 0) {
           const progress = ((processedCount / pincodes.length) * 100).toFixed(1);
           this.logger.log(
-            `Progress: ${processedCount}/${pincodes.length} (${progress}%) | ${totalHexagons} hexagons`,
+            `Progress: ${processedCount}/${pincodes.length} (${progress}%) | ${totalHexagons.toLocaleString()} hexagons | Skipped: ${skippedCount}`,
           );
         }
       }
@@ -112,7 +120,7 @@ export class H3IndexService {
 
       const duration = ((Date.now() - startTime) / 1000).toFixed(1);
       this.logger.log(
-        `✅ H3 index build complete: ${totalHexagons.toLocaleString()} hexagons (${duration}s)`,
+        `✅ H3 index build complete: ${totalHexagons.toLocaleString()} hexagons (${duration}s) | Processed: ${processedCount} | Skipped: ${skippedCount}`,
       );
     } catch (error) {
       this.logger.error('H3 index build failed:', error.stack);
@@ -129,17 +137,39 @@ export class H3IndexService {
   private async processPincode(pincode: any): Promise<string[]> {
     // Skip pincodes without boundaries
     if (!pincode.boundary) {
-      this.logger.debug(`Skipping pincode ${pincode.pincode}: no boundary data`);
       return [];
     }
 
     // Check if h3_cells already computed and stored in database
     if (pincode.h3_cells && pincode.h3_cells.length > 0) {
-      this.logger.debug(`Using cached H3 cells for pincode ${pincode.pincode}`);
       return pincode.h3_cells;
     }
 
     try {
+      // Validate that boundary can be converted to polygon
+      // Check if boundary is valid and has at least 4 points (to form a polygon)
+      const validationResult = await this.dataSource.query(
+        `
+        SELECT
+          ST_IsValid(boundary::geometry) as is_valid,
+          ST_NPoints(boundary::geometry) as num_points,
+          ST_GeometryType(boundary::geometry) as geom_type
+        FROM pincodes
+        WHERE pincode = $1
+        `,
+        [pincode.pincode],
+      );
+
+      if (validationResult.length === 0 || !validationResult[0].is_valid) {
+        // Silently skip invalid geometries - don't spam logs
+        return [];
+      }
+
+      if (validationResult[0].num_points < 4) {
+        // Need at least 4 points to form a closed polygon
+        return [];
+      }
+
       // Compute H3 cells using PostgreSQL's native H3 function
       const result = await this.dataSource.query(
         `
@@ -164,14 +194,16 @@ export class H3IndexService {
           { pincode: pincode.pincode },
           { h3_cells: hexagons },
         );
-        this.logger.debug(`Saved ${hexagons.length} H3 cells for pincode ${pincode.pincode}`);
       }
 
       return hexagons;
     } catch (error) {
-      this.logger.error(
-        `Failed to process pincode ${pincode.pincode}: ${error.message}`,
-      );
+      // Only log error if it's not the common "No polygon given to polyfill" error
+      if (!error.message.includes('No polygon given to polyfill')) {
+        this.logger.error(
+          `Failed to process pincode ${pincode.pincode}: ${error.message}`,
+        );
+      }
       // Return empty array instead of throwing - don't fail entire build for one bad pincode
       return [];
     }
@@ -256,8 +288,8 @@ export class H3IndexService {
         await this.redisService.del(...keys);
         totalDeleted += keys.length;
 
-        // Log progress every 100K keys
-        if (totalDeleted % 100000 === 0) {
+        // Log progress every 500K keys to reduce Railway rate limit issues
+        if (totalDeleted % 500000 === 0) {
           this.logger.log(`Progress: ${totalDeleted.toLocaleString()} keys deleted...`);
         }
       }
