@@ -153,30 +153,6 @@ export class H3IndexService {
     }
 
     try {
-      // Validate that boundary can be converted to polygon
-      // Check if boundary is valid and has at least 4 points (to form a polygon)
-      const validationResult = await this.dataSource.query(
-        `
-        SELECT
-          ST_IsValid(boundary::geometry) as is_valid,
-          ST_NPoints(boundary::geometry) as num_points,
-          ST_GeometryType(boundary::geometry) as geom_type
-        FROM pincodes
-        WHERE pincode = $1
-        `,
-        [pincode.pincode],
-      );
-
-      if (validationResult.length === 0 || !validationResult[0].is_valid) {
-        // Silently skip invalid geometries - don't spam logs
-        return [];
-      }
-
-      if (validationResult[0].num_points < 4) {
-        // Need at least 4 points to form a closed polygon
-        return [];
-      }
-
       // Compute H3 cells using PostgreSQL's native H3 function
       const result = await this.dataSource.query(
         `
@@ -188,6 +164,8 @@ export class H3IndexService {
         FROM pincodes
         WHERE pincode = $2
           AND boundary IS NOT NULL
+          AND ST_IsValid(boundary::geometry) = true
+          AND ST_NPoints(boundary::geometry) >= 4
         `,
         [this.H3_RESOLUTION, pincode.pincode],
       );
@@ -205,13 +183,8 @@ export class H3IndexService {
 
       return hexagons;
     } catch (error) {
-      // Only log error if it's not the common "No polygon given to polyfill" error
-      if (!error.message.includes('No polygon given to polyfill')) {
-        this.logger.error(
-          `Failed to process pincode ${pincode.pincode}: ${error.message}`,
-        );
-      }
-      // Return empty array instead of throwing - don't fail entire build for one bad pincode
+      // Silently skip pincodes that can't be processed
+      // Common errors: "No polygon given to polyfill", invalid geometries
       return [];
     }
   }
