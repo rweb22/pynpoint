@@ -141,7 +141,14 @@ export class H3IndexService {
     }
 
     // Check if h3_cells already computed and stored in database
-    if (pincode.h3_cells && pincode.h3_cells.length > 0) {
+    // Be defensive: check if it's actually an array with valid elements
+    if (
+      pincode.h3_cells &&
+      Array.isArray(pincode.h3_cells) &&
+      pincode.h3_cells.length > 0 &&
+      typeof pincode.h3_cells[0] === 'string' &&
+      pincode.h3_cells[0].length > 0
+    ) {
       return pincode.h3_cells;
     }
 
