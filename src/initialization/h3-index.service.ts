@@ -127,10 +127,20 @@ export class H3IndexService {
    * for 100% accurate spatial intersection (no buffer approximation)
    */
   private async processPincode(pincode: any): Promise<string[]> {
+    // Skip pincodes without boundaries
+    if (!pincode.boundary) {
+      this.logger.debug(`Skipping pincode ${pincode.pincode}: no boundary data`);
+      return [];
+    }
+
+    // Check if h3_cells already computed and stored in database
+    if (pincode.h3_cells && pincode.h3_cells.length > 0) {
+      this.logger.debug(`Using cached H3 cells for pincode ${pincode.pincode}`);
+      return pincode.h3_cells;
+    }
+
     try {
-      // Use PostgreSQL's native H3 function
-      // h3_polygon_to_cells returns SETOF h3index (already a set, not an array)
-      // So we query it directly without unnest()
+      // Compute H3 cells using PostgreSQL's native H3 function
       const result = await this.dataSource.query(
         `
         SELECT h3_polygon_to_cells(
@@ -140,12 +150,22 @@ export class H3IndexService {
         )::text as h3_index
         FROM pincodes
         WHERE pincode = $2
+          AND boundary IS NOT NULL
         `,
         [this.H3_RESOLUTION, pincode.pincode],
       );
 
       // Extract h3_index values from result
       const hexagons = result.map((row: any) => row.h3_index);
+
+      // Save to database for future use (single source of truth)
+      if (hexagons.length > 0) {
+        await this.pincodeRepository.update(
+          { pincode: pincode.pincode },
+          { h3_cells: hexagons },
+        );
+        this.logger.debug(`Saved ${hexagons.length} H3 cells for pincode ${pincode.pincode}`);
+      }
 
       return hexagons;
     } catch (error) {
@@ -162,7 +182,7 @@ export class H3IndexService {
    */
   private async fetchPincodeBoundaries(): Promise<Pincode[]> {
     return await this.pincodeRepository.find({
-      select: ['id', 'pincode', 'boundary'],
+      select: ['id', 'pincode', 'boundary', 'h3_cells'],
       where: { is_active: true },
       order: { id: 'ASC' },
     });

@@ -64,6 +64,28 @@ export class Pincode {
   })
   centroid: string; // GeoJSON Point
 
+  /**
+   * Pre-computed H3 hexagon cells that intersect with this pincode's boundary
+   *
+   * Stored as array of h3index (custom PostgreSQL type from h3 extension)
+   * Generated once during H3 index build, reused on subsequent rebuilds.
+   *
+   * Benefits:
+   * - Eliminates recomputation of H3 cells
+   * - Single source of truth for pincode → H3 mapping
+   * - Enables fast Pincode → H3 lookups
+   * - GIN index enables fast H3 → Pincode reverse lookups
+   *
+   * NULL or empty array for pincodes without boundary data.
+   */
+  @Column({
+    type: 'text',
+    array: true,
+    nullable: true,
+    default: () => "'{}'",
+  })
+  h3_cells: string[]; // Array of H3 indices (stored as text)
+
   @Column({ length: 100, nullable: true })
   @Index()
   state: string;
