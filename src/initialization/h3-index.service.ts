@@ -128,12 +128,17 @@ export class H3IndexService {
    */
   private async processPincode(pincode: any): Promise<string[]> {
     try {
-      // Use PostgreSQL's native H3 function to generate cells directly from boundary
-      // Cast resolution to integer to avoid "function does not exist" error
+      // Use PostgreSQL's native H3 function
+      // h3_polygon_to_cells expects: (exterior polygon, holes polygon[], resolution int)
+      // ST_ExteriorRing gets the outer boundary as a LINESTRING, ST_MakePolygon converts it to POLYGON
       const result = await this.dataSource.query(
         `
         SELECT DISTINCT unnest(
-          h3_polygon_to_cells(boundary::geometry, $1::int)
+          h3_polygon_to_cells(
+            ST_MakePolygon(ST_ExteriorRing(boundary::geometry))::polygon,
+            ARRAY[]::polygon[],
+            $1::int
+          )
         )::text as h3_index
         FROM pincodes
         WHERE pincode = $2
