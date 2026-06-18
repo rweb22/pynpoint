@@ -12,18 +12,21 @@ import { MigrationInterface, QueryRunner } from 'typeorm';
  * - Data consistency between PostgreSQL and Redis
  * - GIN index enables fast reverse lookups (H3 → Pincode)
  *
- * Column: h3_cells h3index[]
- * - Stores array of H3 hexagon indices for each pincode
+ * Column: h3_cells text[]
+ * - Stores array of H3 hexagon indices as text strings
  * - NULL or empty array for pincodes without boundaries
  * - Computed once during initial index build
  * - Updated only when boundaries change
+ * - Using text[] instead of h3index[] for TypeORM compatibility
  */
 export class AddH3CellsColumn1781703000000 implements MigrationInterface {
   public async up(queryRunner: QueryRunner): Promise<void> {
     // Add h3_cells column to store array of H3 indices
+    // Use text[] instead of h3index[] for TypeORM compatibility
+    // H3 indices are stored as text strings (e.g., '891f1d48817ffff')
     await queryRunner.query(`
-      ALTER TABLE pincodes 
-      ADD COLUMN IF NOT EXISTS h3_cells h3index[] DEFAULT '{}'
+      ALTER TABLE pincodes
+      ADD COLUMN IF NOT EXISTS h3_cells text[] DEFAULT '{}'
     `);
 
     // Create GIN index for fast reverse lookups (H3 → Pincode)
