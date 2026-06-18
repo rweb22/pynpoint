@@ -128,12 +128,12 @@ export class H3IndexService {
    */
   private async processPincode(pincode: any): Promise<string[]> {
     try {
-      // Use PostgreSQL's native H3 function to generate candidate cells
-      // Then validate with PostGIS ST_Intersects for 100% accuracy
+      // Use PostgreSQL's native H3 function to generate cells directly from boundary
+      // Cast resolution to integer to avoid "function does not exist" error
       const result = await this.dataSource.query(
         `
         SELECT DISTINCT unnest(
-          h3_polygon_to_cells(boundary::geometry, $1)
+          h3_polygon_to_cells(boundary::geometry, $1::int)
         )::text as h3_index
         FROM pincodes
         WHERE pincode = $2
