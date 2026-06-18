@@ -165,6 +165,16 @@ export class RedisPersistentService implements OnModuleInit, OnModuleDestroy {
     return this.client.keys(pattern);
   }
 
+  async scan(
+    cursor: string,
+    matchKeyword: 'MATCH',
+    pattern: string,
+    countKeyword: 'COUNT',
+    count: number,
+  ): Promise<[string, string[]]> {
+    return this.client.scan(cursor, matchKeyword, pattern, countKeyword, count);
+  }
+
   async ping(): Promise<string> {
     return this.client.ping();
   }
