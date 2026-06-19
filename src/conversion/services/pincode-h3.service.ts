@@ -7,10 +7,8 @@ import {
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import {
-  polygonToCells,
   cellToBoundary,
   cellToLatLng,
-  gridDisk,
   getResolution,
 } from 'h3-js';
 import booleanPointInPolygon from '@turf/boolean-point-in-polygon';
@@ -29,19 +27,26 @@ import {
  * Service for Pincode ↔ H3 conversions
  * Stack 1 of Track 4
  *
- * ALGORITHM: Hybrid Spatial Overlap Detection
+ * OPTIMIZED ALGORITHM: Uses Pre-computed Native PostgreSQL H3 Index
  *
  * Pincode → H3:
- * 1. Use polygonToCells() for core cells (centroid-based)
- * 2. Add 1-ring neighbors around boundary cells
- * 3. Validate boundary cells with proper overlap check
+ * 1. Read pre-computed h3_cells from PostgreSQL (30.5M cells cached)
+ * 2. For "overlaps": Return all cells directly (instant!)
+ * 3. For "contains": Filter cells whose centers are inside polygon
+ *
+ * OLD APPROACH (DEPRECATED):
+ * - Was computing cells on-the-fly using JavaScript polygonToCells()
+ * - 10-100x slower than reading from cache
  *
  * H3 → Pincode:
  * 1. Validate resolution = 9 (only supported resolution)
- * 2. For "overlaps": Direct Redis lookup (pre-built index)
+ * 2. For "overlaps": Direct Redis lookup (pre-built reverse index)
  * 3. For "contains": Redis + PostGIS ST_Contains filter
  *
- * Resolution: Fixed at 9 (~0.105 km²) - matches index granularity
+ * Data Sources:
+ * - PostgreSQL h3_cells column: 30.5M pre-computed cells (source of truth)
+ * - Redis h3:{index} sets: Reverse index for fast H3 → Pincode lookups
+ * - Resolution: Fixed at 9 (~0.105 km²) - matches index granularity
  */
 @Injectable()
 export class PincodeH3Service {
@@ -59,7 +64,13 @@ export class PincodeH3Service {
 
   /**
    * Convert Pincode to H3 cells (resolution 9 only)
-   * Uses hybrid approach for accurate boundary detection
+   *
+   * OPTIMIZED: Uses pre-computed h3_cells from PostgreSQL (30.5M cells cached)
+   * - Pincode → H3: Read directly from h3_cells column (instant!)
+   * - H3 → Pincode: Read from Redis reverse index
+   *
+   * OLD (SLOW): Was computing cells on-the-fly using polygonToCells()
+   * NEW (FAST): Uses native PostgreSQL H3 extension results
    */
   async pincodeToH3(
     pincode: string,
@@ -77,80 +88,60 @@ export class PincodeH3Service {
       return JSON.parse(cached);
     }
 
-    // Step 1: Get pincode from database
+    // Step 1: Get pincode with pre-computed H3 cells from database
     const pincodeEntity = await this.pincodeRepository.findOne({
       where: { pincode },
+      select: ['pincode', 'h3_cells', 'boundary'],
     });
 
     if (!pincodeEntity) {
       throw new NotFoundException(`Pincode ${pincode} not found`);
     }
 
-    if (!pincodeEntity.boundary) {
+    // Step 2: Check if H3 cells are available (pre-computed by H3IndexService)
+    if (!pincodeEntity.h3_cells || pincodeEntity.h3_cells.length === 0) {
+      // This pincode has no boundary data or failed during H3 generation
       throw new BadRequestException(
-        `Pincode ${pincode} has no boundary geometry. ` +
-          `This pincode cannot be converted to H3 cells.`,
+        `Pincode ${pincode} has no H3 cells. ` +
+          `This pincode either has no boundary geometry or was skipped during indexing.`,
       );
     }
 
-    // Step 2: Parse and validate geometry
-    const geometry =
-      typeof pincodeEntity.boundary === 'string'
-        ? JSON.parse(pincodeEntity.boundary)
-        : pincodeEntity.boundary;
+    // Step 3: Get H3 cells directly from cached column (instant!)
+    let h3Cells = pincodeEntity.h3_cells;
 
-    const geometryType = geometry.type;
-    if (!['Polygon', 'MultiPolygon'].includes(geometryType)) {
-      throw new BadRequestException(
-        `Invalid geometry type: ${geometryType}. Expected Polygon or MultiPolygon.`,
-      );
-    }
-
-    // Step 3: Convert to H3 cells using hybrid approach
-    let h3Cells: string[];
-
-    try {
-      if (geometryType === 'MultiPolygon') {
-        // Handle multiple polygons (islands, disconnected areas)
-        const allCells = new Set<string>();
-        for (const polygonCoords of geometry.coordinates) {
-          const cells = await this.hybridPolygonToCells(
-            { type: 'Polygon', coordinates: polygonCoords },
-            relationship,
-          );
-          cells.forEach((cell) => allCells.add(cell));
-        }
-        h3Cells = Array.from(allCells);
-      } else {
-        // Single polygon
-        h3Cells = await this.hybridPolygonToCells(geometry, relationship);
-      }
-    } catch (error) {
-      throw new BadRequestException(
-        `Failed to convert pincode ${pincode} to H3: ${error.message}`,
-      );
-    }
-
-    // Step 4: Check size limits
-    if (h3Cells.length > this.MAX_CELLS) {
-      this.logger.warn(
-        `Large pincode: ${pincode} has ${h3Cells.length} H3 cells`,
-      );
-      throw new BadRequestException(
-        `Pincode ${pincode} is too large (${h3Cells.length} H3 cells). ` +
-          `Maximum: ${this.MAX_CELLS}. Consider using bulk operations.`,
-      );
-    }
-
-    // Step 5: Handle empty results for "contains"
+    // Step 4: Handle "contains" relationship filter
+    // For "contains", we need to filter cells whose centers are inside the polygon
     let note: string | undefined;
-    if (h3Cells.length === 0 && relationship === 'contains') {
-      note =
-        'No H3 cells fully contained within pincode boundary. ' +
-        'Try relationship=overlaps for intersecting cells.';
+
+    if (relationship === 'contains') {
+      // Parse boundary for filtering
+      const geometry =
+        typeof pincodeEntity.boundary === 'string'
+          ? JSON.parse(pincodeEntity.boundary)
+          : pincodeEntity.boundary;
+
+      if (!geometry) {
+        throw new BadRequestException(
+          `Pincode ${pincode} has H3 cells but no boundary geometry. ` +
+            `Cannot apply "contains" filter.`,
+        );
+      }
+
+      // Filter to cells whose centers are inside polygon
+      h3Cells = h3Cells.filter((cell) => {
+        const [lat, lng] = cellToLatLng(cell);
+        return this.isPointInPolygon([lng, lat], geometry);
+      });
+
+      if (h3Cells.length === 0) {
+        note =
+          'No H3 cells fully contained within pincode boundary. ' +
+          'Try relationship=overlaps for intersecting cells.';
+      }
     }
 
-    // Step 6: Build response
+    // Step 5: Build response
     const result: PincodeToH3Response = {
       pincode,
       resolution: this.FIXED_RESOLUTION,
@@ -160,7 +151,7 @@ export class PincodeH3Service {
       note,
     };
 
-    // Step 7: Cache result
+    // Step 6: Cache result
     await this.redisCache.set(
       cacheKey,
       JSON.stringify(result),
@@ -351,92 +342,7 @@ export class PincodeH3Service {
     };
   }
 
-  /**
-   * HYBRID ALGORITHM: Polygon to H3 cells with accurate boundary detection
-   *
-   * Steps:
-   * 1. Get core cells using polygonToCells() (centroid-based)
-   * 2. Identify boundary cells (cells with neighbors outside polygon)
-   * 3. Add 1-ring neighbors around boundary
-   * 4. Validate each candidate cell for actual overlap
-   * 5. Filter based on relationship type (overlaps vs contains)
-   */
-  private async hybridPolygonToCells(
-    geometry: any,
-    relationship: 'overlaps' | 'contains',
-  ): Promise<string[]> {
-    // Step 1: Get core cells (centroid-based, fast)
-    const coreCells = polygonToCells(geometry, this.FIXED_RESOLUTION, true);
 
-    if (relationship === 'contains') {
-      // For "contains", filter to cells whose centers are inside polygon
-      return coreCells.filter((cell) => {
-        const [lat, lng] = cellToLatLng(cell);
-        return this.isPointInPolygon([lng, lat], geometry);
-      });
-    }
-
-    // For "overlaps", use hybrid approach to catch boundary cells
-    const allCells = new Set<string>(coreCells);
-
-    // Step 2: Find boundary cells and get their 1-ring neighbors
-    const candidateCells = new Set<string>();
-
-    for (const cell of coreCells) {
-      const neighbors = gridDisk(cell, 1);
-      for (const neighbor of neighbors) {
-        if (!coreCells.includes(neighbor)) {
-          // This neighbor is outside core, might overlap at boundary
-          candidateCells.add(neighbor);
-        }
-      }
-    }
-
-    // Step 3: Validate candidate boundary cells for actual overlap
-    for (const cell of candidateCells) {
-      if (this.cellOverlapsPolygon(cell, geometry)) {
-        allCells.add(cell);
-      }
-    }
-
-    return Array.from(allCells);
-  }
-
-  /**
-   * Check if H3 cell overlaps with polygon
-   * Returns true if ANY part of the cell intersects the polygon
-   */
-  private cellOverlapsPolygon(h3Cell: string, polygon: any): boolean {
-    const cellBoundary = cellToBoundary(h3Cell, true); // GeoJSON format
-
-    // Check if any vertex of cell is inside polygon
-    for (const [lat, lng] of cellBoundary) {
-      if (this.isPointInPolygon([lng, lat], polygon)) {
-        return true;
-      }
-    }
-
-    // Check if any vertex of polygon is inside cell
-    const cellPoly = turfPolygon([
-      cellBoundary.map(([lat, lng]) => [lng, lat]),
-    ]);
-
-    const coordinates =
-      polygon.type === 'Polygon'
-        ? polygon.coordinates
-        : polygon.coordinates[0];
-
-    for (const ring of coordinates) {
-      for (const [lng, lat] of ring) {
-        const pt = point([lng, lat]);
-        if (booleanPointInPolygon(pt, cellPoly)) {
-          return true;
-        }
-      }
-    }
-
-    return false;
-  }
 
   /**
    * Check if point is inside polygon
