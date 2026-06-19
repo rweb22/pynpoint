@@ -13,6 +13,7 @@ import { H3Module } from './h3/h3.module';
 import { ConversionModule } from './conversion/conversion.module';
 import { DistanceModule } from './distance/distance.module';
 import { AdminModule } from './admin/admin.module';
+import { VerificationModule } from './verification/verification.module';
 import configuration from './config/configuration';
 
 /**
@@ -54,6 +55,9 @@ import configuration from './config/configuration';
 
     // Admin & Migration
     AdminModule,
+
+    // Verification
+    VerificationModule,
 
     // Initialization
     InitializationModule,
