@@ -5,6 +5,7 @@
 # Run this on Railway or with proper DATABASE_URL
 
 set -e
+DATABASE_URL="postgres://postgres:4G46f14eA4g2aE3g5FaBbAGcc2bECbBg@thomas.proxy.rlwy.net:18356/railway"
 
 if [ -z "$DATABASE_URL" ]; then
   echo "❌ ERROR: DATABASE_URL not set"

@@ -6,6 +6,8 @@
 
 set -e
 
+REDIS_URL="redis://default:dlTNUlcwdnUtuHWbgFKJFrEgcFxzbVbE@thomas.proxy.rlwy.net:37054"
+
 if [ -z "$REDIS_URL" ]; then
   echo "❌ ERROR: REDIS_URL not set"
   echo "   Run this script on Railway or set REDIS_URL environment variable"

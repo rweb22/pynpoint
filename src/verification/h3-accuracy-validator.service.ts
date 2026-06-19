@@ -1,10 +1,10 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, DataSource } from 'typeorm';
-import { Pincode } from '../entities/pincode.entity';
+import { Pincode } from '../database/entities/pincode.entity';
 import { RedisPersistentService } from '../redis/redis-persistent.service';
 
-interface ValidationResult {
+export interface ValidationResult {
   totalTests: number;
   passed: number;
   failed: number;
@@ -12,7 +12,7 @@ interface ValidationResult {
   failures: ValidationFailure[];
 }
 
-interface ValidationFailure {
+export interface ValidationFailure {
   testType: string;
   h3Index: string;
   expectedPincode: string;
@@ -139,7 +139,7 @@ export class H3AccuracyValidatorService {
           results.failed++;
           results.failures.push({
             testType: 'Random Sampling',
-            h3Index,
+            h3Index: String(h3Index),
             expectedPincode: pincode,
             actualPincode: null,
             lat: 0,
@@ -168,7 +168,7 @@ export class H3AccuracyValidatorService {
           results.failed++;
           results.failures.push({
             testType: 'Random Sampling',
-            h3Index,
+            h3Index: String(h3Index),
             expectedPincode: pincode,
             actualPincode: null,
             lat,
@@ -218,7 +218,7 @@ export class H3AccuracyValidatorService {
       results.totalTests++;
 
       // Check Redis mapping
-      const mappedPincode = await this.redisService.getPincodeForH3(randomCell);
+      const mappedPincode = await this.redisService.getH3(randomCell);
 
       if (mappedPincode === pincode) {
         results.passed++;
@@ -275,7 +275,7 @@ export class H3AccuracyValidatorService {
       const randomCells = this.getRandomElements(h3_cells, samplesToCheck);
 
       for (const cell of randomCells) {
-        const mappedPincode = await this.redisService.getPincodeForH3(cell);
+        const mappedPincode = await this.redisService.getH3(cell);
         if (mappedPincode !== pincode) {
           allCellsInRedis = false;
           break;
@@ -288,7 +288,7 @@ export class H3AccuracyValidatorService {
         results.failed++;
         results.failures.push({
           testType: 'Coverage Completeness',
-          h3Index: randomCells[0],
+          h3Index: String(randomCells[0]),
           expectedPincode: pincode,
           actualPincode: null,
           lat: 0,

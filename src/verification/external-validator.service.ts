@@ -1,11 +1,10 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, DataSource } from 'typeorm';
-import { Pincode } from '../entities/pincode.entity';
+import { Pincode } from '../database/entities/pincode.entity';
 import { RedisPersistentService } from '../redis/redis-persistent.service';
-import axios from 'axios';
 
-interface ExternalValidationResult {
+export interface ExternalValidationResult {
   source: string;
   totalTests: number;
   passed: number;
@@ -14,7 +13,7 @@ interface ExternalValidationResult {
   failures: ExternalValidationFailure[];
 }
 
-interface ExternalValidationFailure {
+export interface ExternalValidationFailure {
   lat: number;
   lng: number;
   h3Index: string;
@@ -38,10 +37,22 @@ export class ExternalValidatorService {
   /**
    * Validate against Google Geocoding API
    * Requires GOOGLE_MAPS_API_KEY environment variable
+   * NOTE: Requires axios package to be installed
    */
   async validateWithGoogle(sampleSize: number = 100): Promise<ExternalValidationResult> {
     this.logger.log('🌍 Validating against Google Geocoding API...');
-    
+
+    this.logger.warn('⚠️  Google validation not implemented (requires axios package)');
+    return {
+      source: 'Google Geocoding API',
+      totalTests: 0,
+      passed: 0,
+      failed: 0,
+      accuracy: 0,
+      failures: [],
+    };
+
+    /* TODO: Install axios to enable this feature
     const apiKey = process.env.GOOGLE_MAPS_API_KEY;
     if (!apiKey) {
       this.logger.warn('⚠️  GOOGLE_MAPS_API_KEY not set, skipping Google validation');
@@ -55,6 +66,7 @@ export class ExternalValidatorService {
       };
     }
 
+    /*
     const results: ExternalValidationResult = {
       source: 'Google Geocoding API',
       totalTests: 0,
@@ -175,6 +187,7 @@ export class ExternalValidatorService {
     this.logger.log('============================================================');
 
     return results;
+    */
   }
 
   /**

@@ -1,7 +1,7 @@
 import { Controller, Get, Query, UseGuards } from '@nestjs/common';
-import { H3AccuracyValidatorService } from './h3-accuracy-validator.service';
-import { ExternalValidatorService } from './external-validator.service';
-import { AdminAuthGuard } from '../auth/admin-auth.guard';
+import { H3AccuracyValidatorService, ValidationResult } from './h3-accuracy-validator.service';
+import { ExternalValidatorService, ExternalValidationResult } from './external-validator.service';
+import { AdminAuthGuard } from '../auth/guards/admin-auth.guard';
 
 @Controller({ path: 'admin/verification', version: '1' })
 @UseGuards(AdminAuthGuard)
@@ -16,7 +16,7 @@ export class VerificationController {
    * GET /admin/verification/validate?sampleSize=1000
    */
   @Get('validate')
-  async runValidation(@Query('sampleSize') sampleSize?: string) {
+  async runValidation(@Query('sampleSize') sampleSize?: string): Promise<ValidationResult> {
     const size = sampleSize ? parseInt(sampleSize, 10) : 1000;
     return await this.validatorService.validateAccuracy(size);
   }
@@ -27,7 +27,7 @@ export class VerificationController {
    * Requires GOOGLE_MAPS_API_KEY environment variable
    */
   @Get('google')
-  async runGoogleValidation(@Query('sampleSize') sampleSize?: string) {
+  async runGoogleValidation(@Query('sampleSize') sampleSize?: string): Promise<ExternalValidationResult> {
     const size = sampleSize ? parseInt(sampleSize, 10) : 100;
     return await this.externalValidator.validateWithGoogle(size);
   }

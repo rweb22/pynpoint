@@ -1,0 +1,18 @@
+===================================================================
+  Redis H3 Index Status Check
+===================================================================
+
+✅ Connected to Redis
+
+📊 Redis Server Info:
+
+💾 Memory Usage:
+
+💿 Persistence Configuration:
+
+🔷 H3 Index Statistics:
+   Counting h3:* keys (this will take a moment)...
+   Total keys in database: 
+   Sample h3:8* keys found: 1
+
+📋 H3 Index Metadata:
