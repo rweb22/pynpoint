@@ -275,7 +275,7 @@ export class H3AccuracyValidatorService {
       const randomCells = this.getRandomElements(h3_cells, samplesToCheck);
 
       for (const cell of randomCells) {
-        const mappedPincode = await this.redisService.getH3(cell);
+        const mappedPincode = await this.redisService.getH3(String(cell));
         if (mappedPincode !== pincode) {
           allCellsInRedis = false;
           break;
