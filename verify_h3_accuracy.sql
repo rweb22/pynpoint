@@ -35,7 +35,7 @@ cell_centers AS (
   SELECT
     pincode,
     h3_cell,
-    h3_cell_to_latlng(h3_cell::h3index) as latlng,
+    h3_cell_to_latlng(h3_cell::h3index) as latlng_point,
     boundary
   FROM sampled_cells
 ),
@@ -43,16 +43,10 @@ containment_check AS (
   SELECT
     pincode,
     h3_cell,
-    latlng,
+    latlng_point,
     ST_Contains(
       boundary::geometry,
-      ST_SetSRID(
-        ST_MakePoint(
-          (latlng).lng,
-          (latlng).lat
-        ),
-        4326
-      )
+      ST_SetSRID(latlng_point::geometry, 4326)
     ) as is_contained
   FROM cell_centers
 )
@@ -85,7 +79,7 @@ cell_centers AS (
   SELECT
     pincode,
     h3_cell,
-    h3_cell_to_latlng(h3_cell::h3index) as latlng,
+    h3_cell_to_latlng(h3_cell::h3index) as latlng_point,
     boundary
   FROM sampled_cells
 ),
@@ -93,20 +87,14 @@ containment_check AS (
   SELECT
     pincode,
     h3_cell,
-    latlng,
+    latlng_point,
     ST_Contains(
       boundary::geometry,
-      ST_SetSRID(
-        ST_MakePoint(
-          (latlng).lng,
-          (latlng).lat
-        ),
-        4326
-      )
+      ST_SetSRID(latlng_point::geometry, 4326)
     ) as is_contained
   FROM cell_centers
 )
-SELECT pincode, h3_cell, latlng
+SELECT pincode, h3_cell, latlng_point
 FROM containment_check
 WHERE NOT is_contained
 LIMIT 10;
