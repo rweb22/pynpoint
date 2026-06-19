@@ -32,24 +32,24 @@ sampled_cells AS (
   FROM random_pincodes
 ),
 cell_centers AS (
-  SELECT 
+  SELECT
     pincode,
     h3_cell,
-    h3_cell_to_lat_lng(h3_cell::h3index) as center,
+    h3_cell_to_latlng(h3_cell::h3index) as latlng,
     boundary
   FROM sampled_cells
 ),
 containment_check AS (
-  SELECT 
+  SELECT
     pincode,
     h3_cell,
-    center,
+    latlng,
     ST_Contains(
       boundary::geometry,
       ST_SetSRID(
         ST_MakePoint(
-          CAST(split_part(center::text, ',', 2) AS FLOAT),
-          CAST(split_part(replace(center::text, '(', ''), ',', 1) AS FLOAT)
+          (latlng).lng,
+          (latlng).lat
         ),
         4326
       )
@@ -82,31 +82,31 @@ sampled_cells AS (
   FROM random_pincodes
 ),
 cell_centers AS (
-  SELECT 
+  SELECT
     pincode,
     h3_cell,
-    h3_cell_to_lat_lng(h3_cell::h3index) as center,
+    h3_cell_to_latlng(h3_cell::h3index) as latlng,
     boundary
   FROM sampled_cells
 ),
 containment_check AS (
-  SELECT 
+  SELECT
     pincode,
     h3_cell,
-    center,
+    latlng,
     ST_Contains(
       boundary::geometry,
       ST_SetSRID(
         ST_MakePoint(
-          CAST(split_part(center::text, ',', 2) AS FLOAT),
-          CAST(split_part(replace(center::text, '(', ''), ',', 1) AS FLOAT)
+          (latlng).lng,
+          (latlng).lat
         ),
         4326
       )
     ) as is_contained
   FROM cell_centers
 )
-SELECT pincode, h3_cell, center
+SELECT pincode, h3_cell, latlng
 FROM containment_check
 WHERE NOT is_contained
 LIMIT 10;
@@ -217,7 +217,7 @@ WHERE h3_cells IS NOT NULL AND array_length(h3_cells, 1) > 0;
 
 SELECT
   pincode,
-  name as location,
+  COALESCE(office_name, city, district, 'Unknown') as location,
   array_length(h3_cells, 1) as num_h3_cells,
   CASE
     WHEN array_length(h3_cells, 1) > 0 THEN '✅ Has H3 cells'
@@ -234,7 +234,7 @@ ORDER BY pincode;
 \echo ''
 \echo 'Manual verification steps:'
 \echo '1. Pick a random H3 cell from the output above'
-\echo '2. Convert to lat/lng: SELECT h3_cell_to_lat_lng(''YOUR_H3_CELL''::h3index);'
-\echo '3. Search that lat/lng on Google Maps'
+\echo '2. Convert to lat/lng: SELECT h3_cell_to_latlng(''YOUR_H3_CELL''::h3index);'
+\echo '3. Format the result: (lat, lng) -> paste into Google Maps as "lat, lng"'
 \echo '4. Verify the pincode matches'
 \echo ''
