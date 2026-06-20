@@ -56,9 +56,9 @@ export class AddDigipinFunctions1781705000000 implements MigrationInterface {
       DECLARE
         grid TEXT[][] := ARRAY[
           ARRAY['F', 'C', '9', '8'],
-          ARRAY['3', '2', 'J', 'K'],
-          ARRAY['L', 'M', 'P', 'T'],
-          ARRAY['4', '5', '6', '7']
+          ARRAY['J', '3', '2', '7'],
+          ARRAY['K', '4', '5', '6'],
+          ARRAY['L', 'M', 'P', 'T']
         ];
       BEGIN
         IF lat_idx < 0 OR lat_idx > 3 OR lng_idx < 0 OR lng_idx > 3 THEN
