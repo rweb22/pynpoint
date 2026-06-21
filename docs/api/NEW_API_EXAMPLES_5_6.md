@@ -82,9 +82,9 @@ GET /api/v1/convert/h3-to-digipin/89283082803ffff?relationship=contains&level=8&
 {
   "h3Index": "89283082803ffff",
   "h3Resolution": 9,
-  "digipinCodes": ["NJ4VJM"],
+  "digipinCodes": ["39J438"],
   "totalDigipinCells": 1,
-  "primaryDigipin": "NJ4VJM",
+  "primaryDigipin": "39J438",
   "digipinLevel": 6,
   "relationship": "intersects",
   "center": {
@@ -99,9 +99,9 @@ GET /api/v1/convert/h3-to-digipin/89283082803ffff?relationship=contains&level=8&
 {
   "h3Index": "89283082803ffff",
   "h3Resolution": 9,
-  "digipinCodes": ["NJ4VJMAB", "NJ4VJMAC", "NJ4VJMAD"],
+  "digipinCodes": ["39J438AB", "39J438AC", "39J438AD"],
   "totalDigipinCells": 3,
-  "primaryDigipin": "NJ4VJMAB",
+  "primaryDigipin": "39J438AB",
   "digipinLevel": 8,
   "relationship": "contains",
   "center": {
@@ -121,8 +121,8 @@ console.log(digipinCode);  // ❌ undefined - field doesn't exist
 // ✅ NEW CODE (backward compatible single value)
 const response = await fetch('/api/v1/convert/h3-to-digipin/89283082803ffff');
 const { primaryDigipin, digipinCodes } = await response.json();
-console.log(primaryDigipin);   // ✅ "NJ4VJM" - single centroid-based value
-console.log(digipinCodes);     // ✅ ["NJ4VJM"] - array of all cells
+console.log(primaryDigipin);   // ✅ "39J438" - single centroid-based value
+console.log(digipinCodes);     // ✅ ["39J438"] - array of all cells
 
 // ✅ NEW CODE (using all cells)
 const { digipinCodes } = await response.json();
@@ -148,19 +148,19 @@ Query Parameters:
 #### Example Requests
 ```bash
 # Simple (current behavior)
-GET /api/v1/convert/digipin-to-h3/NJ4VJM
+GET /api/v1/convert/digipin-to-h3/39J438
 
 # Different H3 resolution
-GET /api/v1/convert/digipin-to-h3/NJ4VJM?resolution=8
+GET /api/v1/convert/digipin-to-h3/39J438?resolution=8
 
 # Get H3 cells FULLY INSIDE DIGIPIN
-GET /api/v1/convert/digipin-to-h3/NJ4VJM?relationship=contains&resolution=10
+GET /api/v1/convert/digipin-to-h3/39J438?relationship=contains&resolution=10
 
 # Get large H3 cells that CONTAIN this DIGIPIN
-GET /api/v1/convert/digipin-to-h3/NJ4VJM?relationship=contained_by&resolution=7
+GET /api/v1/convert/digipin-to-h3/39J438?relationship=contained_by&resolution=7
 
 # With metadata
-GET /api/v1/convert/digipin-to-h3/NJ4VJM?relationship=contains&resolution=10&includeMetadata=true
+GET /api/v1/convert/digipin-to-h3/39J438?relationship=contains&resolution=10&includeMetadata=true
 ```
 
 #### Response Structure
@@ -199,7 +199,7 @@ GET /api/v1/convert/digipin-to-h3/NJ4VJM?relationship=contains&resolution=10&inc
 #### Example Response
 ```json
 {
-  "digipinCode": "NJ4VJM",
+  "digipinCode": "39J438",
   "digipinLevel": 6,
   "h3Resolution": 9,
   "h3Indexes": [

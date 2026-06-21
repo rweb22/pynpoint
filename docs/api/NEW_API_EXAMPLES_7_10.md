@@ -178,7 +178,7 @@ GET /api/v1/spatial/intersection?pincode=110001&lat=28.6139&lng=77.2090
   },
   "isInside": true,
   "h3Index": "89283082803ffff",
-  "digipinCode": "NJ4VJM",
+  "digipinCode": "39J438",
   "distance": {
     "toPincodeCenter": 0.35,
     "unit": "km"
@@ -263,7 +263,7 @@ Content-Type: application/json
       "state": "Delhi",
       "overlapPercentage": 85.3,
       "h3Indexes": ["89283082803ffff", "89283082807ffff"],
-      "digipinCodes": ["NJ4VJM", "NJ4VJQ"]
+      "digipinCodes": ["39J438", "NJ4VJQ"]
     }
   ],
   "totalPincodes": 1,

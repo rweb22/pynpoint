@@ -164,7 +164,7 @@ const result = converter.h3ToDigipinByRelationship(
 ```typescript
 const overlap = converter.calculateOverlap(
   '89283082803ffff',  // H3-9 (~0.1 km²)
-  'NJ4VJM'            // DIGIPIN-6 (~0.04 km²)
+  '39J438'            // DIGIPIN-6 (~0.04 km²)
 );
 
 console.log(overlap); // ~85% (DIGIPIN is smaller, mostly inside H3)

@@ -150,7 +150,7 @@ export class H3DigipinService {
         message: `Invalid DIGIPIN code: ${digipinCode}`,
         details: {
           providedCode: digipinCode,
-          suggestion: 'Provide a valid DIGIPIN code (e.g., "NJ4VJM" for level 6)',
+          suggestion: 'Provide a valid DIGIPIN code (e.g., "39J438" for Delhi at level 6)',
         },
       });
     }

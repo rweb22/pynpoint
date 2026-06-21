@@ -106,16 +106,16 @@ Returns:
 **Before**:
 ```json
 {
-  "digipinCode": "NJ4VJM"  // Single string
+  "digipinCode": "39J438"  // Single string
 }
 ```
 
 **After**:
 ```json
 {
-  "digipinCodes": ["NJ4VJM"],       // Array
+  "digipinCodes": ["39J438"],       // Array
   "totalDigipinCells": 1,
-  "primaryDigipin": "NJ4VJM"        // Use this for backward compatibility
+  "primaryDigipin": "39J438"        // Use this for backward compatibility
 }
 ```
 

@@ -72,7 +72,7 @@ GET /api/v1/convert/pincode-to-digipin/110001?relationship=contains&level=8&incl
   "pincode": "110001",
   "level": 6,
   "digipinCodes": [
-    "NJ4VJM",
+    "39J438",
     "NJ4VJQ",
     "NJ4VJR"
   ],
@@ -82,7 +82,7 @@ GET /api/v1/convert/pincode-to-digipin/110001?relationship=contains&level=8&incl
     "digipinCoverage": 5.15,
     "areaUnit": "km²"
   },
-  "primaryDigipin": "NJ4VJM",
+  "primaryDigipin": "39J438",
   "relationship": "intersects",
   "pincodeCenter": {
     "latitude": 28.6139,
@@ -107,16 +107,16 @@ Query Parameters:
 #### Example Requests
 ```bash
 # Simple (current behavior)
-GET /api/v1/convert/digipin-to-pincode/NJ4VJM
+GET /api/v1/convert/digipin-to-pincode/39J438
 
 # Get pincodes that FULLY CONTAIN this DIGIPIN cell
-GET /api/v1/convert/digipin-to-pincode/NJ4VJM?relationship=contained_by
+GET /api/v1/convert/digipin-to-pincode/39J438?relationship=contained_by
 
 # Get pincodes INSIDE this large DIGIPIN cell (for level 4-5)
-GET /api/v1/convert/digipin-to-pincode/NJ4V?relationship=contains
+GET /api/v1/convert/digipin-to-pincode/39J4?relationship=contains
 
 # With metadata
-GET /api/v1/convert/digipin-to-pincode/NJ4VJM?relationship=contained_by&includeMetadata=true
+GET /api/v1/convert/digipin-to-pincode/39J438?relationship=contained_by&includeMetadata=true
 ```
 
 #### Response Structure
@@ -163,7 +163,7 @@ GET /api/v1/convert/digipin-to-pincode/NJ4VJM?relationship=contained_by&includeM
 #### Example Response
 ```json
 {
-  "digipinCode": "NJ4VJM",
+  "digipinCode": "39J438",
   "level": 6,
   "pincodes": [
     {

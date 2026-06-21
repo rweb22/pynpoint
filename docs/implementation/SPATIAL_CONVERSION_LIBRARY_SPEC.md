@@ -219,14 +219,14 @@ console.log(comparison);
 // Check if H3-9 cell contains DIGIPIN-10 cell
 const contains = converter.h3ContainsDigipin(
   '89283082803ffff',  // H3-9 (~0.1 km²)
-  'NJ4VJMABCD'        // DIGIPIN-10 (~0.0000001 km²)
+  '39J438ABCD'        // DIGIPIN-10 (~0.0000001 km²)
 );
 console.log(contains); // true (likely)
 
 // Calculate overlap percentage
 const overlap = converter.calculateOverlap(
   '89283082803ffff',
-  'NJ4VJM'
+  '39J438'
 );
 console.log(overlap); // 85.3 (%)
 ```
@@ -244,11 +244,11 @@ console.log(result);
 // {
 //   sourceCellId: '89283082803ffff',
 //   sourceType: 'h3',
-//   targetCells: ['NJ4VJMAB', 'NJ4VJMAC', ...],
+//   targetCells: ['39J438AB', '39J438AC', ...],
 //   totalCells: 15,
 //   relationship: 'contains',
 //   metadata: {
-//     'NJ4VJMAB': {
+//     '39J438AB': {
 //       center: { lat: 28.614, lng: 77.209 },
 //       areaKm2: 0.0001,
 //       overlapPercent: 100.0

@@ -132,7 +132,7 @@ GET /api/v1/convert/h3-to-digipin/89283082803ffff?level=6
 {
   "h3Index": "89283082803ffff",
   "h3Resolution": 9,
-  "digipinCode": "NJ4VJM",                         // ❌ SINGULAR
+  "digipinCode": "39J438",                         // ❌ SINGULAR
   "digipinLevel": 6,
   "center": { "latitude": 28.614, "longitude": 77.209 }
 }
@@ -146,9 +146,9 @@ GET /api/v1/convert/h3-to-digipin/89283082803ffff?level=6
 {
   "h3Index": "89283082803ffff",
   "h3Resolution": 9,
-  "digipinCodes": ["NJ4VJM"],                      // ✅ ARRAY
+  "digipinCodes": ["39J438"],                      // ✅ ARRAY
   "totalDigipinCells": 1,                          // ✅ NEW
-  "primaryDigipin": "NJ4VJM",                      // ✅ NEW (use this for migration)
+  "primaryDigipin": "39J438",                      // ✅ NEW (use this for migration)
   "digipinLevel": 6,
   "relationship": "intersects",                    // ✅ NEW
   "center": { "latitude": 28.614, "longitude": 77.209 },
