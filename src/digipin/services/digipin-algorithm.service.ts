@@ -26,18 +26,40 @@ export class DigipinAlgorithmService {
 
   // DIGIPIN character set (16 symbols for 4x4 grid)
   // Source: India Post official specification
-  private readonly CHARSET = [
-    '2', '3', '4', '5', '6', '7', '8', '9',
-    'C', 'F', 'J', 'K', 'L', 'M', 'P', 'T'
+  // DIGIPIN 4x4 grid labeling (from official India Post spec)
+  // Source: India Post Technical Document Annexure 1
+  // Grid orientation: row=0 is TOP (maxLat), row=3 is BOTTOM (minLat)
+  //                   col=0 is LEFT (minLng), col=3 is RIGHT (maxLng)
+  private readonly GRID = [
+    ['F', 'C', '9', '8'],  // row 0 (TOP latitude band)
+    ['J', '3', '2', '7'],  // row 1
+    ['K', '4', '5', '6'],  // row 2
+    ['L', 'M', 'P', 'T']   // row 3 (BOTTOM latitude band)
   ];
 
+  /**
+   * Find row and column indices for a character in the grid
+   * @returns {row, col} or null if not found
+   */
+  private findCharInGrid(char: string): { row: number; col: number } | null {
+    for (let row = 0; row < 4; row++) {
+      for (let col = 0; col < 4; col++) {
+        if (this.GRID[row][col] === char) {
+          return { row, col };
+        }
+      }
+    }
+    return null;
+  }
+
   // India's bounding box for Level 1 grid
-  // Source: India Post specification
+  // Source: Official India Post Technical Document
+  // https://www.indiapost.gov.in/documents/offerings/intiatives/DIGIPIN_Technical_document.pdf
   private readonly INDIA_BBOX = {
-    minLat: 8.0,   // Southern tip (near Kanyakumari)
-    maxLat: 35.0,  // Northern tip (Kashmir)
-    minLng: 68.0,  // Western tip (Gujarat)
-    maxLng: 97.0,  // Eastern tip (Arunachal Pradesh)
+    minLat: 2.5,   // Official spec: 2.5°N (covers entire Indian subcontinent)
+    maxLat: 38.5,  // Official spec: 38.5°N
+    minLng: 63.5,  // Official spec: 63.5°E
+    maxLng: 99.5,  // Official spec: 99.5°E
   };
 
   /**
@@ -65,30 +87,30 @@ export class DigipinAlgorithmService {
     let currentBox = { ...this.INDIA_BBOX };
 
     // Subdivide grid for each level
+    // Algorithm from India Post Technical Document Annexure 1
     for (let i = 0; i < level; i++) {
       // Calculate cell dimensions (4x4 grid)
       const latStep = (currentBox.maxLat - currentBox.minLat) / 4;
       const lngStep = (currentBox.maxLng - currentBox.minLng) / 4;
 
       // Find which cell contains the point
-      const latIndex = Math.min(3, Math.floor((lat - currentBox.minLat) / latStep));
+      // CRITICAL: Official spec subdivides latitude from TOP to BOTTOM
+      // row=0 is the topmost band (maxLat down), row=3 is bottommost (minLat up)
+      const latIndex = Math.min(3, Math.floor((currentBox.maxLat - lat) / latStep));
+
+      // Longitude subdivides normally from LEFT to RIGHT
+      // col=0 is leftmost band (minLng up), col=3 is rightmost (maxLng down)
       const lngIndex = Math.min(3, Math.floor((lng - currentBox.minLng) / lngStep));
 
-      // Calculate cell index in 4x4 grid (0-15)
-      // Grid layout:
-      //   0  1  2  3
-      //   4  5  6  7
-      //   8  9 10 11
-      //  12 13 14 15
-      const cellIndex = latIndex * 4 + lngIndex;
-
-      // Append corresponding character
-      digipin += this.CHARSET[cellIndex];
+      // Get character from 2D grid (official spec uses L[row][column])
+      const char = this.GRID[latIndex][lngIndex];
+      digipin += char;
 
       // Update bounding box to selected cell
+      // For latitude: move DOWN from maxLat (top-to-bottom)
       currentBox = {
-        minLat: currentBox.minLat + latIndex * latStep,
-        maxLat: currentBox.minLat + (latIndex + 1) * latStep,
+        maxLat: currentBox.maxLat - latIndex * latStep,
+        minLat: currentBox.maxLat - (latIndex + 1) * latStep,
         minLng: currentBox.minLng + lngIndex * lngStep,
         maxLng: currentBox.minLng + (lngIndex + 1) * lngStep,
       };
@@ -122,24 +144,23 @@ export class DigipinAlgorithmService {
     // Decode each character
     for (let i = 0; i < level; i++) {
       const char = upperCode[i];
-      const cellIndex = this.CHARSET.indexOf(char);
+      const gridPos = this.findCharInGrid(char);
 
-      if (cellIndex === -1) {
+      if (!gridPos) {
         throw new BadRequestException(`Invalid character in DIGIPIN: ${char}`);
       }
+
+      const { row: latIndex, col: lngIndex } = gridPos;
 
       // Calculate cell dimensions
       const latStep = (currentBox.maxLat - currentBox.minLat) / 4;
       const lngStep = (currentBox.maxLng - currentBox.minLng) / 4;
 
-      // Convert cell index to lat/lng indices
-      const latIndex = Math.floor(cellIndex / 4);
-      const lngIndex = cellIndex % 4;
-
       // Update bounding box to selected cell
+      // Latitude: top-to-bottom (row=0 is at maxLat)
       currentBox = {
-        minLat: currentBox.minLat + latIndex * latStep,
-        maxLat: currentBox.minLat + (latIndex + 1) * latStep,
+        maxLat: currentBox.maxLat - latIndex * latStep,
+        minLat: currentBox.maxLat - (latIndex + 1) * latStep,
         minLng: currentBox.minLng + lngIndex * lngStep,
         maxLng: currentBox.minLng + (lngIndex + 1) * lngStep,
       };
@@ -211,23 +232,22 @@ export class DigipinAlgorithmService {
 
     for (let i = 0; i < level; i++) {
       const char = upperCode[i];
-      const cellIndex = this.CHARSET.indexOf(char);
+      const gridPos = this.findCharInGrid(char);
 
-      if (cellIndex === -1) {
+      if (!gridPos) {
         throw new BadRequestException(
           `Invalid character in DIGIPIN: ${char} (code: ${upperCode}, position: ${i})`
         );
       }
 
+      const { row: latIndex, col: lngIndex } = gridPos;
+
       const latStep = (currentBox.maxLat - currentBox.minLat) / 4;
       const lngStep = (currentBox.maxLng - currentBox.minLng) / 4;
 
-      const latIndex = Math.floor(cellIndex / 4);
-      const lngIndex = cellIndex % 4;
-
       currentBox = {
-        minLat: currentBox.minLat + latIndex * latStep,
-        maxLat: currentBox.minLat + (latIndex + 1) * latStep,
+        maxLat: currentBox.maxLat - latIndex * latStep,
+        minLat: currentBox.maxLat - (latIndex + 1) * latStep,
         minLng: currentBox.minLng + lngIndex * lngStep,
         maxLng: currentBox.minLng + (lngIndex + 1) * lngStep,
       };
@@ -409,8 +429,10 @@ export class DigipinAlgorithmService {
     // Each DIGIPIN cell has exactly 16 children (4x4 grid)
     const children: string[] = [];
 
-    for (const char of this.CHARSET) {
-      children.push(upperCode + char);
+    for (let row = 0; row < 4; row++) {
+      for (let col = 0; col < 4; col++) {
+        children.push(upperCode + this.GRID[row][col]);
+      }
     }
 
     return children;
