@@ -105,15 +105,16 @@ export class ConversionController {
 
   /**
    * 4.3: GET /convert/pincode-to-digipin/:pincode
-   * Convert pincode to DIGIPIN code(s)
+   * Convert pincode to DIGIPIN Level 6 code(s)
+   * Always returns Level 6 (~200m resolution)
    */
   @Get('convert/pincode-to-digipin/:pincode')
   async pincodeToDigipin(
     @Param('pincode') pincode: string,
     @Query() query: PincodeToDigipinQueryDto,
   ): Promise<PincodeToDigipinResponse> {
-    this.logger.log(`GET /convert/pincode-to-digipin/${pincode}?level=${query.level}&relationship=${query.relationship}`);
-    return this.conversionService.pincodeToDigipin(pincode, query.level);
+    this.logger.log(`GET /convert/pincode-to-digipin/${pincode}`);
+    return this.conversionService.pincodeToDigipin(pincode);
   }
 
   /**

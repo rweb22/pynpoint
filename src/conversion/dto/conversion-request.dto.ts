@@ -68,15 +68,10 @@ export class H3ToPincodeQueryDto extends BaseSpatialQueryDto {
 
 /**
  * Query DTO for pincode-to-digipin conversion
+ * Note: Level is always 6 (hardcoded in service)
  */
 export class PincodeToDigipinQueryDto extends BaseSpatialQueryDto {
-  @IsOptional()
-  @IsNumber()
-  @Min(1)
-  @Max(10)
-  @Type(() => Number)
-  @Transform(({ value }) => parseInt(value, 10))
-  level?: number = 6;
+  // No level parameter - always returns Level 6
 }
 
 /**

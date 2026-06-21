@@ -16,8 +16,34 @@ END $$;
 \echo ''
 \echo '🚀 Starting DIGIPIN cell population...'
 \echo ''
-\echo 'Total pincodes: 19,312'
-\echo 'Estimated time: 2-4 hours'
+
+-- Check how many are already done
+DO $$
+DECLARE
+  total_count INTEGER;
+  completed_count INTEGER;
+  remaining_count INTEGER;
+BEGIN
+  SELECT COUNT(*) INTO total_count FROM pincodes WHERE boundary IS NOT NULL;
+  SELECT COUNT(*) INTO completed_count FROM pincodes
+    WHERE boundary IS NOT NULL
+      AND digipin_cells IS NOT NULL
+      AND digipin_cells != '{}';
+  remaining_count := total_count - completed_count;
+
+  RAISE NOTICE 'Total pincodes: %', total_count;
+  RAISE NOTICE 'Already completed: %', completed_count;
+  RAISE NOTICE 'Remaining: %', remaining_count;
+
+  IF remaining_count = 0 THEN
+    RAISE NOTICE '✅ All pincodes already have DIGIPIN cells!';
+  ELSE
+    RAISE NOTICE 'Estimated time: % hours (at ~50 pincodes/min)',
+      ROUND((remaining_count::NUMERIC / 50 / 60)::NUMERIC, 1);
+  END IF;
+END $$;
+
+\echo ''
 \echo 'Grid spacing: 200m (for performance)'
 \echo ''
 
@@ -31,78 +57,69 @@ CREATE TEMP TABLE digipin_progress (
   timestamp TIMESTAMP DEFAULT NOW()
 );
 
--- Process in batches of 100 pincodes
-DO $$
+-- Process in batches with explicit COMMIT after each batch
+-- We CANNOT use DO $$ blocks because they prevent commits
+
+\echo ''
+\echo 'Starting batch processing with auto-commit...'
+\echo 'Press Ctrl+C to safely interrupt - progress is saved after each batch'
+\echo ''
+
+-- Helper function to process one batch and return count
+CREATE OR REPLACE FUNCTION process_digipin_batch() RETURNS INTEGER AS $$
 DECLARE
-  batch_size CONSTANT INTEGER := 100;
-  total_pincodes INTEGER;
-  processed INTEGER := 0;
-  batch_num INTEGER := 0;
-  batch_start TIMESTAMP;
-  batch_cells INTEGER;
-  v_pincode TEXT;
+  processed INTEGER;
 BEGIN
-  -- Get total count
-  SELECT COUNT(*) INTO total_pincodes FROM pincodes WHERE boundary IS NOT NULL;
-  
-  RAISE NOTICE 'Processing % pincodes in batches of %', total_pincodes, batch_size;
-  
-  -- Process each batch
-  FOR batch_num IN 1..CEIL(total_pincodes::NUMERIC / batch_size) LOOP
-    batch_start := clock_timestamp();
-    
-    -- Update batch
-    WITH batch AS (
-      SELECT pincode, boundary
-      FROM pincodes
-      WHERE boundary IS NOT NULL
-        AND (digipin_cells IS NULL OR digipin_cells = '{}')
-      LIMIT batch_size
-    )
-    UPDATE pincodes p
-    SET digipin_cells = polygon_to_digipin_cells_level6(b.boundary, 200.0)
-    FROM batch b
-    WHERE p.pincode = b.pincode;
-    
-    GET DIAGNOSTICS processed = ROW_COUNT;
-    
-    -- Calculate cells in this batch
-    SELECT COALESCE(SUM(cardinality(digipin_cells)), 0)
-    INTO batch_cells
+  WITH batch AS (
+    SELECT pincode, boundary
     FROM pincodes
-    WHERE digipin_cells IS NOT NULL 
-      AND digipin_cells != '{}';
-    
-    -- Log progress
-    INSERT INTO digipin_progress (
-      batch_num,
-      pincodes_processed,
-      cells_generated,
-      avg_cells_per_pincode,
-      batch_duration_seconds
-    ) VALUES (
-      batch_num,
-      processed,
-      batch_cells,
-      CASE WHEN batch_num * batch_size > 0 
-        THEN batch_cells::NUMERIC / (batch_num * batch_size)
-        ELSE 0
-      END,
-      EXTRACT(EPOCH FROM (clock_timestamp() - batch_start))
-    );
-    
-    -- Show progress every 10 batches
-    IF batch_num % 10 = 0 THEN
-      RAISE NOTICE 'Batch % complete. Processed ~% pincodes so far...', 
-        batch_num, batch_num * batch_size;
-    END IF;
-    
-    -- Exit if no more rows to process
-    EXIT WHEN processed = 0;
-  END LOOP;
-  
-  RAISE NOTICE 'Population complete!';
-END $$;
+    WHERE boundary IS NOT NULL
+      AND (digipin_cells IS NULL OR digipin_cells = '{}')
+    ORDER BY pincode  -- Deterministic ordering for resume
+    LIMIT 100
+  )
+  UPDATE pincodes p
+  SET digipin_cells = polygon_to_digipin_cells_level6(b.boundary, 200.0)
+  FROM batch b
+  WHERE p.pincode = b.pincode;
+
+  GET DIAGNOSTICS processed = ROW_COUNT;
+  RETURN processed;
+END;
+$$ LANGUAGE plpgsql;
+
+-- Process batches using psql \gexec to allow commits
+-- This is a workaround since we can't use DO blocks
+
+\echo 'Processing batches...'
+
+-- We'll use a simple approach: generate and execute statements
+WITH RECURSIVE batch_loop AS (
+  -- Base case: batch 1
+  SELECT
+    1 as batch_num,
+    (SELECT COUNT(*) FROM pincodes WHERE boundary IS NOT NULL AND (digipin_cells IS NULL OR digipin_cells = '{}')) as remaining
+
+  UNION ALL
+
+  -- Recursive case: continue while there are unpopulated pincodes
+  SELECT
+    batch_num + 1,
+    (SELECT COUNT(*) FROM pincodes WHERE boundary IS NOT NULL AND (digipin_cells IS NULL OR digipin_cells = '{}'))
+  FROM batch_loop
+  WHERE remaining > 0 AND batch_num < 200  -- Max 200 batches (20,000 pincodes)
+)
+SELECT
+  format(
+    E'\\echo ''🔄 Batch %s/%s (remaining: %s)'';\n' ||
+    'SELECT process_digipin_batch();\n' ||
+    'COMMIT;',
+    batch_num,
+    (SELECT CEIL(COUNT(*)::NUMERIC / 100) FROM pincodes WHERE boundary IS NOT NULL),
+    remaining
+  ) as command
+FROM batch_loop
+\gexec
 
 -- Show final statistics
 \echo ''

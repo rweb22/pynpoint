@@ -319,16 +319,34 @@ export class ConversionService {
     this.logger.debug(`[DEBUG] Cache MISS for ${cacheKey}`);
 
     // Use pre-populated digipin_cells from database
+    this.logger.debug(`[DEBUG] About to query database for pincode ${pincode}`);
+    this.logger.debug(`[DEBUG] SELECT query: SELECT pincode, digipin_cells, centroid FROM pincodes WHERE pincode = '${pincode}'`);
+
+    // DOUBLE CHECK: Run raw SQL query to see what database actually has
+    const rawResult = await this.pincodeRepository.query(
+      `SELECT pincode, digipin_cells, ST_AsGeoJSON(centroid::geometry) as centroid FROM pincodes WHERE pincode = $1`,
+      [pincode]
+    );
+    this.logger.debug(`[DEBUG] RAW SQL result: ${JSON.stringify({
+      found: rawResult.length > 0,
+      pincode: rawResult[0]?.pincode,
+      digipin_cells_sample: rawResult[0]?.digipin_cells?.slice(0, 3),
+      digipin_cells_length: rawResult[0]?.digipin_cells?.length,
+    })}`);
+
     const pincodeData = await this.pincodeRepository.findOne({
       where: { pincode },
       select: ['pincode', 'digipin_cells', 'centroid'],
     });
 
+    this.logger.debug(`[DEBUG] RAW pincodeData object: ${JSON.stringify(pincodeData)}`);
     this.logger.debug(`[DEBUG] Query returned pincodeData: ${JSON.stringify({
       pincode: pincodeData?.pincode,
       has_digipin_cells: !!pincodeData?.digipin_cells,
       digipin_cells_length: pincodeData?.digipin_cells?.length,
       digipin_cells_sample: pincodeData?.digipin_cells?.slice(0, 3),
+      digipin_cells_type: typeof pincodeData?.digipin_cells,
+      digipin_cells_isArray: Array.isArray(pincodeData?.digipin_cells),
       has_centroid: !!pincodeData?.centroid,
     })}`);
 
@@ -337,11 +355,14 @@ export class ConversionService {
     }
 
     if (!pincodeData.digipin_cells || pincodeData.digipin_cells.length === 0) {
+      this.logger.error(`[DEBUG] ERROR: digipin_cells is empty or null!`);
       throw new Error(
         `Pincode ${pincode} does not have pre-computed DIGIPIN cells. ` +
         `The population process may still be running. Please try again later.`
       );
     }
+
+    this.logger.debug(`[DEBUG] digipin_cells BEFORE sort: ${JSON.stringify(pincodeData.digipin_cells.slice(0, 3))}`);
 
     // Get centroid for primary DIGIPIN
     const centroid = pincodeData.centroid as any; // PostGIS Point
@@ -354,11 +375,14 @@ export class ConversionService {
     );
     this.logger.debug(`[DEBUG] primaryDigipin calculated: ${primaryDigipin}`);
 
+    const sortedCells = pincodeData.digipin_cells.sort();
+    this.logger.debug(`[DEBUG] digipin_cells AFTER sort: ${JSON.stringify(sortedCells.slice(0, 3))}`);
+
     const response: PincodeToDigipinResponse = {
       pincode,
       level: 6,
-      digipinCodes: pincodeData.digipin_cells.sort(),
-      totalCells: pincodeData.digipin_cells.length,
+      digipinCodes: sortedCells,
+      totalCells: sortedCells.length,
       coverage: {
         pincodeArea: 0, // TODO: Calculate from boundary if needed
         digipinCoverage: pincodeData.digipin_cells.length * this.digipinAlgorithm.getCellArea(6),
