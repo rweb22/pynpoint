@@ -86,6 +86,26 @@ export class Pincode {
   })
   h3_cells: string[]; // Array of H3 indices (stored as text)
 
+  /**
+   * Pre-computed DIGIPIN Level 6 cells that intersect with this pincode's boundary
+   *
+   * Stored as array of text (DIGIPIN codes)
+   * Generated using PostgreSQL encode_digipin_level6() function
+   *
+   * Benefits:
+   * - Eliminates recomputation of DIGIPIN cells
+   * - Single source of truth for pincode → DIGIPIN mapping
+   * - Enables fast Pincode → DIGIPIN lookups
+   * - GIN index enables fast DIGIPIN → Pincode reverse lookups
+   */
+  @Column({
+    type: 'text',
+    array: true,
+    nullable: true,
+    default: () => "'{}'",
+  })
+  digipin_cells: string[]; // Array of DIGIPIN Level 6 codes
+
   @Column({ length: 100, nullable: true })
   @Index()
   state: string;
