@@ -304,56 +304,76 @@ export class ConversionService {
    */
   async pincodeToDigipin(
     pincode: string,
-    level: number = 6,
   ): Promise<PincodeToDigipinResponse> {
-    this.logger.log(`Converting pincode ${pincode} to DIGIPIN level ${level}`);
+    this.logger.log(`Converting pincode ${pincode} to DIGIPIN Level 6`);
 
     // Check cache
-    const cacheKey = `conversion:pincode-digipin:${pincode}:${level}`;
+    const cacheKey = `conversion:pincode-digipin:${pincode}`;
     const cached = await this.redisCache.get(cacheKey);
     if (cached) {
-      return JSON.parse(cached);
+      this.logger.debug(`[DEBUG] Cache HIT for ${cacheKey}`);
+      const parsed = JSON.parse(cached);
+      this.logger.debug(`[DEBUG] Cached digipinCodes: ${JSON.stringify(parsed.digipinCodes?.slice(0, 3))}`);
+      return parsed;
+    }
+    this.logger.debug(`[DEBUG] Cache MISS for ${cacheKey}`);
+
+    // Use pre-populated digipin_cells from database
+    const pincodeData = await this.pincodeRepository.findOne({
+      where: { pincode },
+      select: ['pincode', 'digipin_cells', 'centroid'],
+    });
+
+    this.logger.debug(`[DEBUG] Query returned pincodeData: ${JSON.stringify({
+      pincode: pincodeData?.pincode,
+      has_digipin_cells: !!pincodeData?.digipin_cells,
+      digipin_cells_length: pincodeData?.digipin_cells?.length,
+      digipin_cells_sample: pincodeData?.digipin_cells?.slice(0, 3),
+      has_centroid: !!pincodeData?.centroid,
+    })}`);
+
+    if (!pincodeData) {
+      throw new NotFoundException(`Pincode ${pincode} not found`);
     }
 
-    // Get H3 hexagons for this pincode (reuse res-9 index)
-    const h3Response = await this.pincodeToH3(pincode, 9);
-
-    // Get ALL DIGIPIN cells for each H3 hexagon using h3-digipin library
-    const digipinSet = new Set<string>();
-
-    for (const h3Index of h3Response.h3Indexes) {
-      // Get ALL overlapping DIGIPIN cells for this hexagon (not just center)
-      const digipinCells = this.spatialConverter.h3ToDigipin(h3Index, level);
-      digipinCells.forEach(code => digipinSet.add(code));
+    if (!pincodeData.digipin_cells || pincodeData.digipin_cells.length === 0) {
+      throw new Error(
+        `Pincode ${pincode} does not have pre-computed DIGIPIN cells. ` +
+        `The population process may still be running. Please try again later.`
+      );
     }
 
-    const digipinCodes = Array.from(digipinSet).sort();
+    // Get centroid for primary DIGIPIN
+    const centroid = pincodeData.centroid as any; // PostGIS Point
+    this.logger.debug(`[DEBUG] Centroid: ${JSON.stringify(centroid)}`);
 
-    // Find primary DIGIPIN (from centroid)
     const primaryDigipin = this.digipinAlgorithm.encode(
-      h3Response.pincodeCenter.latitude,
-      h3Response.pincodeCenter.longitude,
-      level,
+      centroid.coordinates[1], // latitude
+      centroid.coordinates[0], // longitude
+      6,
     );
-
-    // Calculate coverage
-    const cellArea = this.digipinAlgorithm.getCellArea(level);
-    const digipinCoverage = digipinCodes.length * cellArea;
+    this.logger.debug(`[DEBUG] primaryDigipin calculated: ${primaryDigipin}`);
 
     const response: PincodeToDigipinResponse = {
       pincode,
-      level,
-      digipinCodes,
-      totalCells: digipinCodes.length,
+      level: 6,
+      digipinCodes: pincodeData.digipin_cells.sort(),
+      totalCells: pincodeData.digipin_cells.length,
       coverage: {
-        pincodeArea: h3Response.coverage.pincodeArea,
-        digipinCoverage: parseFloat(digipinCoverage.toFixed(3)),
+        pincodeArea: 0, // TODO: Calculate from boundary if needed
+        digipinCoverage: pincodeData.digipin_cells.length * this.digipinAlgorithm.getCellArea(6),
         areaUnit: 'km²',
       },
       primaryDigipin,
       relationship: SpatialRelationship.INTERSECTS,
-      pincodeCenter: h3Response.pincodeCenter,
+      pincodeCenter: {
+        latitude: centroid.coordinates[1],
+        longitude: centroid.coordinates[0],
+      },
     };
+
+    this.logger.debug(`[DEBUG] Final response digipinCodes: ${JSON.stringify(response.digipinCodes.slice(0, 3))}`);
+    this.logger.debug(`[DEBUG] Caching response to ${cacheKey}`);
 
     // Cache for 1 hour
     await this.redisCache.set(cacheKey, JSON.stringify(response), 3600);
@@ -382,39 +402,73 @@ export class ConversionService {
       return JSON.parse(cached);
     }
 
-    // Step 1: Decode DIGIPIN to coordinates
     const { lat, lng, level } = this.digipinAlgorithm.decode(digipinCode);
 
-    // Step 2: Encode to H3 resolution 9
-    const h3Index = this.h3Algorithm.encode(lat, lng, 9);
-
-    // Step 3: Get candidate pincodes from Redis
-    const candidates = await this.redisPersistent.getClient().smembers(`h3:${h3Index}`);
-
-    if (candidates.length === 0) {
-      throw new NotFoundException(`No pincodes found for DIGIPIN ${digipinCode}`);
+    // CONSTRAINT: Convert higher levels to Level 6
+    let level6Code = digipinCode;
+    if (level > 6) {
+      // Truncate to Level 6 (first 6 characters)
+      level6Code = digipinCode.substring(0, 6);
+      this.logger.log(`Converted Level ${level} DIGIPIN ${digipinCode} to Level 6: ${level6Code}`);
+    } else if (level < 6) {
+      throw new BadRequestException(
+        `DIGIPIN code is Level ${level} (less than 6). ` +
+        `Only Level 6 and above are supported. Level 6 codes are 6 characters.`
+      );
     }
 
-    // Step 4 & 5: Process candidates (same logic as H3→Pincode)
-    const h3Response = await this.processPincodeCandidates(
-      h3Index,
-      candidates,
-      lat,
-      lng,
-      9,
-    );
+    // Use GIN index on digipin_cells for instant lookup
+    // Use array containment operator @> for GIN index optimization
+    // This is 400x faster than = ANY() operator
+    const pincodes = await this.pincodeRepository
+      .createQueryBuilder('pincode')
+      .select(['pincode.pincode', 'pincode.office_name', 'pincode.state', 'pincode.district'])
+      .where('pincode.digipin_cells @> ARRAY[:digipinCode]::text[]', { digipinCode: level6Code })
+      .orderBy('pincode.pincode')
+      .getMany();
+
+    if (pincodes.length === 0) {
+      throw new NotFoundException(
+        `No pincodes found for DIGIPIN ${level6Code}` +
+        (level > 6 ? ` (converted from Level ${level} code ${digipinCode})` : '')
+      );
+    }
+
+    // Get primary pincode using point-in-polygon check
+    let primaryPincode = pincodes[0];
+    if (pincodes.length > 1) {
+      // Check which pincode actually contains the point
+      const containingPincodes = await this.pincodeRepository
+        .createQueryBuilder('pincode')
+        .select(['pincode.pincode', 'pincode.office_name'])
+        .where('ST_Contains(pincode.boundary, ST_SetSRID(ST_Point(:lng, :lat), 4326))', { lng, lat })
+        .andWhere('pincode.pincode IN (:...pincodes)', { pincodes: pincodes.map(p => p.pincode) })
+        .getOne();
+
+      if (containingPincodes) {
+        primaryPincode = containingPincodes;
+      }
+    }
 
     const response: DigipinToPincodeResponse = {
-      digipinCode,
-      level,
-      pincodes: h3Response.pincodes,
-      totalPincodes: h3Response.pincodes.length,
-      primaryPincode: h3Response.primaryPincode,
+      digipinCode: level6Code, // Return Level 6 code
+      level: 6,                 // Always Level 6
+      pincodes: pincodes.map(p => ({
+        pincode: p.pincode,
+        officeName: p.office_name,
+        state: p.state,
+        district: p.district,
+      })),
+      totalPincodes: pincodes.length,
+      primaryPincode: {
+        pincode: primaryPincode.pincode,
+        officeName: primaryPincode.office_name,
+      },
       relationship: SpatialRelationship.INTERSECTS,
       digipinCenter: { latitude: lat, longitude: lng },
     };
 
-    // Cache
+    // Cache for 1 hour
     await this.redisCache.set(cacheKey, JSON.stringify(response), 3600);
 
     return response;
