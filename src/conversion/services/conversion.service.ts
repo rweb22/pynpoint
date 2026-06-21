@@ -477,17 +477,16 @@ export class ConversionService {
     const response: DigipinToPincodeResponse = {
       digipinCode: level6Code, // Return Level 6 code
       level: 6,                 // Always Level 6
-      pincodes: pincodes.map(p => ({
+      pincodes: pincodes.map((p, index) => ({
         pincode: p.pincode,
         officeName: p.office_name,
         state: p.state,
         district: p.district,
+        isPrimary: p.pincode === primaryPincode.pincode,
+        overlapPercentage: 100, // TODO: Calculate actual overlap
       })),
       totalPincodes: pincodes.length,
-      primaryPincode: {
-        pincode: primaryPincode.pincode,
-        officeName: primaryPincode.office_name,
-      },
+      primaryPincode: primaryPincode.pincode,
       relationship: SpatialRelationship.INTERSECTS,
       digipinCenter: { latitude: lat, longitude: lng },
     };
