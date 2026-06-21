@@ -8,6 +8,7 @@ import {
   UseGuards,
   UseInterceptors,
   Logger,
+  BadRequestException,
 } from '@nestjs/common';
 import { ApiKeyGuard } from '../../auth/guards/api-key.guard';
 import { RateLimitInterceptor } from '../../auth/interceptors/rate-limit.interceptor';
@@ -120,12 +121,21 @@ export class ConversionController {
   /**
    * 4.4: GET /convert/digipin-to-pincode/:digipinCode
    * Convert DIGIPIN cell to all intersecting pincodes
+   *
+   * API POLICY: Only Level 6 and above are supported
    */
   @Get('convert/digipin-to-pincode/:digipinCode')
   async digipinToPincode(
     @Param('digipinCode') digipinCode: string,
     @Query() query: DigipinToPincodeQueryDto,
   ): Promise<DigipinToPincodeResponse> {
+    // Validate DIGIPIN level (must be >= 6)
+    if (digipinCode.length < 6) {
+      throw new BadRequestException(
+        `DIGIPIN code must be at least Level 6 (6 characters). ` +
+        `Received Level ${digipinCode.length} code: ${digipinCode}`
+      );
+    }
     this.logger.log(`GET /convert/digipin-to-pincode/${digipinCode}?relationship=${query.relationship}`);
     return this.conversionService.digipinToPincode(digipinCode);
   }
@@ -150,12 +160,21 @@ export class ConversionController {
   /**
    * 4.6: GET /convert/digipin-to-h3/:digipinCode
    * Convert DIGIPIN cell to H3 cells
+   *
+   * API POLICY: Only Level 6 and above are supported
    */
   @Get('convert/digipin-to-h3/:digipinCode')
   async digipinToH3(
     @Param('digipinCode') digipinCode: string,
     @Query() query: DigipinToH3QueryDto,
   ): Promise<DigipinToH3Response> {
+    // Validate DIGIPIN level (must be >= 6)
+    if (digipinCode.length < 6) {
+      throw new BadRequestException(
+        `DIGIPIN code must be at least Level 6 (6 characters). ` +
+        `Received Level ${digipinCode.length} code: ${digipinCode}`
+      );
+    }
     this.logger.log(`GET /convert/digipin-to-h3/${digipinCode}?resolution=${query.resolution}&relationship=${query.relationship}`);
     return this.conversionService.digipinToH3(digipinCode, query.resolution);
   }
