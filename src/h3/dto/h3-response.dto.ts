@@ -128,3 +128,53 @@ export class H3AncestorsResponse {
   }>;
   totalCount: number;
 }
+
+/**
+ * POST /h3/validate
+ * Validate H3 index format and geographic bounds
+ *
+ * UNIQUE FEATURE - No competitor has H3 validation!
+ */
+export class ValidateH3Response {
+  /**
+   * Overall validation status
+   */
+  valid: boolean;
+
+  /**
+   * The H3 index being validated
+   */
+  h3Index: string;
+
+  /**
+   * Resolution level (0-15)
+   */
+  resolution?: number;
+
+  /**
+   * Geographic bounds information (if valid)
+   */
+  bounds?: {
+    centerLat: number;
+    centerLng: number;
+    withinIndia: boolean;
+  };
+
+  /**
+   * Whether we support this resolution (6-12 for pincode mappings)
+   */
+  supported?: boolean;
+
+  /**
+   * Cell area (if valid)
+   */
+  cellArea?: {
+    value: number;
+    unit: string;
+  };
+
+  /**
+   * Validation error messages (if any)
+   */
+  errors?: string[];
+}

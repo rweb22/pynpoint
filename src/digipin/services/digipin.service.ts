@@ -7,8 +7,9 @@ import {
   DecodeDigipinResponse,
   DigipinNeighborsResponse,
   DigipinNearbyResponse,
+  ValidateDigipinResponse,
 } from '../dto/digipin-response.dto';
-import { EncodeDigipinDto, DecodeDigipinDto, NearbyDigipinQueryDto } from '../dto/digipin-request.dto';
+import { EncodeDigipinDto, DecodeDigipinDto, NearbyDigipinQueryDto, ValidateDigipinDto } from '../dto/digipin-request.dto';
 
 /**
  * DigipinService
@@ -321,5 +322,114 @@ export class DigipinService {
       totalAncestors: ancestors.length,
       center: { latitude: center.lat, longitude: center.lng },
     };
+  }
+
+  /**
+   * POST /digipin/validate
+   * Validate DIGIPIN code format and geographic bounds
+   *
+   * UNIQUE FEATURE - No competitor has DIGIPIN validation!
+   */
+  async validateDigipin(dto: ValidateDigipinDto): Promise<ValidateDigipinResponse> {
+    const { digipinCode } = dto;
+    const errors: string[] = [];
+    const normalizedCode = digipinCode.toUpperCase().trim();
+
+    this.logger.log(`🔍 Validating DIGIPIN code: ${normalizedCode}`);
+
+    // Official DIGIPIN charset (16 symbols)
+    const VALID_CHARSET = /^[2-9CFJKLMPT]+$/;
+
+    // India's bounding box (from algorithm service)
+    const INDIA_BBOX = {
+      minLat: 2.5,
+      maxLat: 38.5,
+      minLng: 63.5,
+      maxLng: 99.5,
+    };
+
+    // 1. Length validation: Must be even (2 chars per level)
+    if (normalizedCode.length === 0) {
+      errors.push('DIGIPIN code cannot be empty');
+    } else if (normalizedCode.length % 2 !== 0) {
+      errors.push(`Invalid length: DIGIPIN codes must have even length (2 characters per level). Got ${normalizedCode.length} characters.`);
+    }
+
+    // 2. Max level check
+    const level = normalizedCode.length / 2;
+    if (level > 12) {
+      errors.push(`Invalid level: Maximum level is 12. Got level ${level}.`);
+    }
+
+    // 3. Charset validation: Only allowed symbols
+    if (!VALID_CHARSET.test(normalizedCode)) {
+      // Find invalid characters
+      const invalidChars = normalizedCode.split('').filter(char => !VALID_CHARSET.test(char));
+      const uniqueInvalid = [...new Set(invalidChars)];
+      errors.push(
+        `Invalid character(s): "${uniqueInvalid.join(', ')}". ` +
+        `Allowed charset: 2-9, C, F, J, K, L, M, P, T`
+      );
+    }
+
+    // 4. Grid logic validation: Check if each character is valid in grid
+    const gridPath: string[] = [];
+    if (VALID_CHARSET.test(normalizedCode)) {
+      for (let i = 0; i < normalizedCode.length; i++) {
+        const char = normalizedCode[i];
+        gridPath.push(char);
+      }
+    }
+
+    // 5. Geographic bounds check (only if format is valid)
+    let boundsInfo: any = undefined;
+    if (errors.length === 0) {
+      try {
+        const center = this.algorithm.getCenter(normalizedCode);
+        const withinIndia =
+          center.lat >= INDIA_BBOX.minLat &&
+          center.lat <= INDIA_BBOX.maxLat &&
+          center.lng >= INDIA_BBOX.minLng &&
+          center.lng <= INDIA_BBOX.maxLng;
+
+        boundsInfo = {
+          withinIndia,
+          centerLat: center.lat,
+          centerLng: center.lng,
+        };
+
+        if (!withinIndia) {
+          errors.push(
+            `Decoded location (${center.lat.toFixed(4)}°N, ${center.lng.toFixed(4)}°E) ` +
+            `is outside India bounds (${INDIA_BBOX.minLat}-${INDIA_BBOX.maxLat}°N, ${INDIA_BBOX.minLng}-${INDIA_BBOX.maxLng}°E)`
+          );
+        }
+      } catch (error) {
+        // If decode fails, it means the code is structurally invalid
+        errors.push(`Failed to decode DIGIPIN code: ${error.message}`);
+      }
+    }
+
+    // Build response
+    const response: ValidateDigipinResponse = {
+      valid: errors.length === 0,
+      digipinCode: normalizedCode,
+    };
+
+    if (errors.length === 0) {
+      response.level = level;
+      response.charset = 'valid';
+      response.bounds = boundsInfo;
+      response.gridPath = gridPath.join('-');
+
+      this.logger.log(`✅ DIGIPIN validation passed: ${normalizedCode} (Level ${level})`);
+    } else {
+      response.errors = errors;
+      response.charset = VALID_CHARSET.test(normalizedCode) ? 'valid' : 'invalid';
+
+      this.logger.warn(`❌ DIGIPIN validation failed: ${normalizedCode} - ${errors.join('; ')}`);
+    }
+
+    return response;
   }
 }

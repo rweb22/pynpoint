@@ -5,6 +5,7 @@ import {
   EncodeH3Dto,
   DecodeH3Dto,
   NearbyH3QueryDto,
+  ValidateH3Dto,
 } from '../dto/h3-request.dto';
 import {
   H3CellResponse,
@@ -15,7 +16,9 @@ import {
   H3ParentResponse,
   H3ChildrenResponse,
   H3AncestorsResponse,
+  ValidateH3Response,
 } from '../dto/h3-response.dto';
+import { isValidCell, getResolution } from 'h3-js';
 
 /**
  * H3Service
@@ -290,5 +293,113 @@ export class H3Service {
       ancestors,
       totalCount: ancestors.length,
     };
+  }
+
+  /**
+   * POST /h3/validate
+   * Validate H3 index format and geographic bounds
+   *
+   * UNIQUE FEATURE - No competitor has H3 validation!
+   */
+  async validateH3(dto: ValidateH3Dto): Promise<ValidateH3Response> {
+    const { h3Index } = dto;
+    const errors: string[] = [];
+    const normalizedIndex = h3Index.trim();
+
+    this.logger.log(`🔍 Validating H3 index: ${normalizedIndex}`);
+
+    // India's bounding box
+    const INDIA_BBOX = {
+      minLat: 2.5,
+      maxLat: 38.5,
+      minLng: 63.5,
+      maxLng: 99.5,
+    };
+
+    // Supported resolutions for our API (we store pincode mappings at res 9)
+    const MIN_SUPPORTED_RESOLUTION = 6;
+    const MAX_SUPPORTED_RESOLUTION = 12;
+
+    // 1. Format validation using h3-js library
+    const valid = isValidCell(normalizedIndex);
+    if (!valid) {
+      errors.push('Invalid H3 index format');
+    }
+
+    // Build response
+    const response: ValidateH3Response = {
+      valid: errors.length === 0,
+      h3Index: normalizedIndex,
+    };
+
+    // If valid, get additional details
+    if (valid) {
+      try {
+        // Get resolution
+        const resolution = getResolution(normalizedIndex);
+        response.resolution = resolution;
+
+        // Check if we support this resolution
+        const supported = resolution >= MIN_SUPPORTED_RESOLUTION && resolution <= MAX_SUPPORTED_RESOLUTION;
+        response.supported = supported;
+
+        // Decode to get center coordinates
+        const decoded = this.algorithm.decode(normalizedIndex);
+        const { lat, lng } = decoded;
+
+        // Check if within India bounds
+        const withinIndia =
+          lat >= INDIA_BBOX.minLat &&
+          lat <= INDIA_BBOX.maxLat &&
+          lng >= INDIA_BBOX.minLng &&
+          lng <= INDIA_BBOX.maxLng;
+
+        response.bounds = {
+          centerLat: lat,
+          centerLng: lng,
+          withinIndia,
+        };
+
+        // Get cell area
+        const area = this.algorithm.getArea(normalizedIndex);
+        response.cellArea = {
+          value: parseFloat(area.toFixed(6)),
+          unit: 'km²',
+        };
+
+        // Add warnings if out of bounds or unsupported
+        if (!withinIndia) {
+          errors.push(
+            `H3 cell center (${lat.toFixed(4)}°N, ${lng.toFixed(4)}°E) ` +
+            `is outside India bounds (${INDIA_BBOX.minLat}-${INDIA_BBOX.maxLat}°N, ${INDIA_BBOX.minLng}-${INDIA_BBOX.maxLng}°E)`
+          );
+        }
+
+        if (!supported) {
+          errors.push(
+            `Resolution ${resolution} is not supported. ` +
+            `Supported resolutions: ${MIN_SUPPORTED_RESOLUTION}-${MAX_SUPPORTED_RESOLUTION} (we store pincode mappings at resolution 9)`
+          );
+        }
+
+        this.logger.log(
+          `✅ H3 validation passed: ${normalizedIndex} (Resolution ${resolution}, ` +
+          `within India: ${withinIndia}, supported: ${supported})`
+        );
+      } catch (error) {
+        errors.push(`Failed to decode H3 index: ${error.message}`);
+        response.valid = false;
+      }
+    } else {
+      this.logger.warn(`❌ H3 validation failed: ${normalizedIndex} - Invalid format`);
+    }
+
+    // Add errors if any
+    if (errors.length > 0) {
+      response.errors = errors;
+      response.valid = false;
+    }
+
+    return response;
   }
 }

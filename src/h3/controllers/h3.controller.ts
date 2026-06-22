@@ -17,6 +17,7 @@ import {
   EncodeH3Dto,
   DecodeH3Dto,
   NearbyH3QueryDto,
+  ValidateH3Dto,
 } from '../dto/h3-request.dto';
 import {
   H3CellResponse,
@@ -27,6 +28,7 @@ import {
   H3ParentResponse,
   H3ChildrenResponse,
   H3AncestorsResponse,
+  ValidateH3Response,
 } from '../dto/h3-response.dto';
 
 /**
@@ -73,6 +75,18 @@ export class H3Controller {
   async decode(@Body() dto: DecodeH3Dto): Promise<DecodeH3Response> {
     this.logger.log(`POST /h3/decode (${dto.h3Indices.length} indices)`);
     return this.h3Service.decode(dto);
+  }
+
+  /**
+   * POST /h3/validate
+   * Validate H3 index format and geographic bounds
+   *
+   * UNIQUE FEATURE - No competitor has H3 validation!
+   */
+  @Post('validate')
+  async validate(@Body() dto: ValidateH3Dto): Promise<ValidateH3Response> {
+    this.logger.log(`POST /h3/validate (index: ${dto.h3Index})`);
+    return this.h3Service.validateH3(dto);
   }
 
   /**

@@ -17,6 +17,7 @@ import {
   EncodeDigipinDto,
   DecodeDigipinDto,
   NearbyDigipinQueryDto,
+  ValidateDigipinDto,
 } from '../dto/digipin-request.dto';
 import {
   DigipinCellResponse,
@@ -27,6 +28,7 @@ import {
   DigipinParentResponse,
   DigipinChildrenResponse,
   DigipinAncestorsResponse,
+  ValidateDigipinResponse,
 } from '../dto/digipin-response.dto';
 
 /**
@@ -79,6 +81,18 @@ export class DigipinController {
   async decode(@Body() dto: DecodeDigipinDto): Promise<DecodeDigipinResponse> {
     this.logger.log(`POST /digipin/decode (${dto.digipinCodes.length} codes)`);
     return this.digipinService.decode(dto);
+  }
+
+  /**
+   * POST /digipin/validate
+   * Validate DIGIPIN code format and geographic bounds
+   *
+   * UNIQUE FEATURE - No competitor has DIGIPIN validation!
+   */
+  @Post('validate')
+  async validate(@Body() dto: ValidateDigipinDto): Promise<ValidateDigipinResponse> {
+    this.logger.log(`POST /digipin/validate (code: ${dto.digipinCode})`);
+    return this.digipinService.validateDigipin(dto);
   }
 
   /**

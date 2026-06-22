@@ -118,7 +118,7 @@ export class DistrictDto {
 
 /**
  * Districts List Response
- * 
+ *
  * GET /administrative/districts?state=...
  */
 export class DistrictsListResponseDto {
@@ -127,8 +127,29 @@ export class DistrictsListResponseDto {
 }
 
 /**
+ * City Response DTO
+ */
+export class CityDto {
+  name: string;
+  state: string;
+  stateCode: string;
+  district?: string;
+  pincodeCount: number;
+}
+
+/**
+ * Cities List Response
+ *
+ * GET /administrative/cities?state=...&district=...
+ */
+export class CitiesListResponseDto {
+  total: number;
+  cities: CityDto[];
+}
+
+/**
  * Bulk Lookup Response
- * 
+ *
  * POST /pincodes/bulk/lookup
  */
 export class BulkPincodeLookupResponseDto {
@@ -139,4 +160,156 @@ export class BulkPincodeLookupResponseDto {
     data?: PincodeDetailResponseDto;
     error?: string;
   }>;
+}
+
+/**
+ * Pincode Validation Response
+ *
+ * GET /pincodes/:pincode/validate
+ *
+ * Enhanced validation that includes format, existence, and geographic bounds checks
+ */
+export class PincodeValidationResponseDto {
+  /**
+   * Overall validation status
+   */
+  valid: boolean;
+
+  /**
+   * Whether the pincode exists in the database
+   */
+  exists: boolean;
+
+  /**
+   * The pincode being validated
+   */
+  pincode: string;
+
+  /**
+   * Validation error messages (if any)
+   */
+  errors?: string[];
+
+  /**
+   * Brief details about the pincode (if it exists)
+   */
+  details?: {
+    state: string;
+    district: string;
+    officeName?: string;
+  };
+
+  /**
+   * Coordinate validation
+   */
+  coordinates?: {
+    latitude: number;
+    longitude: number;
+    withinIndiaBounds: boolean;
+  };
+}
+
+/**
+ * Nearby Pincode Result
+ *
+ * Individual result for nearby search
+ */
+export class NearbyPincodeResult {
+  pincode: string;
+  officeName?: string;
+  state?: string;
+  district?: string;
+  city?: string;
+  coordinates?: CoordinatesDto;
+
+  /**
+   * Distance from the source pincode/location
+   */
+  distance?: {
+    value: number;
+    unit: 'km' | 'm';
+  };
+}
+
+/**
+ * Nearby Pincodes Response
+ *
+ * GET /pincodes/:pincode/nearby
+ */
+export class NearbyPincodesResponseDto {
+  /**
+   * The source pincode that was queried
+   */
+  source: {
+    pincode: string;
+    coordinates?: CoordinatesDto;
+  };
+
+  /**
+   * Search parameters used
+   */
+  searchParams: {
+    radius: number;
+    unit: 'km' | 'm';
+    limit: number;
+  };
+
+  /**
+   * Results found within radius
+   */
+  results: NearbyPincodeResult[];
+
+  /**
+   * Total count of results
+   */
+  total: number;
+}
+
+/**
+ * Reverse Geocoding Response
+ *
+ * POST /pincodes/reverse-geocode
+ */
+export class ReverseGeocodeResponseDto {
+  /**
+   * Input coordinates
+   */
+  coordinates: {
+    latitude: number;
+    longitude: number;
+    withinIndiaBounds: boolean;
+  };
+
+  /**
+   * Nearest pincode(s) found
+   */
+  results: Array<{
+    pincode: string;
+    officeName?: string;
+    state?: string;
+    district?: string;
+    city?: string;
+    coordinates?: CoordinatesDto;
+    distance: {
+      value: number;
+      unit: 'km';
+    };
+    /**
+     * Whether the coordinates fall within this pincode's boundary
+     */
+    containsPoint?: boolean;
+  }>;
+
+  /**
+   * Total results returned
+   */
+  total: number;
+
+  /**
+   * Search parameters used
+   */
+  searchParams: {
+    maxDistance: number;
+    limit: number;
+  };
 }

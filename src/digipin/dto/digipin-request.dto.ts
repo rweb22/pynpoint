@@ -78,3 +78,12 @@ export class NearbyDigipinQueryDto {
   @Type(() => Number)
   level?: number = 6; // Default level 6
 }
+
+/**
+ * POST /digipin/validate
+ * Validate DIGIPIN code format and geographic bounds
+ */
+export class ValidateDigipinDto {
+  @IsString()
+  digipinCode: string;
+}

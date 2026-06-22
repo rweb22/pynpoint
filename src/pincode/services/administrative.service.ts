@@ -7,10 +7,12 @@ import {
   StatesListResponseDto,
   StateDetailResponseDto,
   DistrictsListResponseDto,
+  CitiesListResponseDto,
   StateDto,
   DistrictDto,
+  CityDto,
 } from '../dto/pincode-response.dto';
-import { DistrictQueryDto } from '../dto/pincode-query.dto';
+import { DistrictQueryDto, CityQueryDto } from '../dto/pincode-query.dto';
 
 /**
  * AdministrativeService
@@ -237,6 +239,92 @@ export class AdministrativeService {
   private getStateCode(stateName: string): string {
     const normalized = stateName?.toLowerCase().trim();
     return this.STATE_CODES[normalized] || 'XX';
+  }
+
+  /**
+   * Get all cities (optionally filtered by state and/or district)
+   * GET /administrative/cities?state=...&district=...
+   */
+  async getCities(query: CityQueryDto): Promise<CitiesListResponseDto> {
+    const startTime = Date.now();
+    const { state, district, limit = 100, page = 1 } = query;
+
+    // Build cache key based on filters
+    const cacheKey = `admin:cities:${state || 'all'}:${district || 'all'}:${page}:${limit}`;
+    this.logger.log(`🔍 Fetching cities (state: ${state || 'all'}, district: ${district || 'all'})`);
+
+    // Check cache first
+    const cached = await this.redisCache.get(cacheKey);
+    if (cached) {
+      const cacheTime = Date.now() - startTime;
+      this.logger.log(`✅ Cache HIT for cities (${cacheTime}ms)`);
+      return JSON.parse(cached);
+    }
+
+    this.logger.log(`❌ Cache MISS for cities - querying DB...`);
+
+    // Build query with filters
+    const queryBuilder = this.pincodeRepository
+      .createQueryBuilder('p')
+      .select('p.city', 'name')
+      .addSelect('p.state', 'state')
+      .addSelect('p.district', 'district')
+      .addSelect('COUNT(*)', 'pincodeCount')
+      .where('p.is_active = :active', { active: true })
+      .andWhere('p.city IS NOT NULL')
+      .andWhere("p.city != ''");
+
+    // Apply state filter
+    if (state) {
+      queryBuilder.andWhere('LOWER(p.state) = LOWER(:state)', { state });
+    }
+
+    // Apply district filter
+    if (district) {
+      queryBuilder.andWhere('LOWER(p.district) = LOWER(:district)', { district });
+    }
+
+    // Group by city, state, district
+    queryBuilder.groupBy('p.city, p.state, p.district');
+
+    // Order by city name
+    queryBuilder.orderBy('p.city', 'ASC');
+
+    // Pagination
+    const offset = (page - 1) * limit;
+    queryBuilder.offset(offset).limit(limit);
+
+    const dbStartTime = Date.now();
+    const rawResults = await queryBuilder.getRawMany();
+    const dbTime = Date.now() - dbStartTime;
+    this.logger.log(`📊 DB query completed in ${dbTime}ms, found ${rawResults.length} cities`);
+
+    // Build response
+    const cities: CityDto[] = rawResults.map((row) => {
+      const stateName = row.state || 'Unknown';
+      const stateCode = this.getStateCode(stateName);
+
+      return {
+        name: row.name,
+        state: stateName,
+        stateCode,
+        district: row.district || undefined,
+        pincodeCount: parseInt(row.pincodeCount, 10),
+      };
+    });
+
+    const response: CitiesListResponseDto = {
+      total: cities.length,
+      cities,
+    };
+
+    // Cache the result
+    await this.redisCache.set(cacheKey, JSON.stringify(response), this.CACHE_TTL);
+
+    const totalTime = Date.now() - startTime;
+    this.logger.log(`✅ Cities fetched successfully (${totalTime}ms)`);
+
+    return response;
   }
 
   /**

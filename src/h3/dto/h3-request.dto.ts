@@ -1,4 +1,4 @@
-import { IsArray, IsNumber, IsOptional, Min, Max, ValidateNested, ArrayMinSize } from 'class-validator';
+import { IsArray, IsNumber, IsOptional, IsString, Min, Max, ValidateNested, ArrayMinSize } from 'class-validator';
 import { Type, Transform } from 'class-transformer';
 
 /**
@@ -74,4 +74,13 @@ export class NearbyH3QueryDto {
   @Max(15)
   @Transform(({ value }) => parseInt(value, 10))
   resolution?: number;
+}
+
+/**
+ * POST /h3/validate
+ * Validate H3 index format and geographic bounds
+ */
+export class ValidateH3Dto {
+  @IsString()
+  h3Index: string;
 }

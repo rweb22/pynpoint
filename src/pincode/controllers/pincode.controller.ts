@@ -14,7 +14,14 @@ import { RateLimitInterceptor } from '../../auth/interceptors/rate-limit.interce
 import { UsageTrackingInterceptor } from '../../auth/interceptors/usage-tracking.interceptor';
 import { PincodeService } from '../services/pincode.service';
 import { AdministrativeService } from '../services/administrative.service';
-import { PincodeQueryDto, BulkPincodeLookupDto, DistrictQueryDto } from '../dto/pincode-query.dto';
+import {
+  PincodeQueryDto,
+  BulkPincodeLookupDto,
+  DistrictQueryDto,
+  CityQueryDto,
+  NearbyPincodeQueryDto,
+  ReverseGeocodeDto,
+} from '../dto/pincode-query.dto';
 
 /**
  * PincodeController
@@ -40,6 +47,45 @@ export class PincodeController {
   ) {}
 
   /**
+   * POST /api/v1/pincodes/reverse-geocode
+   * Convert coordinates to nearest pincode
+   *
+   * IMPORTANT: POST routes should come BEFORE parameterized GET routes
+   */
+  @Post('reverse-geocode')
+  async reverseGeocode(@Body() dto: ReverseGeocodeDto) {
+    this.logger.log(`POST /pincodes/reverse-geocode (${dto.latitude}, ${dto.longitude})`);
+    return this.pincodeService.reverseGeocode(dto);
+  }
+
+  /**
+   * GET /api/v1/pincodes/:pincode/validate
+   * Validate pincode format, existence, and geographic bounds
+   *
+   * IMPORTANT: This route must come BEFORE /:pincode to avoid matching "validate" as a pincode
+   */
+  @Get(':pincode/validate')
+  async validatePincode(@Param('pincode') pincode: string) {
+    this.logger.log(`GET /pincodes/${pincode}/validate`);
+    return this.pincodeService.validatePincode(pincode);
+  }
+
+  /**
+   * GET /api/v1/pincodes/:pincode/nearby
+   * Find pincodes within radius of a given pincode
+   *
+   * IMPORTANT: This route must come BEFORE /:pincode to avoid matching "nearby" as a pincode
+   */
+  @Get(':pincode/nearby')
+  async getNearbyPincodes(
+    @Param('pincode') pincode: string,
+    @Query() query: NearbyPincodeQueryDto,
+  ) {
+    this.logger.log(`GET /pincodes/${pincode}/nearby?radius=${query.radius}${query.unit}`);
+    return this.pincodeService.findNearbyPincodes(pincode, query);
+  }
+
+  /**
    * GET /api/v1/pincodes/:pincode
    * Get details of a single pincode
    */
@@ -50,7 +96,7 @@ export class PincodeController {
     @Query('includeBoundary') includeBoundary?: string,
   ) {
     this.logger.log(`GET /pincodes/${pincode}`);
-    
+
     return this.pincodeService.findByPincode(
       pincode,
       includePostOffices === 'true',
@@ -122,5 +168,15 @@ export class AdministrativeController {
   async getDistricts(@Query() query: DistrictQueryDto) {
     this.logger.log(`GET /administrative/districts?${JSON.stringify(query)}`);
     return this.administrativeService.getDistricts(query);
+  }
+
+  /**
+   * GET /api/v1/administrative/cities
+   * Get cities (optionally filtered by state and/or district)
+   */
+  @Get('cities')
+  async getCities(@Query() query: CityQueryDto) {
+    this.logger.log(`GET /administrative/cities?${JSON.stringify(query)}`);
+    return this.administrativeService.getCities(query);
   }
 }

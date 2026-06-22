@@ -151,3 +151,50 @@ export class DigipinAncestorsResponse {
   totalAncestors: number;
   center: CoordinateResponse;
 }
+
+/**
+ * POST /digipin/validate
+ * Validate DIGIPIN code format and geographic bounds
+ *
+ * UNIQUE FEATURE - No competitor has DIGIPIN validation!
+ */
+export class ValidateDigipinResponse {
+  /**
+   * Overall validation status
+   */
+  valid: boolean;
+
+  /**
+   * The DIGIPIN code being validated
+   */
+  digipinCode: string;
+
+  /**
+   * Calculated level from code length (2 chars per level)
+   */
+  level?: number;
+
+  /**
+   * Charset validation result
+   */
+  charset?: 'valid' | 'invalid';
+
+  /**
+   * Geographic bounds information (if valid)
+   */
+  bounds?: {
+    withinIndia: boolean;
+    centerLat?: number;
+    centerLng?: number;
+  };
+
+  /**
+   * Validation error messages (if any)
+   */
+  errors?: string[];
+
+  /**
+   * Grid path information (for valid codes)
+   */
+  gridPath?: string;
+}
