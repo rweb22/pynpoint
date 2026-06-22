@@ -42,16 +42,20 @@ export class NormalizeNamesToLowercase1781709000000 implements MigrationInterfac
     // ========================================
 
     console.log('[Migration] Step 2: Normalizing pincodes table (~19k rows)...');
+    console.log('[Migration] Processing state field...');
     const pincodesStart = Date.now();
 
-    await queryRunner.query(`
-      UPDATE pincodes
-      SET
-        state = LOWER(state),
-        district = LOWER(district),
-        city = LOWER(city),
-        office_name = LOWER(office_name)
-    `);
+    await queryRunner.query(`UPDATE pincodes SET state = LOWER(state)`);
+    console.log('[Migration] State complete. Processing district field...');
+
+    await queryRunner.query(`UPDATE pincodes SET district = LOWER(district)`);
+    console.log('[Migration] District complete. Processing city field...');
+
+    await queryRunner.query(`UPDATE pincodes SET city = LOWER(city)`);
+    console.log('[Migration] City complete. Processing office_name field...');
+
+    await queryRunner.query(`UPDATE pincodes SET office_name = LOWER(office_name)`);
+    console.log('[Migration] Office_name complete.');
 
     console.log(`[Migration] Pincodes COMPLETE in ${Date.now() - pincodesStart}ms`);
 
@@ -62,17 +66,39 @@ export class NormalizeNamesToLowercase1781709000000 implements MigrationInterfac
     console.log('[Migration] Step 3: Normalizing postoffices table (~165k rows)...');
     const postofficesStart = Date.now();
 
-    await queryRunner.query(`
-      UPDATE postoffices
-      SET
-        officename = LOWER(officename),
-        area = LOWER(area),
-        district = LOWER(district),
-        state = LOWER(state),
-        division = LOWER(division),
-        region = LOWER(region),
-        circle = LOWER(circle)
-    `);
+    console.log('[Migration] 3.1: Updating officename field...');
+    await queryRunner.query(`UPDATE postoffices SET officename = LOWER(officename)`);
+    console.log(`[Migration] 3.1: Officename complete (${Date.now() - postofficesStart}ms)`);
+
+    console.log('[Migration] 3.2: Updating area field...');
+    let fieldStart = Date.now();
+    await queryRunner.query(`UPDATE postoffices SET area = LOWER(area)`);
+    console.log(`[Migration] 3.2: Area complete (${Date.now() - fieldStart}ms)`);
+
+    console.log('[Migration] 3.3: Updating district field...');
+    fieldStart = Date.now();
+    await queryRunner.query(`UPDATE postoffices SET district = LOWER(district)`);
+    console.log(`[Migration] 3.3: District complete (${Date.now() - fieldStart}ms)`);
+
+    console.log('[Migration] 3.4: Updating state field...');
+    fieldStart = Date.now();
+    await queryRunner.query(`UPDATE postoffices SET state = LOWER(state)`);
+    console.log(`[Migration] 3.4: State complete (${Date.now() - fieldStart}ms)`);
+
+    console.log('[Migration] 3.5: Updating division field...');
+    fieldStart = Date.now();
+    await queryRunner.query(`UPDATE postoffices SET division = LOWER(division)`);
+    console.log(`[Migration] 3.5: Division complete (${Date.now() - fieldStart}ms)`);
+
+    console.log('[Migration] 3.6: Updating region field...');
+    fieldStart = Date.now();
+    await queryRunner.query(`UPDATE postoffices SET region = LOWER(region)`);
+    console.log(`[Migration] 3.6: Region complete (${Date.now() - fieldStart}ms)`);
+
+    console.log('[Migration] 3.7: Updating circle field...');
+    fieldStart = Date.now();
+    await queryRunner.query(`UPDATE postoffices SET circle = LOWER(circle)`);
+    console.log(`[Migration] 3.7: Circle complete (${Date.now() - fieldStart}ms)`);
 
     console.log(`[Migration] Postoffices normalized in ${Date.now() - postofficesStart}ms`);
 
