@@ -21,89 +21,49 @@ export class NormalizeNamesToLowercase1781709000000 implements MigrationInterfac
   name = 'NormalizeNamesToLowercase1781709000000';
 
   public async up(queryRunner: QueryRunner): Promise<void> {
-    // ========================================
-    // Normalize pincodes table
-    // ========================================
-    
-    await queryRunner.query(`
-      UPDATE pincodes 
-      SET state = LOWER(state) 
-      WHERE state IS NOT NULL 
-        AND state != LOWER(state)
-    `);
-
-    await queryRunner.query(`
-      UPDATE pincodes 
-      SET district = LOWER(district) 
-      WHERE district IS NOT NULL 
-        AND district != LOWER(district)
-    `);
-
-    await queryRunner.query(`
-      UPDATE pincodes 
-      SET city = LOWER(city) 
-      WHERE city IS NOT NULL 
-        AND city != LOWER(city)
-    `);
-
-    await queryRunner.query(`
-      UPDATE pincodes 
-      SET office_name = LOWER(office_name) 
-      WHERE office_name IS NOT NULL 
-        AND office_name != LOWER(office_name)
-    `);
+    // Normalize all text fields to lowercase in a single UPDATE per table
+    // This is more efficient than multiple UPDATE statements
 
     // ========================================
-    // Normalize postoffices table
+    // Normalize pincodes table - Single UPDATE
     // ========================================
 
     await queryRunner.query(`
-      UPDATE postoffices 
-      SET officename = LOWER(officename) 
-      WHERE officename IS NOT NULL 
-        AND officename != LOWER(officename)
+      UPDATE pincodes
+      SET
+        state = LOWER(state),
+        district = LOWER(district),
+        city = LOWER(city),
+        office_name = LOWER(office_name)
+      WHERE
+        state IS NOT NULL
+        OR district IS NOT NULL
+        OR city IS NOT NULL
+        OR office_name IS NOT NULL
     `);
 
-    await queryRunner.query(`
-      UPDATE postoffices 
-      SET area = LOWER(area) 
-      WHERE area IS NOT NULL 
-        AND area != LOWER(area)
-    `);
+    // ========================================
+    // Normalize postoffices table - Single UPDATE
+    // ========================================
 
     await queryRunner.query(`
-      UPDATE postoffices 
-      SET district = LOWER(district) 
-      WHERE district IS NOT NULL 
-        AND district != LOWER(district)
-    `);
-
-    await queryRunner.query(`
-      UPDATE postoffices 
-      SET state = LOWER(state) 
-      WHERE state IS NOT NULL 
-        AND state != LOWER(state)
-    `);
-
-    await queryRunner.query(`
-      UPDATE postoffices 
-      SET division = LOWER(division) 
-      WHERE division IS NOT NULL 
-        AND division != LOWER(division)
-    `);
-
-    await queryRunner.query(`
-      UPDATE postoffices 
-      SET region = LOWER(region) 
-      WHERE region IS NOT NULL 
-        AND region != LOWER(region)
-    `);
-
-    await queryRunner.query(`
-      UPDATE postoffices 
-      SET circle = LOWER(circle) 
-      WHERE circle IS NOT NULL 
-        AND circle != LOWER(circle)
+      UPDATE postoffices
+      SET
+        officename = LOWER(officename),
+        area = LOWER(area),
+        district = LOWER(district),
+        state = LOWER(state),
+        division = LOWER(division),
+        region = LOWER(region),
+        circle = LOWER(circle)
+      WHERE
+        officename IS NOT NULL
+        OR area IS NOT NULL
+        OR district IS NOT NULL
+        OR state IS NOT NULL
+        OR division IS NOT NULL
+        OR region IS NOT NULL
+        OR circle IS NOT NULL
     `);
   }
 
