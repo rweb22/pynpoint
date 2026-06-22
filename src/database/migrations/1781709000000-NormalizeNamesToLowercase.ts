@@ -27,14 +27,24 @@ export class NormalizeNamesToLowercase1781709000000 implements MigrationInterfac
     // ========================================
     // Step 1: Drop unique constraint on postoffices
     // ========================================
-    console.log('[Migration] Step 1: Dropping unique constraint uq_postoffices_pincode_officename...');
-    try {
+    console.log('[Migration] Step 1: Checking for unique constraint...');
+
+    // Check if constraint exists first
+    const constraintCheck = await queryRunner.query(`
+      SELECT constraint_name
+      FROM information_schema.table_constraints
+      WHERE table_name = 'postoffices'
+        AND constraint_name = 'uq_postoffices_pincode_officename'
+    `);
+
+    if (constraintCheck && constraintCheck.length > 0) {
+      console.log('[Migration] Constraint exists, dropping it...');
       await queryRunner.query(`
-        ALTER TABLE postoffices DROP CONSTRAINT IF EXISTS uq_postoffices_pincode_officename
+        ALTER TABLE postoffices DROP CONSTRAINT uq_postoffices_pincode_officename
       `);
       console.log('[Migration] Constraint dropped successfully');
-    } catch (err) {
-      console.log('[Migration] Constraint does not exist or already dropped');
+    } else {
+      console.log('[Migration] Constraint does not exist, skipping drop');
     }
 
     // ========================================
