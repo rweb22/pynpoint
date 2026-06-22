@@ -22,49 +22,94 @@ export class NormalizeNamesToLowercase1781709000000 implements MigrationInterfac
 
   public async up(queryRunner: QueryRunner): Promise<void> {
     console.log('[Migration] NormalizeNamesToLowercase - Starting migration...');
+    const overallStart = Date.now();
 
-    // Remove WHERE clause to avoid full table scan with OR conditions
-    // LOWER() on already-lowercase text is a no-op, so safe to run on all rows
-
-    // ========================================
-    // Normalize pincodes table
-    // ========================================
-
-    console.log('[Migration] Normalizing pincodes table (~19k rows)...');
-    const startPincodes = Date.now();
-
-    await queryRunner.query(`
-      UPDATE pincodes
-      SET
-        state = LOWER(state),
-        district = LOWER(district),
-        city = LOWER(city),
-        office_name = LOWER(office_name)
-    `);
-
-    console.log(`[Migration] Pincodes normalized in ${Date.now() - startPincodes}ms`);
+    // Process in batches with progress logging to avoid Railway log limits
+    // and provide visibility into migration progress
 
     // ========================================
-    // Normalize postoffices table
+    // Normalize pincodes table in batches
     // ========================================
 
-    console.log('[Migration] Normalizing postoffices table (~165k rows)...');
-    const startPostoffices = Date.now();
+    console.log('[Migration] Step 1/2: Normalizing pincodes table...');
 
-    await queryRunner.query(`
-      UPDATE postoffices
-      SET
-        officename = LOWER(officename),
-        area = LOWER(area),
-        district = LOWER(district),
-        state = LOWER(state),
-        division = LOWER(division),
-        region = LOWER(region),
-        circle = LOWER(circle)
-    `);
+    // Get total count
+    const pincodesCountResult = await queryRunner.query('SELECT COUNT(*) as count FROM pincodes');
+    const totalPincodes = parseInt(pincodesCountResult[0].count);
+    console.log(`[Migration] Total pincodes to process: ${totalPincodes}`);
 
-    console.log(`[Migration] Postoffices normalized in ${Date.now() - startPostoffices}ms`);
-    console.log('[Migration] NormalizeNamesToLowercase - COMPLETE ✓');
+    const pincodesBatchSize = 5000;
+    let pincodesProcessed = 0;
+    const pincodesStart = Date.now();
+
+    while (pincodesProcessed < totalPincodes) {
+      const batchStart = Date.now();
+
+      await queryRunner.query(`
+        UPDATE pincodes
+        SET
+          state = LOWER(state),
+          district = LOWER(district),
+          city = LOWER(city),
+          office_name = LOWER(office_name)
+        WHERE id IN (
+          SELECT id FROM pincodes
+          ORDER BY id
+          LIMIT ${pincodesBatchSize}
+          OFFSET ${pincodesProcessed}
+        )
+      `);
+
+      pincodesProcessed += pincodesBatchSize;
+      const progress = Math.min(100, Math.round((pincodesProcessed / totalPincodes) * 100));
+      console.log(`[Migration] Pincodes: ${Math.min(pincodesProcessed, totalPincodes)}/${totalPincodes} (${progress}%) - batch took ${Date.now() - batchStart}ms`);
+    }
+
+    console.log(`[Migration] Pincodes COMPLETE in ${Date.now() - pincodesStart}ms`);
+
+    // ========================================
+    // Normalize postoffices table in batches
+    // ========================================
+
+    console.log('[Migration] Step 2/2: Normalizing postoffices table...');
+
+    // Get total count
+    const postofficesCountResult = await queryRunner.query('SELECT COUNT(*) as count FROM postoffices');
+    const totalPostoffices = parseInt(postofficesCountResult[0].count);
+    console.log(`[Migration] Total postoffices to process: ${totalPostoffices}`);
+
+    const postofficesBatchSize = 10000;
+    let postofficesProcessed = 0;
+    const postofficesStart = Date.now();
+
+    while (postofficesProcessed < totalPostoffices) {
+      const batchStart = Date.now();
+
+      await queryRunner.query(`
+        UPDATE postoffices
+        SET
+          officename = LOWER(officename),
+          area = LOWER(area),
+          district = LOWER(district),
+          state = LOWER(state),
+          division = LOWER(division),
+          region = LOWER(region),
+          circle = LOWER(circle)
+        WHERE id IN (
+          SELECT id FROM postoffices
+          ORDER BY id
+          LIMIT ${postofficesBatchSize}
+          OFFSET ${postofficesProcessed}
+        )
+      `);
+
+      postofficesProcessed += postofficesBatchSize;
+      const progress = Math.min(100, Math.round((postofficesProcessed / totalPostoffices) * 100));
+      console.log(`[Migration] Postoffices: ${Math.min(postofficesProcessed, totalPostoffices)}/${totalPostoffices} (${progress}%) - batch took ${Date.now() - batchStart}ms`);
+    }
+
+    console.log(`[Migration] Postoffices COMPLETE in ${Date.now() - postofficesStart}ms`);
+    console.log(`[Migration] NormalizeNamesToLowercase - COMPLETE ✓ (total: ${Date.now() - overallStart}ms)`);
   }
 
   public async down(queryRunner: QueryRunner): Promise<void> {
