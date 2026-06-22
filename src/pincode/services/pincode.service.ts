@@ -450,9 +450,9 @@ export class PincodeService {
     }
 
     // Get source coordinates (centroid or fallback to post office)
-    let sourceLat: number;
-    let sourceLng: number;
-    let sourcePoint: string;
+    let sourceLat: number | undefined;
+    let sourceLng: number | undefined;
+    let sourcePoint: string | undefined;
 
     if (source.centroid) {
       // Parse centroid
@@ -495,6 +495,13 @@ export class PincodeService {
 
       this.logger.log(
         `📍 Using post office coordinates for ${sourcePincode}: ${sourceLat}, ${sourceLng}`
+      );
+    }
+
+    // At this point, all variables are guaranteed to be defined (or we threw an error)
+    if (!sourcePoint || sourceLat === undefined || sourceLng === undefined) {
+      throw new BadRequestException(
+        `Failed to determine coordinates for pincode ${sourcePincode}`
       );
     }
 
