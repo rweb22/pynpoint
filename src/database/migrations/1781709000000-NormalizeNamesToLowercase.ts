@@ -24,91 +24,89 @@ export class NormalizeNamesToLowercase1781709000000 implements MigrationInterfac
     console.log('[Migration] NormalizeNamesToLowercase - Starting migration...');
     const overallStart = Date.now();
 
-    // Process in batches with progress logging to avoid Railway log limits
-    // and provide visibility into migration progress
+    // ========================================
+    // Step 1: Drop unique constraint on postoffices
+    // ========================================
+    console.log('[Migration] Step 1: Dropping unique constraint uq_postoffices_pincode_officename...');
+    try {
+      await queryRunner.query(`
+        ALTER TABLE postoffices DROP CONSTRAINT IF EXISTS uq_postoffices_pincode_officename
+      `);
+      console.log('[Migration] Constraint dropped successfully');
+    } catch (err) {
+      console.log('[Migration] Constraint does not exist or already dropped');
+    }
 
     // ========================================
-    // Normalize pincodes table in batches
+    // Step 2: Normalize pincodes table (simple, no unique constraints)
     // ========================================
 
-    console.log('[Migration] Step 1/2: Normalizing pincodes table...');
-
-    // Get total count
-    const pincodesCountResult = await queryRunner.query('SELECT COUNT(*) as count FROM pincodes');
-    const totalPincodes = parseInt(pincodesCountResult[0].count);
-    console.log(`[Migration] Total pincodes to process: ${totalPincodes}`);
-
-    const pincodesBatchSize = 5000;
-    let pincodesProcessed = 0;
+    console.log('[Migration] Step 2: Normalizing pincodes table (~19k rows)...');
     const pincodesStart = Date.now();
 
-    while (pincodesProcessed < totalPincodes) {
-      const batchStart = Date.now();
-
-      await queryRunner.query(`
-        UPDATE pincodes
-        SET
-          state = LOWER(state),
-          district = LOWER(district),
-          city = LOWER(city),
-          office_name = LOWER(office_name)
-        WHERE id IN (
-          SELECT id FROM pincodes
-          ORDER BY id
-          LIMIT ${pincodesBatchSize}
-          OFFSET ${pincodesProcessed}
-        )
-      `);
-
-      pincodesProcessed += pincodesBatchSize;
-      const progress = Math.min(100, Math.round((pincodesProcessed / totalPincodes) * 100));
-      console.log(`[Migration] Pincodes: ${Math.min(pincodesProcessed, totalPincodes)}/${totalPincodes} (${progress}%) - batch took ${Date.now() - batchStart}ms`);
-    }
+    await queryRunner.query(`
+      UPDATE pincodes
+      SET
+        state = LOWER(state),
+        district = LOWER(district),
+        city = LOWER(city),
+        office_name = LOWER(office_name)
+    `);
 
     console.log(`[Migration] Pincodes COMPLETE in ${Date.now() - pincodesStart}ms`);
 
     // ========================================
-    // Normalize postoffices table in batches
+    // Step 3: Normalize postoffices table
     // ========================================
 
-    console.log('[Migration] Step 2/2: Normalizing postoffices table...');
-
-    // Get total count
-    const postofficesCountResult = await queryRunner.query('SELECT COUNT(*) as count FROM postoffices');
-    const totalPostoffices = parseInt(postofficesCountResult[0].count);
-    console.log(`[Migration] Total postoffices to process: ${totalPostoffices}`);
-
-    const postofficesBatchSize = 10000;
-    let postofficesProcessed = 0;
+    console.log('[Migration] Step 3: Normalizing postoffices table (~165k rows)...');
     const postofficesStart = Date.now();
 
-    while (postofficesProcessed < totalPostoffices) {
-      const batchStart = Date.now();
+    await queryRunner.query(`
+      UPDATE postoffices
+      SET
+        officename = LOWER(officename),
+        area = LOWER(area),
+        district = LOWER(district),
+        state = LOWER(state),
+        division = LOWER(division),
+        region = LOWER(region),
+        circle = LOWER(circle)
+    `);
 
-      await queryRunner.query(`
-        UPDATE postoffices
-        SET
-          officename = LOWER(officename),
-          area = LOWER(area),
-          district = LOWER(district),
-          state = LOWER(state),
-          division = LOWER(division),
-          region = LOWER(region),
-          circle = LOWER(circle)
-        WHERE id IN (
-          SELECT id FROM postoffices
-          ORDER BY id
-          LIMIT ${postofficesBatchSize}
-          OFFSET ${postofficesProcessed}
-        )
-      `);
+    console.log(`[Migration] Postoffices normalized in ${Date.now() - postofficesStart}ms`);
 
-      postofficesProcessed += postofficesBatchSize;
-      const progress = Math.min(100, Math.round((postofficesProcessed / totalPostoffices) * 100));
-      console.log(`[Migration] Postoffices: ${Math.min(postofficesProcessed, totalPostoffices)}/${totalPostoffices} (${progress}%) - batch took ${Date.now() - batchStart}ms`);
-    }
+    // ========================================
+    // Step 4: Deduplicate postoffices (keep oldest row per pincode+officename)
+    // ========================================
 
-    console.log(`[Migration] Postoffices COMPLETE in ${Date.now() - postofficesStart}ms`);
+    console.log('[Migration] Step 4: Deduplicating postoffices...');
+    const dedupeStart = Date.now();
+
+    const dedupeResult = await queryRunner.query(`
+      DELETE FROM postoffices
+      WHERE id NOT IN (
+        SELECT MIN(id)
+        FROM postoffices
+        GROUP BY pincode, officename
+      )
+    `);
+
+    const deletedCount = dedupeResult[1] || 0;
+    console.log(`[Migration] Deleted ${deletedCount} duplicate rows in ${Date.now() - dedupeStart}ms`);
+
+    // ========================================
+    // Step 5: Re-add unique constraint
+    // ========================================
+
+    console.log('[Migration] Step 5: Re-adding unique constraint...');
+    await queryRunner.query(`
+      ALTER TABLE postoffices
+      ADD CONSTRAINT uq_postoffices_pincode_officename
+      UNIQUE (pincode, officename)
+    `);
+    console.log('[Migration] Constraint re-added successfully');
+
     console.log(`[Migration] NormalizeNamesToLowercase - COMPLETE ✓ (total: ${Date.now() - overallStart}ms)`);
   }
 
