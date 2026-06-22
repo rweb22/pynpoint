@@ -23,40 +23,35 @@ export class NormalizeNamesToLowercase1781709000000 implements MigrationInterfac
   public async up(queryRunner: QueryRunner): Promise<void> {
     console.log('[Migration] NormalizeNamesToLowercase - Starting migration...');
 
-    // Normalize all text fields to lowercase in a single UPDATE per table
-    // This is more efficient than multiple UPDATE statements
+    // Remove WHERE clause to avoid full table scan with OR conditions
+    // LOWER() on already-lowercase text is a no-op, so safe to run on all rows
 
     // ========================================
-    // Normalize pincodes table - Single UPDATE
+    // Normalize pincodes table
     // ========================================
 
-    console.log('[Migration] Normalizing pincodes table...');
+    console.log('[Migration] Normalizing pincodes table (~19k rows)...');
     const startPincodes = Date.now();
 
-    const pincodesResult = await queryRunner.query(`
+    await queryRunner.query(`
       UPDATE pincodes
       SET
         state = LOWER(state),
         district = LOWER(district),
         city = LOWER(city),
         office_name = LOWER(office_name)
-      WHERE
-        state IS NOT NULL
-        OR district IS NOT NULL
-        OR city IS NOT NULL
-        OR office_name IS NOT NULL
     `);
 
     console.log(`[Migration] Pincodes normalized in ${Date.now() - startPincodes}ms`);
 
     // ========================================
-    // Normalize postoffices table - Single UPDATE
+    // Normalize postoffices table
     // ========================================
 
-    console.log('[Migration] Normalizing postoffices table...');
+    console.log('[Migration] Normalizing postoffices table (~165k rows)...');
     const startPostoffices = Date.now();
 
-    const postofficesResult = await queryRunner.query(`
+    await queryRunner.query(`
       UPDATE postoffices
       SET
         officename = LOWER(officename),
@@ -66,18 +61,10 @@ export class NormalizeNamesToLowercase1781709000000 implements MigrationInterfac
         division = LOWER(division),
         region = LOWER(region),
         circle = LOWER(circle)
-      WHERE
-        officename IS NOT NULL
-        OR area IS NOT NULL
-        OR district IS NOT NULL
-        OR state IS NOT NULL
-        OR division IS NOT NULL
-        OR region IS NOT NULL
-        OR circle IS NOT NULL
     `);
 
     console.log(`[Migration] Postoffices normalized in ${Date.now() - startPostoffices}ms`);
-    console.log('[Migration] NormalizeNamesToLowercase - COMPLETE');
+    console.log('[Migration] NormalizeNamesToLowercase - COMPLETE ✓');
   }
 
   public async down(queryRunner: QueryRunner): Promise<void> {
