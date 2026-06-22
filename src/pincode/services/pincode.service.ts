@@ -1,6 +1,6 @@
 import { Injectable, Logger, NotFoundException, BadRequestException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { Repository, Not, IsNull } from 'typeorm';
 import { Pincode } from '../../database/entities/pincode.entity';
 import { PostOffice } from '../../database/entities/postoffice.entity';
 import { RedisCacheService } from '../../redis/redis-cache.service';
@@ -449,9 +449,52 @@ export class PincodeService {
       throw new NotFoundException(`Source pincode ${sourcePincode} not found`);
     }
 
-    if (!source.centroid) {
-      throw new BadRequestException(
-        `Source pincode ${sourcePincode} does not have coordinate data`
+    // Get source coordinates (centroid or fallback to post office)
+    let sourceLat: number;
+    let sourceLng: number;
+    let sourcePoint: string;
+
+    if (source.centroid) {
+      // Parse centroid
+      try {
+        const coords = this.parseCoordinates(source.centroid);
+        if (coords) {
+          sourceLat = coords.latitude;
+          sourceLng = coords.longitude;
+          sourcePoint = source.centroid;
+        } else {
+          throw new Error('Failed to parse centroid');
+        }
+      } catch (error) {
+        this.logger.warn(`Centroid parsing failed for ${sourcePincode}: ${error.message}`);
+        // Fall through to post office fallback
+      }
+    }
+
+    // Fallback: Use post office coordinates if centroid is missing
+    if (!sourcePoint) {
+      const postOffice = await this.postOfficeRepository.findOne({
+        where: {
+          pincode: sourcePincode,
+          is_active: true,
+          latitude: Not(IsNull()),
+          longitude: Not(IsNull()),
+        },
+        order: { officetype: 'ASC' }, // Prefer HO (Head Office) over SO/BO
+      });
+
+      if (!postOffice || !postOffice.latitude || !postOffice.longitude) {
+        throw new BadRequestException(
+          `Source pincode ${sourcePincode} does not have coordinate data (no centroid or post office coordinates)`
+        );
+      }
+
+      sourceLat = Number(postOffice.latitude);
+      sourceLng = Number(postOffice.longitude);
+      sourcePoint = `SRID=4326;POINT(${sourceLng} ${sourceLat})`;
+
+      this.logger.log(
+        `📍 Using post office coordinates for ${sourcePincode}: ${sourceLat}, ${sourceLng}`
       );
     }
 
@@ -459,9 +502,14 @@ export class PincodeService {
     const radiusMeters = unit === 'km' ? radius * 1000 : radius;
 
     // PostGIS spatial query using ST_DWithin
-    // ST_DWithin returns true if geometries are within specified distance
+    // Strategy: Query using centroid if available, otherwise use post office coordinates via join
     const queryBuilder = this.pincodeRepository
       .createQueryBuilder('p')
+      .leftJoin(
+        PostOffice,
+        'po',
+        'po.pincode = p.pincode AND po.is_active = true AND po.latitude IS NOT NULL AND po.longitude IS NOT NULL'
+      )
       .select([
         'p.id',
         'p.pincode',
@@ -474,9 +522,21 @@ export class PincodeService {
       .where('p.is_active = :active', { active: true })
       .andWhere('p.pincode != :sourcePincode', { sourcePincode })
       .andWhere(
-        `ST_DWithin(p.centroid::geography, :sourceCentroid::geography, :radius)`,
+        `(
+          (p.centroid IS NOT NULL AND ST_DWithin(
+            p.centroid::geography,
+            ST_GeographyFromText(:sourcePoint),
+            :radius
+          ))
+          OR
+          (p.centroid IS NULL AND ST_DWithin(
+            ST_SetSRID(ST_MakePoint(po.longitude, po.latitude), 4326)::geography,
+            ST_GeographyFromText(:sourcePoint),
+            :radius
+          ))
+        )`,
         {
-          sourceCentroid: source.centroid,
+          sourcePoint,
           radius: radiusMeters,
         }
       );
@@ -484,10 +544,16 @@ export class PincodeService {
     // Add distance calculation if requested
     if (includeDistance) {
       queryBuilder.addSelect(
-        `ST_Distance(p.centroid::geography, :sourceCentroid::geography)`,
+        `COALESCE(
+          ST_Distance(p.centroid::geography, ST_GeographyFromText(:sourcePoint)),
+          ST_Distance(
+            ST_SetSRID(ST_MakePoint(po.longitude, po.latitude), 4326)::geography,
+            ST_GeographyFromText(:sourcePoint)
+          )
+        )`,
         'distance'
       );
-      queryBuilder.setParameter('sourceCentroid', source.centroid);
+      queryBuilder.setParameter('sourcePoint', sourcePoint);
       queryBuilder.orderBy('distance', 'ASC');
     }
 
@@ -497,30 +563,11 @@ export class PincodeService {
     const dbTime = Date.now() - startTime;
     this.logger.log(`📊 DB query completed in ${dbTime}ms, found ${rawResults.entities.length} results`);
 
-    // Parse source coordinates
-    let sourceCoordinates: { latitude: number; longitude: number } | undefined;
-    try {
-      const centroidStr = source.centroid.toString();
-      if (centroidStr.startsWith('{')) {
-        const geojson = JSON.parse(centroidStr);
-        if (geojson.coordinates) {
-          sourceCoordinates = {
-            latitude: geojson.coordinates[1],
-            longitude: geojson.coordinates[0],
-          };
-        }
-      } else if (centroidStr.includes('POINT')) {
-        const match = centroidStr.match(/POINT\s*\(\s*([-\d.]+)\s+([-\d.]+)\s*\)/i);
-        if (match) {
-          sourceCoordinates = {
-            latitude: parseFloat(match[2]),
-            longitude: parseFloat(match[1]),
-          };
-        }
-      }
-    } catch (error) {
-      this.logger.warn(`Failed to parse source centroid: ${error.message}`);
-    }
+    // Source coordinates already set above
+    const sourceCoordinates = {
+      latitude: sourceLat,
+      longitude: sourceLng,
+    };
 
     // Build results
     const results: NearbyPincodeResult[] = rawResults.entities.map((entity, index) => {
