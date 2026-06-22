@@ -4,7 +4,9 @@ import { AppModule } from './app.module';
 import { VersionHeaderInterceptor } from './common/interceptors/version-header.interceptor';
 
 async function bootstrap() {
+  console.log('[Bootstrap] Creating NestJS application...');
   const app = await NestFactory.create(AppModule);
+  console.log('[Bootstrap] Application created successfully');
 
   // Enable API versioning (URI-based)
   app.enableVersioning({
@@ -28,6 +30,9 @@ async function bootstrap() {
   // Add version headers to all responses
   app.useGlobalInterceptors(new VersionHeaderInterceptor());
 
-  await app.listen(process.env.PORT ?? 3000);
+  const port = process.env.PORT ?? 3000;
+  console.log(`[Bootstrap] Starting server on port ${port}...`);
+  await app.listen(port);
+  console.log(`[Bootstrap] Server is listening on port ${port}`);
 }
 bootstrap();

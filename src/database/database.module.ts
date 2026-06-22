@@ -33,7 +33,7 @@ import { ApiUsage } from './entities/api-usage.entity';
         migrationsTableName: 'typeorm_migrations',
         migrationsRun: configService.get<string>('RUN_MIGRATIONS') === 'true',
         synchronize: false, // Always false - use migrations instead
-        logging: configService.get<string>('NODE_ENV') === 'development',
+        logging: ['error', 'warn', 'migration'], // Always log migrations and errors
         // PostGIS extension is automatically detected
         // Connection pooling
         extra: {

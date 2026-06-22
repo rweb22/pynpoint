@@ -21,6 +21,8 @@ export class NormalizeNamesToLowercase1781709000000 implements MigrationInterfac
   name = 'NormalizeNamesToLowercase1781709000000';
 
   public async up(queryRunner: QueryRunner): Promise<void> {
+    console.log('[Migration] NormalizeNamesToLowercase - Starting migration...');
+
     // Normalize all text fields to lowercase in a single UPDATE per table
     // This is more efficient than multiple UPDATE statements
 
@@ -28,7 +30,10 @@ export class NormalizeNamesToLowercase1781709000000 implements MigrationInterfac
     // Normalize pincodes table - Single UPDATE
     // ========================================
 
-    await queryRunner.query(`
+    console.log('[Migration] Normalizing pincodes table...');
+    const startPincodes = Date.now();
+
+    const pincodesResult = await queryRunner.query(`
       UPDATE pincodes
       SET
         state = LOWER(state),
@@ -42,11 +47,16 @@ export class NormalizeNamesToLowercase1781709000000 implements MigrationInterfac
         OR office_name IS NOT NULL
     `);
 
+    console.log(`[Migration] Pincodes normalized in ${Date.now() - startPincodes}ms`);
+
     // ========================================
     // Normalize postoffices table - Single UPDATE
     // ========================================
 
-    await queryRunner.query(`
+    console.log('[Migration] Normalizing postoffices table...');
+    const startPostoffices = Date.now();
+
+    const postofficesResult = await queryRunner.query(`
       UPDATE postoffices
       SET
         officename = LOWER(officename),
@@ -65,6 +75,9 @@ export class NormalizeNamesToLowercase1781709000000 implements MigrationInterfac
         OR region IS NOT NULL
         OR circle IS NOT NULL
     `);
+
+    console.log(`[Migration] Postoffices normalized in ${Date.now() - startPostoffices}ms`);
+    console.log('[Migration] NormalizeNamesToLowercase - COMPLETE');
   }
 
   public async down(queryRunner: QueryRunner): Promise<void> {
