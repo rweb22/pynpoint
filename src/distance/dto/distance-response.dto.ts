@@ -1,13 +1,11 @@
 import { DistanceUnit } from './distance-request.dto';
 
 export class LocationDetailsDto {
-  type: 'pincode' | 'digipin' | 'h3' | 'coordinate';
+  type: 'pincode' | 'digipin' | 'coordinate';
   pincode?: string;
   officeName?: string;
   digipinCode?: string;
   level?: number;
-  h3Index?: string;
-  resolution?: number;
   coordinates: {
     latitude: number;
     longitude: number;
@@ -19,11 +17,6 @@ export class DistanceValueDto {
   unit: DistanceUnit;
 }
 
-export class GridDistanceDto {
-  cells: number;
-  method: 'h3_grid_distance';
-}
-
 /**
  * Response for POST /distance/calculate
  */
@@ -31,8 +24,7 @@ export class DistanceCalculationResponse {
   from: LocationDetailsDto;
   to: LocationDetailsDto;
   distance: DistanceValueDto;
-  gridDistance?: GridDistanceDto;
-  method: 'haversine' | 'h3_grid';
+  method: 'haversine';
 }
 
 /**
@@ -42,8 +34,7 @@ export class BatchDistanceResultDto {
   from: LocationDetailsDto;
   to: LocationDetailsDto;
   distance: DistanceValueDto;
-  gridDistance?: GridDistanceDto;
-  method: 'haversine' | 'h3_grid';
+  method: 'haversine';
   success: boolean;
   error?: string;
 }

@@ -2,7 +2,6 @@ import { Injectable, Logger, BadRequestException, NotFoundException } from '@nes
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Pincode } from '../../database/entities/pincode.entity';
-import { H3AlgorithmService } from '../../h3/services/h3-algorithm.service';
 import { DigipinAlgorithmService } from '../../digipin/services/digipin-algorithm.service';
 import { RedisCacheService } from '../../redis/redis-cache.service';
 import {
@@ -17,7 +16,6 @@ import {
   BatchDistanceResponse,
   BatchDistanceResultDto,
 } from '../dto/distance-response.dto';
-import { gridDistance } from 'h3-js';
 
 @Injectable()
 export class DistanceService {
@@ -26,7 +24,6 @@ export class DistanceService {
   constructor(
     @InjectRepository(Pincode)
     private readonly pincodeRepository: Repository<Pincode>,
-    private readonly h3Algorithm: H3AlgorithmService,
     private readonly digipinAlgorithm: DigipinAlgorithmService,
     private readonly redisCache: RedisCacheService,
   ) {}
@@ -54,7 +51,7 @@ export class DistanceService {
     const unit = dto.unit || DistanceUnit.KM;
     const distance = this.convertDistance(distanceKm, unit);
 
-    const response: DistanceCalculationResponse = {
+    return {
       from: fromDetails,
       to: toDetails,
       distance: {
@@ -63,18 +60,6 @@ export class DistanceService {
       },
       method: 'haversine',
     };
-
-    // Add grid distance if requested and both are H3
-    if (dto.includeGridDistance && fromDetails.type === 'h3' && toDetails.type === 'h3') {
-      const cells = gridDistance(fromDetails.h3Index!, toDetails.h3Index!);
-      response.gridDistance = {
-        cells,
-        method: 'h3_grid_distance',
-      };
-      response.method = 'h3_grid';
-    }
-
-    return response;
   }
 
   /**
@@ -91,7 +76,6 @@ export class DistanceService {
             from: pair.from,
             to: pair.to,
             unit: dto.unit,
-            includeGridDistance: dto.includeGridDistance,
           });
 
           return {
@@ -136,15 +120,15 @@ export class DistanceService {
    */
   private async resolveLocation(location: LocationDto): Promise<LocationDetailsDto> {
     // Validate: exactly one property must be set
-    const props = [location.pincode, location.digipin, location.h3, location.coordinate];
+    const props = [location.pincode, location.digipin, location.coordinate];
     const defined = props.filter((p) => p !== undefined && p !== null);
 
     if (defined.length === 0) {
-      throw new BadRequestException('Location must have one of: pincode, digipin, h3, or coordinate');
+      throw new BadRequestException('Location must have one of: pincode, digipin, or coordinate');
     }
 
     if (defined.length > 1) {
-      throw new BadRequestException('Location must have exactly ONE of: pincode, digipin, h3, or coordinate');
+      throw new BadRequestException('Location must have exactly ONE of: pincode, digipin, or coordinate');
     }
 
     // Handle each type
@@ -156,15 +140,11 @@ export class DistanceService {
       return this.resolveDigipin(location.digipin);
     }
 
-    if (location.h3) {
-      return this.resolveH3(location.h3);
-    }
-
     if (location.coordinate) {
       return this.resolveCoordinate(location.coordinate);
     }
 
-    throw new BadRequestException('Location must have one of: pincode, digipin, h3, or coordinate');
+    throw new BadRequestException('Location must have one of: pincode, digipin, or coordinate');
   }
 
   /**
@@ -218,22 +198,7 @@ export class DistanceService {
     };
   }
 
-  /**
-   * Resolve H3 to coordinates
-   */
-  private async resolveH3(h3Index: string): Promise<LocationDetailsDto> {
-    const decoded = this.h3Algorithm.decode(h3Index);
 
-    return {
-      type: 'h3',
-      h3Index,
-      resolution: decoded.resolution,
-      coordinates: {
-        latitude: decoded.lat,
-        longitude: decoded.lng,
-      },
-    };
-  }
 
   /**
    * Resolve raw coordinate

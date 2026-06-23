@@ -13,7 +13,7 @@ export class CoordinateDto {
 }
 
 /**
- * Location can be one of: pincode, digipin, h3, or coordinate
+ * Location can be one of: pincode, digipin, or coordinate
  */
 export class LocationDto {
   @IsOptional()
@@ -23,10 +23,6 @@ export class LocationDto {
   @IsOptional()
   @IsString()
   digipin?: string;
-
-  @IsOptional()
-  @IsString()
-  h3?: string;
 
   @IsOptional()
   @ValidateNested()
@@ -55,10 +51,6 @@ export class CalculateDistanceDto {
   @IsOptional()
   @IsEnum(DistanceUnit)
   unit?: DistanceUnit = DistanceUnit.KM;
-
-  @IsOptional()
-  @IsBoolean()
-  includeGridDistance?: boolean = false;
 }
 
 /**
@@ -84,8 +76,4 @@ export class BatchDistanceDto {
   @IsOptional()
   @IsEnum(DistanceUnit)
   unit?: DistanceUnit = DistanceUnit.KM;
-
-  @IsOptional()
-  @IsBoolean()
-  includeGridDistance?: boolean = false;
 }

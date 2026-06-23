@@ -38,12 +38,10 @@ export class InitCommand extends CommandRunner {
     this.logger.log('🚀 Starting manual initialization...');
 
     const forceReingest = options?.forceReingest || options?.all || false;
-    const forceRebuild = options?.forceRebuild || options?.all || false;
 
     try {
       await this.initializationService.forceReinitialize({
         forceReingest,
-        forceRebuild,
       });
 
       this.logger.log('✅ Manual initialization complete');

@@ -453,13 +453,10 @@ export class DigipinService {
   async toPincode(dto: DigipinToPincodeDto): Promise<DigipinToPincodeResponse> {
     const code = dto.digipinCode.toUpperCase();
 
-    // Step 1: Validate DIGIPIN code
-    if (!this.algorithm.isValid(code)) {
-      throw new BadRequestException(`Invalid DIGIPIN code: ${code}`);
-    }
-
-    // Step 2: Decode DIGIPIN to coordinates (center point)
-    const center = this.algorithm.getCenter(code);
+    // Step 1 & 2: Decode DIGIPIN to coordinates (center point)
+    // This will validate the code and throw BadRequestException if invalid
+    const decoded = this.algorithm.decode(code);
+    const center = { lat: decoded.lat, lng: decoded.lng };
 
     this.logger.log(`DIGIPIN ${code} → coordinates (${center.lat}, ${center.lng})`);
 
