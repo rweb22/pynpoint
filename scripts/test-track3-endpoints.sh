@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Test Track 3: H3 Endpoints
+# Test Track 3: Distance Operations
 # Usage: ./scripts/test-track3-endpoints.sh <API_KEY>
 
 set -e
@@ -14,151 +14,169 @@ if [ -z "$API_KEY" ]; then
   exit 1
 fi
 
-echo "🔶 Testing Track 3: H3 Solo Operations"
-echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+# Colors for output
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+BLUE='\033[0;34m'
+RED='\033[0;31m'
+NC='\033[0m' # No Color
+
+echo -e "${YELLOW}📏 Testing Track 3: Distance Operations${NC}"
+echo "═══════════════════════════════════════════════════════════════════════════════════"
 echo "Base URL: $BASE_URL"
 echo "API Key: ${API_KEY:0:20}..."
 echo ""
 
-# Color codes
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-RED='\033[0;31m'
-BLUE='\033[0;34m'
-NC='\033[0m' # No Color
-
-# Function to make API call and measure latency
-test_endpoint() {
-  local name="$1"
-  local method="$2"
-  local endpoint="$3"
-  local data="$4"
-  
-  echo -e "${BLUE}━━━ $name ━━━${NC}"
-  
-  if [ "$method" = "POST" ]; then
-    response=$(curl -s -w "\n__TIME__:%{time_total}\n__STATUS__:%{http_code}" \
-      -X POST \
-      -H "Authorization: Bearer $API_KEY" \
-      -H "Content-Type: application/json" \
-      -d "$data" \
-      "$BASE_URL$endpoint" 2>&1)
-  else
-    response=$(curl -s -w "\n__TIME__:%{time_total}\n__STATUS__:%{http_code}" \
-      -H "Authorization: Bearer $API_KEY" \
-      "$BASE_URL$endpoint" 2>&1)
-  fi
-  
-  # Extract time and status
-  time=$(echo "$response" | grep "__TIME__:" | cut -d: -f2)
-  status=$(echo "$response" | grep "__STATUS__:" | cut -d: -f2)
-  body=$(echo "$response" | grep -v "__TIME__:" | grep -v "__STATUS__:")
-  
-  # Convert to milliseconds
-  time_ms=$(echo "$time * 1000" | bc)
-  
-  # Color based on status
-  if [ "$status" = "200" ] || [ "$status" = "201" ]; then
-    status_color=$GREEN
-  else
-    status_color=$RED
-  fi
-  
-  # Color based on latency
-  if (( $(echo "$time_ms < 50" | bc -l) )); then
-    latency_color=$GREEN
-  elif (( $(echo "$time_ms < 200" | bc -l) )); then
-    latency_color=$YELLOW
-  else
-    latency_color=$RED
-  fi
-  
-  echo -e "Status: ${status_color}$status${NC}"
-  echo -e "Latency: ${latency_color}${time_ms}ms${NC}"
-  echo "Response:"
-  echo "$body" | jq . 2>/dev/null || echo "$body"
-  echo ""
-}
-
-# Test 1: Encode - Delhi coordinates to H3
-echo -e "${YELLOW}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
-echo -e "${YELLOW}Test 1: POST /h3/encode (Coordinates → H3)${NC}"
-echo -e "${YELLOW}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
-echo ""
-test_endpoint "Encode Delhi coordinates to H3" "POST" "/api/v1/h3/encode" \
-  '{
-    "coordinates": [
-      {"latitude": 28.6139, "longitude": 77.2090},
-      {"latitude": 19.0760, "longitude": 72.8777}
-    ],
-    "resolution": 9
-  }'
-
-# Test 2: Decode - H3 to coordinates
-echo -e "${YELLOW}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
-echo -e "${YELLOW}Test 2: POST /h3/decode (H3 → Coordinates)${NC}"
-echo -e "${YELLOW}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
-echo ""
-
-# First, get an H3 index from encode
-echo "Getting an H3 index first..."
-h3_response=$(curl -s \
-  -X POST \
+# Test 1: Pincode to Pincode
+echo -e "${YELLOW}═══════════════════════════════════════════════════════════════════════════════════${NC}"
+echo -e "${YELLOW}Test 1: POST /distance/calculate (Pincode to Pincode)${NC}"
+echo -e "${BLUE}───────────────────────────────────────────────────────────────────────────────────${NC}"
+echo -e "${BLUE}Calculate distance: Delhi (110001) → Mumbai (400001)${NC}"
+echo -e "${BLUE}───────────────────────────────────────────────────────────────────────────────────${NC}"
+RESPONSE=$(curl -s -w "\n%{http_code}\n%{time_total}" \
+  -X POST "$BASE_URL/api/v1/distance/calculate" \
   -H "Authorization: Bearer $API_KEY" \
   -H "Content-Type: application/json" \
-  -d '{"coordinates": [{"latitude": 28.6139, "longitude": 77.2090}], "resolution": 9}' \
-  "$BASE_URL/api/v1/h3/encode")
+  -d '{
+    "from": {"pincode": "110001"},
+    "to": {"pincode": "400001"},
+    "unit": "km"
+  }')
 
-h3_index=$(echo "$h3_response" | jq -r '.results[0].h3Index')
-echo "Got H3 index: $h3_index"
+STATUS=$(echo "$RESPONSE" | tail -n 2 | head -n 1)
+LATENCY=$(echo "$RESPONSE" | tail -n 1 | awk '{printf "%.6fms", $1*1000}')
+BODY=$(echo "$RESPONSE" | sed '$d' | sed '$d')
+
+if [ "$STATUS" = "201" ] || [ "$STATUS" = "200" ]; then
+  echo -e "Status: ${GREEN}$STATUS${NC}"
+else
+  echo -e "Status: ${RED}$STATUS${NC}"
+fi
+echo -e "Latency: ${RED}$LATENCY${NC}"
+echo "Response:"
+echo "$BODY" | jq '.'
 echo ""
 
-test_endpoint "Decode H3 to coordinates" "POST" "/api/v1/h3/decode" \
-  "{\"h3Indices\": [\"$h3_index\"]}"
+# Test 2: DIGIPIN to DIGIPIN
+echo -e "${YELLOW}Test 2: POST /distance/calculate (DIGIPIN to DIGIPIN)${NC}"
+echo -e "${BLUE}───────────────────────────────────────────────────────────────────────────────────${NC}"
+echo -e "${BLUE}Calculate distance between two DIGIPIN cells${NC}"
+echo -e "${BLUE}───────────────────────────────────────────────────────────────────────────────────${NC}"
+RESPONSE=$(curl -s -w "\n%{http_code}\n%{time_total}" \
+  -X POST "$BASE_URL/api/v1/distance/calculate" \
+  -H "Authorization: Bearer $API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "from": {"digipin": "M32M7L"},
+    "to": {"digipin": "M3CHC9"},
+    "unit": "km"
+  }')
 
-# Test 3: Get Cell Details
-echo -e "${YELLOW}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
-echo -e "${YELLOW}Test 3: GET /h3/:h3Index (Cell Details)${NC}"
-echo -e "${YELLOW}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+STATUS=$(echo "$RESPONSE" | tail -n 2 | head -n 1)
+LATENCY=$(echo "$RESPONSE" | tail -n 1 | awk '{printf "%.6fms", $1*1000}')
+BODY=$(echo "$RESPONSE" | sed '$d' | sed '$d')
+
+if [ "$STATUS" = "201" ] || [ "$STATUS" = "200" ]; then
+  echo -e "Status: ${GREEN}$STATUS${NC}"
+else
+  echo -e "Status: ${RED}$STATUS${NC}"
+fi
+echo -e "Latency: ${RED}$LATENCY${NC}"
+echo "Response:"
+echo "$BODY" | jq '.'
 echo ""
-test_endpoint "Get cell details for $h3_index" "GET" "/api/v1/h3/$h3_index"
 
-# Test 4: Get Neighbors
-echo -e "${YELLOW}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
-echo -e "${YELLOW}Test 4: GET /h3/neighbors/:h3Index (6 Neighbors)${NC}"
-echo -e "${YELLOW}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+# Test 3: H3 to H3 with grid distance
+echo -e "${YELLOW}Test 3: POST /distance/calculate (H3 to H3 with grid distance)${NC}"
+echo -e "${BLUE}───────────────────────────────────────────────────────────────────────────────────${NC}"
+echo -e "${BLUE}Calculate distance between H3 hexagons with grid distance${NC}"
+echo -e "${BLUE}───────────────────────────────────────────────────────────────────────────────────${NC}"
+RESPONSE=$(curl -s -w "\n%{http_code}\n%{time_total}" \
+  -X POST "$BASE_URL/api/v1/distance/calculate" \
+  -H "Authorization: Bearer $API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "from": {"h3": "893da11401bffff"},
+    "to": {"h3": "893da114003ffff"},
+    "unit": "km",
+    "includeGridDistance": true
+  }')
+
+STATUS=$(echo "$RESPONSE" | tail -n 2 | head -n 1)
+LATENCY=$(echo "$RESPONSE" | tail -n 1 | awk '{printf "%.6fms", $1*1000}')
+BODY=$(echo "$RESPONSE" | sed '$d' | sed '$d')
+
+if [ "$STATUS" = "201" ] || [ "$STATUS" = "200" ]; then
+  echo -e "Status: ${GREEN}$STATUS${NC}"
+else
+  echo -e "Status: ${RED}$STATUS${NC}"
+fi
+echo -e "Latency: ${RED}$LATENCY${NC}"
+echo "Response:"
+echo "$BODY" | jq '.'
 echo ""
-test_endpoint "Get neighbors of $h3_index" "GET" "/api/v1/h3/neighbors/$h3_index"
 
-# Test 5: Get Nearby Cells
-echo -e "${YELLOW}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
-echo -e "${YELLOW}Test 5: GET /h3/nearby (Cells Within Radius)${NC}"
-echo -e "${YELLOW}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+# Test 4: Coordinate to Pincode
+echo -e "${YELLOW}Test 4: POST /distance/calculate (Coordinate to Pincode)${NC}"
+echo -e "${BLUE}───────────────────────────────────────────────────────────────────────────────────${NC}"
+echo -e "${BLUE}Calculate distance from coordinates to pincode${NC}"
+echo -e "${BLUE}───────────────────────────────────────────────────────────────────────────────────${NC}"
+RESPONSE=$(curl -s -w "\n%{http_code}\n%{time_total}" \
+  -X POST "$BASE_URL/api/v1/distance/calculate" \
+  -H "Authorization: Bearer $API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "from": {"coordinate": {"lat": 28.6139, "lng": 77.2090}},
+    "to": {"pincode": "560001"},
+    "unit": "km"
+  }')
+
+STATUS=$(echo "$RESPONSE" | tail -n 2 | head -n 1)
+LATENCY=$(echo "$RESPONSE" | tail -n 1 | awk '{printf "%.6fms", $1*1000}')
+BODY=$(echo "$RESPONSE" | sed '$d' | sed '$d')
+
+if [ "$STATUS" = "201" ] || [ "$STATUS" = "200" ]; then
+  echo -e "Status: ${GREEN}$STATUS${NC}"
+else
+  echo -e "Status: ${RED}$STATUS${NC}"
+fi
+echo -e "Latency: ${RED}$LATENCY${NC}"
+echo "Response:"
+echo "$BODY" | jq '.'
 echo ""
-test_endpoint "Get nearby cells (Delhi, 5km radius)" "GET" \
-  "/api/v1/h3/nearby?lat=28.6139&lng=77.2090&radius=5&resolution=9"
 
-# Test 6: Get Parent Cell
-echo -e "${YELLOW}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
-echo -e "${YELLOW}Test 6: GET /h3/:h3Index/parent (Hierarchy - Parent)${NC}"
-echo -e "${YELLOW}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+# Test 5: Batch distance calculation
+echo -e "${YELLOW}Test 5: POST /distance/batch${NC}"
+echo -e "${BLUE}───────────────────────────────────────────────────────────────────────────────────${NC}"
+echo -e "${BLUE}Calculate distances for multiple pairs at once${NC}"
+echo -e "${BLUE}───────────────────────────────────────────────────────────────────────────────────${NC}"
+RESPONSE=$(curl -s -w "\n%{http_code}\n%{time_total}" \
+  -X POST "$BASE_URL/api/v1/distance/batch" \
+  -H "Authorization: Bearer $API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "pairs": [
+      {"from": {"pincode": "110001"}, "to": {"pincode": "400001"}},
+      {"from": {"pincode": "110001"}, "to": {"pincode": "560001"}},
+      {"from": {"digipin": "M32M7L"}, "to": {"digipin": "M3CHC9"}}
+    ],
+    "unit": "km"
+  }')
+
+STATUS=$(echo "$RESPONSE" | tail -n 2 | head -n 1)
+LATENCY=$(echo "$RESPONSE" | tail -n 1 | awk '{printf "%.6fms", $1*1000}')
+BODY=$(echo "$RESPONSE" | sed '$d' | sed '$d')
+
+if [ "$STATUS" = "201" ] || [ "$STATUS" = "200" ]; then
+  echo -e "Status: ${GREEN}$STATUS${NC}"
+else
+  echo -e "Status: ${RED}$STATUS${NC}"
+fi
+echo -e "Latency: ${RED}$LATENCY${NC}"
+echo "Response:"
+echo "$BODY" | jq '.'
 echo ""
-test_endpoint "Get parent of $h3_index" "GET" "/api/v1/h3/$h3_index/parent"
 
-# Test 7: Get Children Cells
-echo -e "${YELLOW}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
-echo -e "${YELLOW}Test 7: GET /h3/:h3Index/children (Hierarchy - Children)${NC}"
-echo -e "${YELLOW}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
-echo ""
-test_endpoint "Get children of $h3_index" "GET" "/api/v1/h3/$h3_index/children"
-
-# Test 8: Get Ancestors
-echo -e "${YELLOW}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
-echo -e "${YELLOW}Test 8: GET /h3/:h3Index/ancestors (Hierarchy - Full Chain)${NC}"
-echo -e "${YELLOW}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
-echo ""
-test_endpoint "Get all ancestors of $h3_index" "GET" "/api/v1/h3/$h3_index/ancestors"
-
-echo -e "${GREEN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
-echo -e "${GREEN}✅ Track 3 Testing Complete! (8 endpoints)${NC}"
-echo -e "${GREEN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+echo -e "${GREEN}═══════════════════════════════════════════════════════════════════════════════════${NC}"
+echo -e "${GREEN}✅ Track 5 Testing Complete!${NC}"
+echo -e "${GREEN}═══════════════════════════════════════════════════════════════════════════════════${NC}"
