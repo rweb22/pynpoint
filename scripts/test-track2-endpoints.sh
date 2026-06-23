@@ -168,16 +168,168 @@ echo ""
 level1_code=$(echo "$digipin_code" | cut -c1)
 test_endpoint "Get parent of level 1 cell: $level1_code (expect error)" "GET" "/api/v1/digipin/$level1_code/parent"
 
+# NEGATIVE TESTS - Error Handling
+echo ""
+echo -e "${RED}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+echo -e "${RED}NEGATIVE TESTS - Error Handling Validation${NC}"
+echo -e "${RED}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+echo ""
+
+# Function to test error endpoints
+test_error_endpoint() {
+  local name="$1"
+  local method="$2"
+  local endpoint="$3"
+  local data="$4"
+  local expected_status="$5"
+
+  echo -e "${BLUE}━━━ $name ━━━${NC}"
+  echo "Expected Status: $expected_status"
+
+  if [ "$method" = "POST" ]; then
+    response=$(curl -s -w "\n__TIME__:%{time_total}\n__STATUS__:%{http_code}" \
+      -X POST \
+      -H "Authorization: Bearer $API_KEY" \
+      -H "Content-Type: application/json" \
+      -d "$data" \
+      "$BASE_URL$endpoint" 2>&1)
+  else
+    response=$(curl -s -w "\n__TIME__:%{time_total}\n__STATUS__:%{http_code}" \
+      -H "Authorization: Bearer $API_KEY" \
+      "$BASE_URL$endpoint" 2>&1)
+  fi
+
+  status=$(echo "$response" | grep "__STATUS__:" | cut -d: -f2)
+  body=$(echo "$response" | grep -v "__TIME__:" | grep -v "__STATUS__:")
+
+  if [ "$status" = "$expected_status" ]; then
+    echo -e "Status: ${GREEN}$status ✅ PASS${NC}"
+  else
+    echo -e "Status: ${RED}$status ❌ FAIL (expected $expected_status)${NC}"
+  fi
+
+  echo "Response:"
+  echo "$body" | jq . 2>/dev/null || echo "$body"
+  echo ""
+}
+
+# Negative Test 1: Encode with Invalid Coordinates (latitude > 90)
+echo -e "${YELLOW}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+echo -e "${YELLOW}N1: Encode - Invalid Coordinates (Latitude > 90)${NC}"
+echo -e "${YELLOW}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+echo ""
+test_error_endpoint "POST /api/v1/digipin/encode (lat=200)" "POST" "/api/v1/digipin/encode" \
+  '{"coordinates": [{"latitude": 200, "longitude": 77.2090}], "level": 6}' "400"
+
+# Negative Test 2: Encode with Invalid Level (level > 10)
+echo -e "${YELLOW}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+echo -e "${YELLOW}N2: Encode - Invalid Level (Level > 10)${NC}"
+echo -e "${YELLOW}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+echo ""
+test_error_endpoint "POST /api/v1/digipin/encode (level=15)" "POST" "/api/v1/digipin/encode" \
+  '{"coordinates": [{"latitude": 28.6139, "longitude": 77.2090}], "level": 15}' "400"
+
+# Negative Test 3: Encode with Invalid Level (level = 0)
+echo -e "${YELLOW}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+echo -e "${YELLOW}N3: Encode - Invalid Level (Level = 0)${NC}"
+echo -e "${YELLOW}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+echo ""
+test_error_endpoint "POST /api/v1/digipin/encode (level=0)" "POST" "/api/v1/digipin/encode" \
+  '{"coordinates": [{"latitude": 28.6139, "longitude": 77.2090}], "level": 0}' "400"
+
+# Negative Test 4: Encode with Missing Coordinates Field
+echo -e "${YELLOW}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+echo -e "${YELLOW}N4: Encode - Missing Required Field (coordinates)${NC}"
+echo -e "${YELLOW}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+echo ""
+test_error_endpoint "POST /api/v1/digipin/encode (no coordinates)" "POST" "/api/v1/digipin/encode" \
+  '{"level": 6}' "400"
+
+# Negative Test 5: Encode with Empty Coordinates Array
+echo -e "${YELLOW}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+echo -e "${YELLOW}N5: Encode - Empty Coordinates Array${NC}"
+echo -e "${YELLOW}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+echo ""
+test_error_endpoint "POST /api/v1/digipin/encode (empty array)" "POST" "/api/v1/digipin/encode" \
+  '{"coordinates": [], "level": 6}' "400"
+
+# Negative Test 6: Encode with String Instead of Number for Latitude
+echo -e "${YELLOW}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+echo -e "${YELLOW}N6: Encode - Invalid Data Type (latitude as string)${NC}"
+echo -e "${YELLOW}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+echo ""
+test_error_endpoint "POST /api/v1/digipin/encode (string lat)" "POST" "/api/v1/digipin/encode" \
+  '{"coordinates": [{"latitude": "invalid", "longitude": 77.2090}], "level": 6}' "400"
+
+# Negative Test 7: Decode with Invalid DIGIPIN Code
+echo -e "${YELLOW}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+echo -e "${YELLOW}N7: Decode - Invalid DIGIPIN Code (Invalid Characters)${NC}"
+echo -e "${YELLOW}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+echo ""
+test_error_endpoint "POST /api/v1/digipin/decode (invalid code)" "POST" "/api/v1/digipin/decode" \
+  '{"digipinCodes": ["INVALID123"]}' "400"
+
+# Negative Test 8: Decode with Empty Array
+echo -e "${YELLOW}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+echo -e "${YELLOW}N8: Decode - Empty DIGIPIN Codes Array${NC}"
+echo -e "${YELLOW}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+echo ""
+test_error_endpoint "POST /api/v1/digipin/decode (empty array)" "POST" "/api/v1/digipin/decode" \
+  '{"digipinCodes": []}' "400"
+
+# Negative Test 9: To-Pincode with Invalid DIGIPIN
+echo -e "${YELLOW}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+echo -e "${YELLOW}N9: To-Pincode - Invalid DIGIPIN Format${NC}"
+echo -e "${YELLOW}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+echo ""
+test_error_endpoint "POST /api/v1/digipin/to-pincode (invalid)" "POST" "/api/v1/digipin/to-pincode" \
+  '{"digipinCode": "ZZZZZ"}' "400"
+
+# Negative Test 10: Nearby with Invalid Radius (negative)
+echo -e "${YELLOW}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+echo -e "${YELLOW}N10: Nearby - Invalid Radius (Negative Value)${NC}"
+echo -e "${YELLOW}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+echo ""
+test_error_endpoint "GET /api/v1/digipin/nearby (negative radius)" "GET" \
+  "/api/v1/digipin/nearby?lat=28.6139&lng=77.2090&radius=-5&level=6" "400"
+
+# Negative Test 11: Nearby with Out-of-Range Latitude
+echo -e "${YELLOW}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+echo -e "${YELLOW}N11: Nearby - Out-of-Range Latitude${NC}"
+echo -e "${YELLOW}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+echo ""
+test_error_endpoint "GET /api/v1/digipin/nearby (lat > 90)" "GET" \
+  "/api/v1/digipin/nearby?lat=100&lng=77.2090&radius=5&level=6" "400"
+
+# Negative Test 12: Missing API Key
+echo -e "${YELLOW}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+echo -e "${YELLOW}N12: Missing API Key (Unauthorized)${NC}"
+echo -e "${YELLOW}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+echo ""
+echo -e "${BLUE}━━━ POST /api/v1/digipin/encode (No Auth) ━━━${NC}"
+echo "Expected Status: 401"
+response=$(curl -s -w "\n__STATUS__:%{http_code}" \
+  -X POST \
+  -H "Content-Type: application/json" \
+  -d '{"coordinates": [{"latitude": 28.6139, "longitude": 77.2090}], "level": 6}' \
+  "$BASE_URL/api/v1/digipin/encode" 2>&1)
+status=$(echo "$response" | grep "__STATUS__:" | cut -d: -f2)
+body=$(echo "$response" | grep -v "__STATUS__:")
+if [ "$status" = "401" ]; then
+  echo -e "Status: ${GREEN}$status ✅ PASS${NC}"
+else
+  echo -e "Status: ${RED}$status ❌ FAIL (expected 401)${NC}"
+fi
+echo "Response:"
+echo "$body" | jq . 2>/dev/null || echo "$body"
+echo ""
+
 echo -e "${GREEN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
 echo -e "${GREEN}✅ Track 2 Testing Complete!${NC}"
-echo -e "${GREEN}Total Endpoints Tested: 9${NC}"
-echo -e "${GREEN}  - Encode (bulk)${NC}"
-echo -e "${GREEN}  - Decode (bulk)${NC}"
-echo -e "${GREEN}  - Cell Details${NC}"
-echo -e "${GREEN}  - Neighbors (8 adjacent)${NC}"
-echo -e "${GREEN}  - Nearby (radius search)${NC}"
-echo -e "${GREEN}  - Parent (hierarchy up)${NC}"
-echo -e "${GREEN}  - Children (4x4 grid, 16 cells)${NC}"
-echo -e "${GREEN}  - Ancestors (complete lineage)${NC}"
-echo -e "${GREEN}  - Edge case (level 1 parent error)${NC}"
 echo -e "${GREEN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+echo ""
+echo -e "${BLUE}Summary:${NC}"
+echo "  Positive Tests: 9 tests"
+echo "  Negative Tests: 12 tests"
+echo "  Total: 21 tests"
+echo ""

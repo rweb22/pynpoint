@@ -177,6 +177,153 @@ echo "Response:"
 echo "$BODY" | jq '.'
 echo ""
 
+# NEGATIVE TESTS - Error Handling
+echo ""
+echo -e "${RED}═══════════════════════════════════════════════════════════════════════════════════${NC}"
+echo -e "${RED}NEGATIVE TESTS - Error Handling Validation${NC}"
+echo -e "${RED}═══════════════════════════════════════════════════════════════════════════════════${NC}"
+echo ""
+
+# Function to test error endpoints
+test_error_endpoint() {
+  local name="$1"
+  local data="$2"
+  local expected_status="$3"
+
+  echo -e "${BLUE}───────────────────────────────────────────────────────────────────────────────────${NC}"
+  echo -e "${BLUE}$name${NC}"
+  echo -e "${BLUE}───────────────────────────────────────────────────────────────────────────────────${NC}"
+  echo "Expected Status: $expected_status"
+
+  RESPONSE=$(curl -s -w "\n%{http_code}" \
+    -X POST "$BASE_URL/api/v1/distance/calculate" \
+    -H "Authorization: Bearer $API_KEY" \
+    -H "Content-Type: application/json" \
+    -d "$data")
+
+  STATUS=$(echo "$RESPONSE" | tail -n 1)
+  BODY=$(echo "$RESPONSE" | sed '$d')
+
+  if [ "$STATUS" = "$expected_status" ]; then
+    echo -e "Status: ${GREEN}$STATUS ✅ PASS${NC}"
+  else
+    echo -e "Status: ${RED}$STATUS ❌ FAIL (expected $expected_status)${NC}"
+  fi
+
+  echo "Response:"
+  echo "$BODY" | jq . 2>/dev/null || echo "$BODY"
+  echo ""
+}
+
+# Negative Test 1: Missing "from" field
+echo -e "${YELLOW}═══════════════════════════════════════════════════════════════════════════════════${NC}"
+echo -e "${YELLOW}N1: Missing Required Field (from)${NC}"
+echo -e "${YELLOW}═══════════════════════════════════════════════════════════════════════════════════${NC}"
+echo ""
+test_error_endpoint "POST /distance/calculate (missing from)" \
+  '{"to": {"pincode": "400001"}, "unit": "km"}' \
+  "400"
+
+# Negative Test 2: Missing "to" field
+echo -e "${YELLOW}═══════════════════════════════════════════════════════════════════════════════════${NC}"
+echo -e "${YELLOW}N2: Missing Required Field (to)${NC}"
+echo -e "${YELLOW}═══════════════════════════════════════════════════════════════════════════════════${NC}"
+echo ""
+test_error_endpoint "POST /distance/calculate (missing to)" \
+  '{"from": {"pincode": "110001"}, "unit": "km"}' \
+  "400"
+
+# Negative Test 3: Invalid point type
+echo -e "${YELLOW}═══════════════════════════════════════════════════════════════════════════════════${NC}"
+echo -e "${YELLOW}N3: Invalid Point Type${NC}"
+echo -e "${YELLOW}═══════════════════════════════════════════════════════════════════════════════════${NC}"
+echo ""
+test_error_endpoint "POST /distance/calculate (invalid type)" \
+  '{"from": {"invalid": "type"}, "to": {"pincode": "400001"}, "unit": "km"}' \
+  "400"
+
+# Negative Test 4: Invalid unit
+echo -e "${YELLOW}═══════════════════════════════════════════════════════════════════════════════════${NC}"
+echo -e "${YELLOW}N4: Invalid Distance Unit${NC}"
+echo -e "${YELLOW}═══════════════════════════════════════════════════════════════════════════════════${NC}"
+echo ""
+test_error_endpoint "POST /distance/calculate (invalid unit)" \
+  '{"from": {"pincode": "110001"}, "to": {"pincode": "400001"}, "unit": "invalid"}' \
+  "400"
+
+# Negative Test 5: Non-existent pincode
+echo -e "${YELLOW}═══════════════════════════════════════════════════════════════════════════════════${NC}"
+echo -e "${YELLOW}N5: Non-existent Pincode${NC}"
+echo -e "${YELLOW}═══════════════════════════════════════════════════════════════════════════════════${NC}"
+echo ""
+test_error_endpoint "POST /distance/calculate (non-existent pincode)" \
+  '{"from": {"pincode": "999999"}, "to": {"pincode": "400001"}, "unit": "km"}' \
+  "404"
+
+# Negative Test 6: Invalid coordinate (latitude > 90)
+echo -e "${YELLOW}═══════════════════════════════════════════════════════════════════════════════════${NC}"
+echo -e "${YELLOW}N6: Invalid Coordinates (Latitude > 90)${NC}"
+echo -e "${YELLOW}═══════════════════════════════════════════════════════════════════════════════════${NC}"
+echo ""
+test_error_endpoint "POST /distance/calculate (lat > 90)" \
+  '{"from": {"latitude": 200, "longitude": 77.2090}, "to": {"pincode": "400001"}, "unit": "km"}' \
+  "400"
+
+# Negative Test 7: Empty batch array
+echo -e "${YELLOW}═══════════════════════════════════════════════════════════════════════════════════${NC}"
+echo -e "${YELLOW}N7: Batch Calculate - Empty Array${NC}"
+echo -e "${YELLOW}═══════════════════════════════════════════════════════════════════════════════════${NC}"
+echo ""
+echo -e "${BLUE}───────────────────────────────────────────────────────────────────────────────────${NC}"
+echo -e "${BLUE}POST /distance/batch (empty pairs)${NC}"
+echo -e "${BLUE}───────────────────────────────────────────────────────────────────────────────────${NC}"
+echo "Expected Status: 400"
+RESPONSE=$(curl -s -w "\n%{http_code}" \
+  -X POST "$BASE_URL/api/v1/distance/batch" \
+  -H "Authorization: Bearer $API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"pairs": [], "unit": "km"}')
+STATUS=$(echo "$RESPONSE" | tail -n 1)
+BODY=$(echo "$RESPONSE" | sed '$d')
+if [ "$STATUS" = "400" ]; then
+  echo -e "Status: ${GREEN}$STATUS ✅ PASS${NC}"
+else
+  echo -e "Status: ${RED}$STATUS ❌ FAIL (expected 400)${NC}"
+fi
+echo "Response:"
+echo "$BODY" | jq . 2>/dev/null || echo "$BODY"
+echo ""
+
+# Negative Test 8: Missing API Key
+echo -e "${YELLOW}═══════════════════════════════════════════════════════════════════════════════════${NC}"
+echo -e "${YELLOW}N8: Missing API Key (Unauthorized)${NC}"
+echo -e "${YELLOW}═══════════════════════════════════════════════════════════════════════════════════${NC}"
+echo ""
+echo -e "${BLUE}───────────────────────────────────────────────────────────────────────────────────${NC}"
+echo -e "${BLUE}POST /distance/calculate (No Auth)${NC}"
+echo -e "${BLUE}───────────────────────────────────────────────────────────────────────────────────${NC}"
+echo "Expected Status: 401"
+RESPONSE=$(curl -s -w "\n%{http_code}" \
+  -X POST "$BASE_URL/api/v1/distance/calculate" \
+  -H "Content-Type: application/json" \
+  -d '{"from": {"pincode": "110001"}, "to": {"pincode": "400001"}, "unit": "km"}')
+STATUS=$(echo "$RESPONSE" | tail -n 1)
+BODY=$(echo "$RESPONSE" | sed '$d')
+if [ "$STATUS" = "401" ]; then
+  echo -e "Status: ${GREEN}$STATUS ✅ PASS${NC}"
+else
+  echo -e "Status: ${RED}$STATUS ❌ FAIL (expected 401)${NC}"
+fi
+echo "Response:"
+echo "$BODY" | jq . 2>/dev/null || echo "$BODY"
+echo ""
+
 echo -e "${GREEN}═══════════════════════════════════════════════════════════════════════════════════${NC}"
-echo -e "${GREEN}✅ Track 5 Testing Complete!${NC}"
+echo -e "${GREEN}✅ Track 3 Testing Complete!${NC}"
 echo -e "${GREEN}═══════════════════════════════════════════════════════════════════════════════════${NC}"
+echo ""
+echo -e "${BLUE}Summary:${NC}"
+echo "  Positive Tests: 6 tests"
+echo "  Negative Tests: 8 tests"
+echo "  Total: 14 tests"
+echo ""
