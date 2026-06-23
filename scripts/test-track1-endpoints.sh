@@ -39,46 +39,51 @@ test_endpoint() {
   local method="$2"
   local endpoint="$3"
   local data="$4"
-  
+
   echo -e "${BLUE}━━━ $name ━━━${NC}"
-  
+
   if [ "$method" = "POST" ]; then
-    response=$(curl -s -w "\n__TIME__:%{time_total}\n__STATUS__:%{http_code}" \
+    response=$(curl -s --max-time 30 -w "\n__TIME__:%{time_total}\n__STATUS__:%{http_code}" \
       -X POST \
       -H "Authorization: Bearer $API_KEY" \
       -H "Content-Type: application/json" \
       -d "$data" \
       "$BASE_URL$endpoint" 2>&1)
   else
-    response=$(curl -s -w "\n__TIME__:%{time_total}\n__STATUS__:%{http_code}" \
+    response=$(curl -s --max-time 30 -w "\n__TIME__:%{time_total}\n__STATUS__:%{http_code}" \
       -H "Authorization: Bearer $API_KEY" \
       "$BASE_URL$endpoint" 2>&1)
   fi
-  
+
   # Extract time and status
   time=$(echo "$response" | grep "__TIME__:" | cut -d: -f2)
   status=$(echo "$response" | grep "__STATUS__:" | cut -d: -f2)
   body=$(echo "$response" | grep -v "__TIME__:" | grep -v "__STATUS__:")
-  
-  # Convert to milliseconds
-  time_ms=$(echo "$time * 1000" | bc)
-  
+
+  # Convert to milliseconds using awk instead of bc
+  if [ -z "$time" ]; then
+    time_ms="timeout"
+    latency_color=$RED
+  else
+    time_ms=$(awk "BEGIN {print $time * 1000}")
+
+    # Color based on latency
+    if awk "BEGIN {exit !($time_ms < 50)}"; then
+      latency_color=$GREEN
+    elif awk "BEGIN {exit !($time_ms < 200)}"; then
+      latency_color=$YELLOW
+    else
+      latency_color=$RED
+    fi
+  fi
+
   # Color based on status
   if [ "$status" = "200" ] || [ "$status" = "201" ]; then
     status_color=$GREEN
   else
     status_color=$RED
   fi
-  
-  # Color based on latency
-  if (( $(echo "$time_ms < 50" | bc -l) )); then
-    latency_color=$GREEN
-  elif (( $(echo "$time_ms < 200" | bc -l) )); then
-    latency_color=$YELLOW
-  else
-    latency_color=$RED
-  fi
-  
+
   echo -e "Status: ${status_color}$status${NC}"
   echo -e "Latency: ${latency_color}${time_ms}ms${NC}"
   echo "Response:"
@@ -91,13 +96,22 @@ echo -e "${YELLOW}━━━━━━━━━━━━━━━━━━━━�
 echo -e "${YELLOW}Test 0: Root Endpoint (Public)${NC}"
 echo -e "${YELLOW}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
 echo ""
-response=$(curl -s -w "\n__TIME__:%{time_total}\n__STATUS__:%{http_code}" "$BASE_URL/" 2>&1)
+response=$(curl -s --max-time 30 -w "\n__TIME__:%{time_total}\n__STATUS__:%{http_code}" "$BASE_URL/" 2>&1)
 time=$(echo "$response" | grep "__TIME__:" | cut -d: -f2)
 status=$(echo "$response" | grep "__STATUS__:" | cut -d: -f2)
 body=$(echo "$response" | grep -v "__TIME__:" | grep -v "__STATUS__:")
-time_ms=$(echo "$time * 1000" | bc)
-echo -e "Status: ${GREEN}$status${NC}"
-echo -e "Latency: ${GREEN}${time_ms}ms${NC}"
+
+# Handle empty time (timeout or error)
+if [ -z "$time" ]; then
+  time_ms="timeout"
+  echo -e "Status: ${RED}TIMEOUT${NC}"
+  echo -e "Latency: ${RED}timeout${NC}"
+else
+  time_ms=$(awk "BEGIN {print $time * 1000}")
+  echo -e "Status: ${GREEN}${status:-unknown}${NC}"
+  echo -e "Latency: ${GREEN}${time_ms}ms${NC}"
+fi
+
 echo "Response:"
 echo "$body" | jq . 2>/dev/null || echo "$body"
 echo ""
@@ -164,14 +178,14 @@ test_error_endpoint() {
   echo "Expected Status: $expected_status"
 
   if [ "$method" = "POST" ]; then
-    response=$(curl -s -w "\n__TIME__:%{time_total}\n__STATUS__:%{http_code}" \
+    response=$(curl -s --max-time 30 -w "\n__TIME__:%{time_total}\n__STATUS__:%{http_code}" \
       -X POST \
       -H "Authorization: Bearer $API_KEY" \
       -H "Content-Type: application/json" \
       -d "$data" \
       "$BASE_URL$endpoint" 2>&1)
   else
-    response=$(curl -s -w "\n__TIME__:%{time_total}\n__STATUS__:%{http_code}" \
+    response=$(curl -s --max-time 30 -w "\n__TIME__:%{time_total}\n__STATUS__:%{http_code}" \
       -H "Authorization: Bearer $API_KEY" \
       "$BASE_URL$endpoint" 2>&1)
   fi
