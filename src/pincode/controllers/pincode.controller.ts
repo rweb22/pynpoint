@@ -22,6 +22,7 @@ import {
   NearbyPincodeQueryDto,
   ReverseGeocodeDto,
 } from '../dto/pincode-query.dto';
+import { PincodeValidationPipe } from '../pipes/pincode-validation.pipe';
 
 /**
  * PincodeController
@@ -65,7 +66,9 @@ export class PincodeController {
    * IMPORTANT: This route must come BEFORE /:pincode to avoid matching "validate" as a pincode
    */
   @Get(':pincode/validate')
-  async validatePincode(@Param('pincode') pincode: string) {
+  async validatePincode(
+    @Param('pincode', PincodeValidationPipe) pincode: string,
+  ) {
     this.logger.log(`GET /pincodes/${pincode}/validate`);
     return this.pincodeService.validatePincode(pincode);
   }
@@ -78,7 +81,7 @@ export class PincodeController {
    */
   @Get(':pincode/nearby')
   async getNearbyPincodes(
-    @Param('pincode') pincode: string,
+    @Param('pincode', PincodeValidationPipe) pincode: string,
     @Query() query: NearbyPincodeQueryDto,
   ) {
     this.logger.log(`GET /pincodes/${pincode}/nearby?radius=${query.radius}${query.unit}`);
@@ -91,7 +94,7 @@ export class PincodeController {
    */
   @Get(':pincode')
   async getPincode(
-    @Param('pincode') pincode: string,
+    @Param('pincode', PincodeValidationPipe) pincode: string,
     @Query('includePostOffices') includePostOffices?: string,
     @Query('includeBoundary') includeBoundary?: string,
   ) {
