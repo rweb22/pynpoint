@@ -10,7 +10,6 @@ import { AuthModule } from './auth/auth.module';
 import { PincodeModule } from './pincode/pincode.module';
 import { DigipinModule } from './digipin/digipin.module';
 import { DistanceModule } from './distance/distance.module';
-import { AdminModule } from './admin/admin.module';
 import configuration from './config/configuration';
 
 /**
@@ -46,9 +45,6 @@ import configuration from './config/configuration';
     PincodeModule,     // Track 1: Pincode Solo Operations
     DigipinModule,     // Track 2: DIGIPIN Solo Operations
     DistanceModule,    // Track 3: Distance & Measurement Operations
-
-    // Admin & Migration
-    AdminModule,
 
     // Initialization
     InitializationModule,

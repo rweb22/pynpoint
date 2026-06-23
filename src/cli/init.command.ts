@@ -17,12 +17,11 @@ import { InitializationService } from '../initialization/initialization.service'
  * Usage:
  *   npm run cli init                      # Idempotent initialization
  *   npm run cli init --force-reingest     # Force data re-download
- *   npm run cli init --force-rebuild      # Force H3 index rebuild
- *   npm run cli init --all                # Force both
+ *   npm run cli init --all                # Force re-download
  */
 @Command({
   name: 'init',
-  description: 'Initialize PinPoint India data and H3 spatial index',
+  description: 'Initialize PinPoint India pincode data',
 })
 export class InitCommand extends CommandRunner {
   private readonly logger = new Logger(InitCommand.name);
@@ -60,13 +59,7 @@ export class InitCommand extends CommandRunner {
     return true;
   }
 
-  @Option({
-    flags: '--force-rebuild',
-    description: 'Force rebuild H3 spatial index',
-  })
-  parseForceRebuild(): boolean {
-    return true;
-  }
+
 
   @Option({
     flags: '--all',

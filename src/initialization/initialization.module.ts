@@ -6,7 +6,6 @@ import { CSVIngestionService } from './csv-ingestion.service';
 import { HealthService } from './health.service';
 import { Pincode } from '../database/entities/pincode.entity';
 import { PostOffice } from '../database/entities/postoffice.entity';
-import { AdminModule } from '../admin/admin.module';
 
 /**
  * InitializationModule
@@ -24,7 +23,6 @@ import { AdminModule } from '../admin/admin.module';
 @Module({
   imports: [
     TypeOrmModule.forFeature([Pincode, PostOffice]),
-    AdminModule,
   ],
   providers: [
     InitializationService,

@@ -1,7 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { InjectDataSource } from '@nestjs/typeorm';
 import { DataSource } from 'typeorm';
-import { RedisPersistentService } from '../redis/redis-persistent.service';
+import { RedisCacheService } from '../redis/redis-cache.service';
 
 /**
  * HealthService
@@ -24,7 +24,7 @@ export class HealthService {
   constructor(
     @InjectDataSource()
     private readonly dataSource: DataSource,
-    private readonly redisService: RedisPersistentService,
+    private readonly redisCache: RedisCacheService,
   ) {}
 
   /**
@@ -64,7 +64,7 @@ export class HealthService {
     this.logger.log('Checking Redis...');
 
     try {
-      const pong = await this.redisService.ping();
+      const pong = await this.redisCache.ping();
 
       if (pong !== 'PONG') {
         throw new Error('Redis ping failed');
@@ -118,12 +118,10 @@ export class HealthService {
     postgresReady: boolean;
     redisReady: boolean;
     dataIngested: boolean;
-    h3IndexBuilt: boolean;
   }> {
     let postgresReady = false;
     let redisReady = false;
     let dataIngested = false;
-    let h3IndexBuilt = false;
 
     try {
       await this.checkPostGIS();
@@ -139,23 +137,20 @@ export class HealthService {
       this.logger.debug('Redis not ready:', error.message);
     }
 
-    // TODO: Add actual checks for data and index
+    // TODO: Add actual checks for data ingestion
     // dataIngested = await this.dataIngestionService.checkDataExists();
-    // h3IndexBuilt = await this.h3IndexService.checkIndexExists();
 
     const ready =
       this.isSystemReady &&
       postgresReady &&
       redisReady &&
-      dataIngested &&
-      h3IndexBuilt;
+      dataIngested;
 
     return {
       ready,
       postgresReady,
       redisReady,
       dataIngested,
-      h3IndexBuilt,
     };
   }
 }

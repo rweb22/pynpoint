@@ -16,10 +16,9 @@ export class AppService {
       },
       features: [
         'Traditional Pincodes (India Post)',
-        'H3 Hexagonal Spatial Index',
         'DIGIPIN Grid System',
         'Distance Calculations',
-        'Spatial Conversions',
+        'Administrative Data (States, Districts, Cities)',
       ],
       authentication: 'API key required - Contact us for access',
       status: 'operational',

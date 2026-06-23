@@ -29,13 +29,6 @@ export default () => ({
     forceReingest: process.env.FORCE_REINGEST_DATA === 'true',
   },
 
-  // H3 Index
-  h3Index: {
-    resolution: parseInt(process.env.H3_RESOLUTION || '9', 10),
-    bufferEnabled: process.env.H3_BUFFER_ENABLED !== 'false', // Default: true
-    forceRebuild: process.env.FORCE_REBUILD_H3_INDEX === 'true',
-  },
-
   // Initialization
   initialization: {
     skipInitialization: process.env.SKIP_INITIALIZATION === 'true',

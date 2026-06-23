@@ -16,9 +16,7 @@ import Redis from 'ioredis';
  * - API key validation cache (TTL: 1 hour)
  * - Rate limit counters (TTL: 1 minute to 1 day)
  * - Temporary session data
- * 
- * Use this service for ALL auth/rate-limiting operations.
- * For H3 spatial index, use RedisPersistentService.
+ * - General application caching
  */
 @Injectable()
 export class RedisCacheService implements OnModuleInit, OnModuleDestroy {

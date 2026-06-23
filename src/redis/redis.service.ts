@@ -24,10 +24,10 @@ import Redis from 'ioredis';
  * pipeline.set('key1', 'value1');
  * pipeline.set('key2', 'value2');
  * await pipeline.exec();
- * 
- * // Sets (for H3 index)
- * await this.redisService.sadd('h3:89283082837ffff', '110001');
- * const pincodes = await this.redisService.smembers('h3:89283082837ffff');
+ *
+ * // Sets (for spatial data)
+ * await this.redisService.sadd('spatial:index:key', 'value');
+ * const values = await this.redisService.smembers('spatial:index:key');
  * ```
  */
 @Injectable()

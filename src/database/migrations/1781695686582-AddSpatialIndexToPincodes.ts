@@ -8,7 +8,8 @@ import { MigrationInterface, QueryRunner } from "typeorm";
  *
  * GIST (Generalized Search Tree) is PostgreSQL's index type optimized
  * for spatial data. This index is critical for:
- * - H3 ↔ Pincode conversion (PostGIS validation)
+ * - Coordinate ↔ Pincode conversion (reverse geocoding)
+ * - DIGIPIN ↔ Pincode conversion (spatial validation)
  * - Polygon intersection queries
  * - Point-in-polygon lookups
  * - Distance calculations

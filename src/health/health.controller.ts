@@ -5,19 +5,18 @@ import {
   TypeOrmHealthIndicator,
 } from '@nestjs/terminus';
 import { HealthService } from '../initialization/health.service';
-import { RedisPersistentService } from '../redis/redis-persistent.service';
 import { RedisCacheService } from '../redis/redis-cache.service';
 
 /**
  * HealthController
- * 
+ *
  * Provides health check endpoints for Railway, Kubernetes, and monitoring tools.
- * 
+ *
  * Endpoints:
  * - GET /health - Overall system health (liveness + readiness)
  * - GET /health/live - Liveness probe (is the service running?)
  * - GET /health/ready - Readiness probe (is the service ready to accept traffic?)
- * 
+ *
  * Railway uses /health for its health checks.
  */
 @Controller('health')
@@ -26,7 +25,6 @@ export class HealthController {
     private readonly health: HealthCheckService,
     private readonly db: TypeOrmHealthIndicator,
     private readonly healthService: HealthService,
-    private readonly redisPersistent: RedisPersistentService,
     private readonly redisCache: RedisCacheService,
   ) {}
 
@@ -40,16 +38,6 @@ export class HealthController {
     return this.health.check([
       // Database connectivity
       () => this.db.pingCheck('database'),
-      
-      // Redis Persistent connectivity
-      async () => {
-        try {
-          await this.redisPersistent.ping();
-          return { redisPersistent: { status: 'up' } };
-        } catch (error) {
-          return { redisPersistent: { status: 'down', error: error.message } };
-        }
-      },
 
       // Redis Cache connectivity
       async () => {
@@ -60,7 +48,7 @@ export class HealthController {
           return { redisCache: { status: 'down', error: error.message } };
         }
       },
-      
+
       // System readiness (initialization complete)
       async () => {
         const isReady = this.healthService.isReady();
@@ -121,10 +109,6 @@ export class HealthController {
       const dbResult = await this.db.pingCheck('database');
       const dbLatency = Date.now() - dbStart;
 
-      const redisPersistentStart = Date.now();
-      const redisPersistentResult = await this.redisPersistent.ping();
-      const redisPersistentLatency = Date.now() - redisPersistentStart;
-
       const redisCacheStart = Date.now();
       const redisCacheResult = await this.redisCache.ping();
       const redisCacheLatency = Date.now() - redisCacheStart;
@@ -139,10 +123,6 @@ export class HealthController {
           database: {
             status: 'up',
             latency_ms: dbLatency,
-          },
-          redisPersistent: {
-            status: 'up',
-            latency_ms: redisPersistentLatency,
           },
           redisCache: {
             status: 'up',

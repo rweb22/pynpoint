@@ -126,7 +126,7 @@ export class ApiKey {
    * - name: User-friendly key name
    * - description: What this key is used for
    * - allowed_ips: IP whitelist (array of CIDR ranges)
-   * - scopes: Permissions (e.g., ["read:pincodes", "read:h3"])
+   * - scopes: Permissions (e.g., ["read:pincodes", "read:digipin"])
    * - provisioned_by: User ID who created this key (for audit)
    * - notes: Internal notes
    */

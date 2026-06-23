@@ -10,8 +10,7 @@ import { InitializationModule } from '../initialization/initialization.module';
  * Uses nest-commander for command-line interface.
  * 
  * Commands:
- * - init: Initialize data and H3 index (manual trigger)
- * - rebuild-index: Force rebuild H3 index
+ * - init: Initialize pincode data (manual trigger)
  * - validate: Validate system readiness
  * 
  * Usage (add to package.json):
