@@ -105,11 +105,12 @@ test_endpoint() {
 }
 
 # Test 0: Root endpoint (no auth required)
+# Note: First request may take longer due to cold start / DNS / TLS handshake
 echo -e "${YELLOW}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
 echo -e "${YELLOW}Test 0: Root Endpoint (Public)${NC}"
 echo -e "${YELLOW}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
 echo ""
-response=$(curl -s $DNS_RESOLVE --max-time 30 -w "\n__TIME__:%{time_total}\n__STATUS__:%{http_code}" "$BASE_URL/api/v1/" 2>&1)
+response=$(curl -s $DNS_RESOLVE --max-time 60 -w "\n__TIME__:%{time_total}\n__STATUS__:%{http_code}" "$BASE_URL/api/v1/" 2>&1)
 time=$(echo "$response" | grep "__TIME__:" | cut -d: -f2)
 status=$(echo "$response" | grep "__STATUS__:" | cut -d: -f2)
 body=$(echo "$response" | grep -v "__TIME__:" | grep -v "__STATUS__:")
