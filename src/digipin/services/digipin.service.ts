@@ -1,6 +1,9 @@
 import { Injectable, Logger, BadRequestException } from '@nestjs/common';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository } from 'typeorm';
 import { RedisCacheService } from '../../redis/redis-cache.service';
 import { DigipinAlgorithmService } from './digipin-algorithm.service';
+import { Pincode } from '../../database/entities/pincode.entity';
 import {
   DigipinCellResponse,
   EncodeDigipinResponse,
@@ -8,20 +11,22 @@ import {
   DigipinNeighborsResponse,
   DigipinNearbyResponse,
   ValidateDigipinResponse,
+  DigipinToPincodeResponse,
 } from '../dto/digipin-response.dto';
-import { EncodeDigipinDto, DecodeDigipinDto, NearbyDigipinQueryDto, ValidateDigipinDto } from '../dto/digipin-request.dto';
+import { EncodeDigipinDto, DecodeDigipinDto, NearbyDigipinQueryDto, ValidateDigipinDto, DigipinToPincodeDto } from '../dto/digipin-request.dto';
 
 /**
  * DigipinService
  *
- * PURE DIGIPIN operations - no database dependencies, no pincode references.
- * All operations are algorithmic grid calculations with optional Redis caching.
+ * DIGIPIN operations including coordinate conversion and reverse geocoding.
+ * Most operations are pure algorithmic grid calculations with optional Redis caching.
  *
  * Caching Strategy:
  * - encode/decode: NO cache (< 0.1ms, pure algorithm)
  * - getCellDetails: YES cache (1h TTL, pure calculation but still cached for performance)
  * - nearby: YES cache (1h TTL, expensive calculation with many cells)
  * - neighbors: NO cache (<1ms, pure algorithm)
+ * - toPincode: NO cache (uses PostGIS query, already fast <10ms)
  */
 @Injectable()
 export class DigipinService {
@@ -30,6 +35,8 @@ export class DigipinService {
   private readonly CACHE_TTL_NEARBY = 3600; // 1 hour
 
   constructor(
+    @InjectRepository(Pincode)
+    private readonly pincodeRepository: Repository<Pincode>,
     private readonly algorithm: DigipinAlgorithmService,
     private readonly redisCache: RedisCacheService,
   ) {}
@@ -431,5 +438,79 @@ export class DigipinService {
     }
 
     return response;
+  }
+
+  /**
+   * POST /digipin/to-pincode
+   * Convert DIGIPIN code to pincode (reverse geocode)
+   *
+   * Process:
+   * 1. Decode DIGIPIN → coordinates (center point)
+   * 2. Query PostGIS for pincode containing that point
+   *
+   * Note: Uses PostGIS ST_Intersects for fast spatial lookup (<10ms)
+   */
+  async toPincode(dto: DigipinToPincodeDto): Promise<DigipinToPincodeResponse> {
+    const code = dto.digipinCode.toUpperCase();
+
+    // Step 1: Validate DIGIPIN code
+    if (!this.algorithm.isValid(code)) {
+      throw new BadRequestException(`Invalid DIGIPIN code: ${code}`);
+    }
+
+    // Step 2: Decode DIGIPIN to coordinates (center point)
+    const center = this.algorithm.getCenter(code);
+
+    this.logger.log(`DIGIPIN ${code} → coordinates (${center.lat}, ${center.lng})`);
+
+    // Step 3: Query PostGIS for pincode containing this point
+    // Uses ST_Intersects with GIST index for fast lookup (<10ms)
+    const result = await this.pincodeRepository
+      .createQueryBuilder('p')
+      .select([
+        'p.pincode',
+        'p.office_name',
+        'p.state',
+        'p.district',
+        'p.city',
+      ])
+      .where('ST_Intersects(p.boundary, ST_SetSRID(ST_MakePoint(:lng, :lat), 4326)::geography)')
+      .setParameters({ lat: center.lat, lng: center.lng })
+      .getOne();
+
+    if (result) {
+      this.logger.log(`DIGIPIN ${code} → Pincode ${result.pincode} found`);
+      return {
+        digipinCode: code,
+        level: code.length,
+        coordinates: {
+          latitude: center.lat,
+          longitude: center.lng,
+        },
+        pincode: result.pincode,
+        officeName: result.office_name,
+        state: result.state,
+        district: result.district,
+        city: result.city,
+        found: true,
+      };
+    } else {
+      this.logger.warn(`DIGIPIN ${code} → No pincode found at (${center.lat}, ${center.lng})`);
+      return {
+        digipinCode: code,
+        level: code.length,
+        coordinates: {
+          latitude: center.lat,
+          longitude: center.lng,
+        },
+        pincode: null,
+        officeName: null,
+        state: null,
+        district: null,
+        city: null,
+        found: false,
+        message: 'No pincode found at this location (may be outside India or in unpopulated area)',
+      };
+    }
   }
 }

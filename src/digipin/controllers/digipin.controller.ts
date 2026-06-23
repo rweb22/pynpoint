@@ -18,6 +18,7 @@ import {
   DecodeDigipinDto,
   NearbyDigipinQueryDto,
   ValidateDigipinDto,
+  DigipinToPincodeDto,
 } from '../dto/digipin-request.dto';
 import {
   DigipinCellResponse,
@@ -29,24 +30,25 @@ import {
   DigipinChildrenResponse,
   DigipinAncestorsResponse,
   ValidateDigipinResponse,
+  DigipinToPincodeResponse,
 } from '../dto/digipin-response.dto';
 
 /**
  * DigipinController
  *
- * Track 2: DIGIPIN Solo Operations (PURE - no database dependencies)
+ * Track 2: DIGIPIN Operations
  *
  * Endpoints for India Post's Digital Postal Index Number (DIGIPIN) system.
  * DIGIPIN is a hierarchical 4x4 grid-based geocoding system with 10 levels.
  *
- * All operations are pure algorithmic calculations:
- * - No database queries
- * - No pincode lookups (use Conversion endpoints for that)
+ * Operations include:
+ * - Pure algorithmic calculations (encode, decode, hierarchy)
+ * - Reverse geocoding (DIGIPIN → Pincode via PostGIS)
  * - All responses include complete grid geometry (center, bounds)
  *
- * Total endpoints: 9
- * - 2 POST: encode, decode
- * - 7 GET: nearby, neighbors, parent, children, ancestors, cell details
+ * Total endpoints: 10
+ * - 4 POST: encode, decode, validate, to-pincode
+ * - 6 GET: nearby, neighbors, parent, children, ancestors, cell details
  *
  * All endpoints:
  * - Protected by ApiKeyGuard (requires valid API key)
@@ -93,6 +95,22 @@ export class DigipinController {
   async validate(@Body() dto: ValidateDigipinDto): Promise<ValidateDigipinResponse> {
     this.logger.log(`POST /digipin/validate (code: ${dto.digipinCode})`);
     return this.digipinService.validateDigipin(dto);
+  }
+
+  /**
+   * POST /digipin/to-pincode
+   * Convert DIGIPIN code to pincode (reverse geocode)
+   *
+   * Process:
+   * 1. Decode DIGIPIN → coordinates
+   * 2. Find pincode containing those coordinates (PostGIS ST_Intersects)
+   *
+   * IMPORTANT: Must come BEFORE GET routes to avoid route conflicts
+   */
+  @Post('to-pincode')
+  async toPincode(@Body() dto: DigipinToPincodeDto): Promise<DigipinToPincodeResponse> {
+    this.logger.log(`POST /digipin/to-pincode (code: ${dto.digipinCode})`);
+    return this.digipinService.toPincode(dto);
   }
 
   /**

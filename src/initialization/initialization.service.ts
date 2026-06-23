@@ -1,7 +1,6 @@
 import { Injectable, Logger, OnApplicationBootstrap } from '@nestjs/common';
 import { DataIngestionService } from './data-ingestion.service';
 import { CSVIngestionService } from './csv-ingestion.service';
-import { H3IndexService } from './h3-index.service';
 import { HealthService } from './health.service';
 import { DatabaseCapabilityService } from '../admin/services/database-capability.service';
 import { RedisStatusService } from '../admin/services/redis-status.service';
@@ -26,7 +25,6 @@ import { RedisStatusService } from '../admin/services/redis-status.service';
  * 1. Database validation (PostGIS)
  * 2. Pincode boundary ingestion (GeoJSON - 19,312 pincodes with boundaries)
  * 3. CSV data ingestion (165,627 post offices + pincode metadata updates)
- * 4. H3 spatial index build (32M+ hexagons)
  *
  * Behavior modes (controlled by environment variables):
  * - Production: Validate data exists, fail fast if missing
@@ -40,7 +38,6 @@ export class InitializationService implements OnApplicationBootstrap {
   constructor(
     private readonly dataIngestionService: DataIngestionService,
     private readonly csvIngestionService: CSVIngestionService,
-    private readonly h3IndexService: H3IndexService,
     private readonly healthService: HealthService,
     private readonly databaseCapability: DatabaseCapabilityService,
     private readonly redisStatus: RedisStatusService,
@@ -117,37 +114,7 @@ export class InitializationService implements OnApplicationBootstrap {
         this.logger.log('✅ CSV data already exists');
       }
 
-      // Phase 4: Ensure H3 spatial index exists
-      this.logger.log('Phase 4: Checking H3 spatial index...');
-      const forceRebuildH3 = process.env.FORCE_REBUILD_H3_INDEX === 'true';
-      const indexExists = await this.h3IndexService.checkIndexExists();
-
-      if (forceRebuildH3) {
-        // Force rebuild requested - rebuild even if index exists
-        this.logger.log('Force rebuild requested, rebuilding H3 index...');
-        await this.h3IndexService.buildIndex(true);
-        this.logger.log('✅ H3 index rebuilt');
-      } else if (!indexExists) {
-        if (isProduction) {
-          // Production: Fail fast - index should be pre-built
-          this.logger.error(
-            '❌ H3 index not found. In production, index must be pre-built.',
-          );
-          this.logger.error(
-            'Run: npm run cli init -- before starting the application.',
-          );
-          process.exit(1);
-        } else {
-          // Development: Auto-build index
-          this.logger.log('H3 index not found, starting build...');
-          await this.h3IndexService.buildIndex();
-          this.logger.log('✅ H3 index built');
-        }
-      } else {
-        this.logger.log('✅ H3 index already exists');
-      }
-
-      // Phase 5: Mark system as ready
+      // Phase 4: Mark system as ready
       await this.healthService.markReady();
 
       const duration = ((Date.now() - startTime) / 1000).toFixed(2);
@@ -172,18 +139,12 @@ export class InitializationService implements OnApplicationBootstrap {
    */
   async forceReinitialize(options?: {
     forceReingest?: boolean;
-    forceRebuild?: boolean;
   }): Promise<void> {
     this.logger.log('🔄 Force re-initialization requested...');
 
     if (options?.forceReingest) {
       this.logger.log('Force re-ingesting pincode data...');
       await this.dataIngestionService.ingestData(true);
-    }
-
-    if (options?.forceRebuild) {
-      this.logger.log('Force rebuilding H3 index...');
-      await this.h3IndexService.buildIndex(true);
     }
 
     await this.healthService.markReady();

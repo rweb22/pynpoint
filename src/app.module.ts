@@ -9,11 +9,8 @@ import { HealthModule } from './health/health.module';
 import { AuthModule } from './auth/auth.module';
 import { PincodeModule } from './pincode/pincode.module';
 import { DigipinModule } from './digipin/digipin.module';
-import { H3Module } from './h3/h3.module';
-import { ConversionModule } from './conversion/conversion.module';
 import { DistanceModule } from './distance/distance.module';
 import { AdminModule } from './admin/admin.module';
-import { VerificationModule } from './verification/verification.module';
 import configuration from './config/configuration';
 
 /**
@@ -26,7 +23,6 @@ import configuration from './config/configuration';
  * 4. InitializationModule runs startup sequence (OnApplicationBootstrap):
  *    - Validates PostGIS extension
  *    - Ingests pincode data if missing
- *    - Builds H3 spatial index if missing
  * 5. HealthModule provides /health endpoints for Railway and monitoring
  * 6. HTTP server starts listening (only after initialization completes)
  */
@@ -49,15 +45,10 @@ import configuration from './config/configuration';
     // API Endpoints
     PincodeModule,     // Track 1: Pincode Solo Operations
     DigipinModule,     // Track 2: DIGIPIN Solo Operations
-    H3Module,          // Track 3: H3 Solo Operations
-    ConversionModule,  // Track 4: Conversion Operations (3 stacks)
-    DistanceModule,    // Track 5: Distance & Measurement Operations
+    DistanceModule,    // Track 3: Distance & Measurement Operations
 
     // Admin & Migration
     AdminModule,
-
-    // Verification
-    VerificationModule,
 
     // Initialization
     InitializationModule,

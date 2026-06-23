@@ -87,3 +87,12 @@ export class ValidateDigipinDto {
   @IsString()
   digipinCode: string;
 }
+
+/**
+ * POST /digipin/to-pincode
+ * Convert DIGIPIN code to pincode (reverse geocode)
+ */
+export class DigipinToPincodeDto {
+  @IsString()
+  digipinCode: string;
+}

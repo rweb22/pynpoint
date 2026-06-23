@@ -198,3 +198,20 @@ export class ValidateDigipinResponse {
    */
   gridPath?: string;
 }
+
+/**
+ * POST /digipin/to-pincode
+ * Convert DIGIPIN code to pincode (reverse geocode)
+ */
+export class DigipinToPincodeResponse {
+  digipinCode: string;
+  level: number;
+  coordinates: CoordinateResponse;
+  pincode: string | null;
+  officeName: string | null;
+  state: string | null;
+  district: string | null;
+  city: string | null;
+  found: boolean;
+  message?: string;
+}
