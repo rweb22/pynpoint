@@ -8,6 +8,19 @@ set -e
 API_KEY="${1}"
 BASE_URL="${BASE_URL:-https://pynpoint-production.up.railway.app}"
 
+# DNS fallback: If local DNS fails, use Google DNS to resolve the hostname
+# First, try to resolve the hostname using Google DNS (8.8.8.8)
+HOSTNAME=$(echo "$BASE_URL" | sed 's|https://||' | sed 's|http://||' | cut -d/ -f1)
+RESOLVED_IP=$(host "$HOSTNAME" 8.8.8.8 2>/dev/null | grep "has address" | head -1 | awk '{print $NF}')
+
+if [ -n "$RESOLVED_IP" ]; then
+  echo "✓ Resolved $HOSTNAME to $RESOLVED_IP via Google DNS"
+  DNS_RESOLVE="--resolve $HOSTNAME:443:$RESOLVED_IP"
+else
+  echo "⚠ Could not resolve hostname, proceeding without manual DNS resolution"
+  DNS_RESOLVE=""
+fi
+
 if [ -z "$API_KEY" ]; then
   echo "❌ Error: API key required"
   echo "Usage: ./scripts/test-track1-endpoints.sh <API_KEY>"
@@ -43,14 +56,14 @@ test_endpoint() {
   echo -e "${BLUE}━━━ $name ━━━${NC}"
 
   if [ "$method" = "POST" ]; then
-    response=$(curl -s --max-time 30 -w "\n__TIME__:%{time_total}\n__STATUS__:%{http_code}" \
+    response=$(curl -s $DNS_RESOLVE --max-time 30 -w "\n__TIME__:%{time_total}\n__STATUS__:%{http_code}" \
       -X POST \
       -H "Authorization: Bearer $API_KEY" \
       -H "Content-Type: application/json" \
       -d "$data" \
       "$BASE_URL$endpoint" 2>&1)
   else
-    response=$(curl -s --max-time 30 -w "\n__TIME__:%{time_total}\n__STATUS__:%{http_code}" \
+    response=$(curl -s $DNS_RESOLVE --max-time 30 -w "\n__TIME__:%{time_total}\n__STATUS__:%{http_code}" \
       -H "Authorization: Bearer $API_KEY" \
       "$BASE_URL$endpoint" 2>&1)
   fi
@@ -96,7 +109,7 @@ echo -e "${YELLOW}━━━━━━━━━━━━━━━━━━━━�
 echo -e "${YELLOW}Test 0: Root Endpoint (Public)${NC}"
 echo -e "${YELLOW}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
 echo ""
-response=$(curl -s --max-time 30 -w "\n__TIME__:%{time_total}\n__STATUS__:%{http_code}" "$BASE_URL/" 2>&1)
+response=$(curl -s $DNS_RESOLVE --max-time 30 -w "\n__TIME__:%{time_total}\n__STATUS__:%{http_code}" "$BASE_URL/api/v1/" 2>&1)
 time=$(echo "$response" | grep "__TIME__:" | cut -d: -f2)
 status=$(echo "$response" | grep "__STATUS__:" | cut -d: -f2)
 body=$(echo "$response" | grep -v "__TIME__:" | grep -v "__STATUS__:")
@@ -178,14 +191,14 @@ test_error_endpoint() {
   echo "Expected Status: $expected_status"
 
   if [ "$method" = "POST" ]; then
-    response=$(curl -s --max-time 30 -w "\n__TIME__:%{time_total}\n__STATUS__:%{http_code}" \
+    response=$(curl -s $DNS_RESOLVE --max-time 30 -w "\n__TIME__:%{time_total}\n__STATUS__:%{http_code}" \
       -X POST \
       -H "Authorization: Bearer $API_KEY" \
       -H "Content-Type: application/json" \
       -d "$data" \
       "$BASE_URL$endpoint" 2>&1)
   else
-    response=$(curl -s --max-time 30 -w "\n__TIME__:%{time_total}\n__STATUS__:%{http_code}" \
+    response=$(curl -s $DNS_RESOLVE --max-time 30 -w "\n__TIME__:%{time_total}\n__STATUS__:%{http_code}" \
       -H "Authorization: Bearer $API_KEY" \
       "$BASE_URL$endpoint" 2>&1)
   fi

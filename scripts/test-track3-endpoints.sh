@@ -8,6 +8,18 @@ set -e
 API_KEY="${1}"
 BASE_URL="${BASE_URL:-https://pynpoint-production.up.railway.app}"
 
+# DNS fallback: If local DNS fails, use Google DNS to resolve the hostname
+HOSTNAME=$(echo "$BASE_URL" | sed 's|https://||' | sed 's|http://||' | cut -d/ -f1)
+RESOLVED_IP=$(host "$HOSTNAME" 8.8.8.8 2>/dev/null | grep "has address" | head -1 | awk '{print $NF}')
+
+if [ -n "$RESOLVED_IP" ]; then
+  echo "✓ Resolved $HOSTNAME to $RESOLVED_IP via Google DNS"
+  DNS_RESOLVE="--resolve $HOSTNAME:443:$RESOLVED_IP"
+else
+  echo "⚠ Could not resolve hostname, proceeding without manual DNS resolution"
+  DNS_RESOLVE=""
+fi
+
 if [ -z "$API_KEY" ]; then
   echo "❌ Error: API key required"
   echo "Usage: ./scripts/test-track3-endpoints.sh <API_KEY>"
@@ -33,7 +45,7 @@ echo -e "${YELLOW}Test 1: POST /distance/calculate (Pincode to Pincode)${NC}"
 echo -e "${BLUE}───────────────────────────────────────────────────────────────────────────────────${NC}"
 echo -e "${BLUE}Calculate distance: Delhi (110001) → Mumbai (400001)${NC}"
 echo -e "${BLUE}───────────────────────────────────────────────────────────────────────────────────${NC}"
-RESPONSE=$(curl -s -w "\n%{http_code}\n%{time_total}" \
+RESPONSE=$(curl -s $DNS_RESOLVE -w "\n%{http_code}\n%{time_total}" \
   -X POST "$BASE_URL/api/v1/distance/calculate" \
   -H "Authorization: Bearer $API_KEY" \
   -H "Content-Type: application/json" \
@@ -62,7 +74,7 @@ echo -e "${YELLOW}Test 2: POST /distance/calculate (DIGIPIN to DIGIPIN)${NC}"
 echo -e "${BLUE}───────────────────────────────────────────────────────────────────────────────────${NC}"
 echo -e "${BLUE}Calculate distance between two DIGIPIN cells${NC}"
 echo -e "${BLUE}───────────────────────────────────────────────────────────────────────────────────${NC}"
-RESPONSE=$(curl -s -w "\n%{http_code}\n%{time_total}" \
+RESPONSE=$(curl -s $DNS_RESOLVE -w "\n%{http_code}\n%{time_total}" \
   -X POST "$BASE_URL/api/v1/distance/calculate" \
   -H "Authorization: Bearer $API_KEY" \
   -H "Content-Type: application/json" \
@@ -91,7 +103,7 @@ echo -e "${YELLOW}Test 3: POST /distance/calculate (H3 to H3 with grid distance)
 echo -e "${BLUE}───────────────────────────────────────────────────────────────────────────────────${NC}"
 echo -e "${BLUE}Calculate distance between H3 hexagons with grid distance${NC}"
 echo -e "${BLUE}───────────────────────────────────────────────────────────────────────────────────${NC}"
-RESPONSE=$(curl -s -w "\n%{http_code}\n%{time_total}" \
+RESPONSE=$(curl -s $DNS_RESOLVE -w "\n%{http_code}\n%{time_total}" \
   -X POST "$BASE_URL/api/v1/distance/calculate" \
   -H "Authorization: Bearer $API_KEY" \
   -H "Content-Type: application/json" \
@@ -121,7 +133,7 @@ echo -e "${YELLOW}Test 4: POST /distance/calculate (Coordinate to Pincode)${NC}"
 echo -e "${BLUE}───────────────────────────────────────────────────────────────────────────────────${NC}"
 echo -e "${BLUE}Calculate distance from coordinates to pincode${NC}"
 echo -e "${BLUE}───────────────────────────────────────────────────────────────────────────────────${NC}"
-RESPONSE=$(curl -s -w "\n%{http_code}\n%{time_total}" \
+RESPONSE=$(curl -s $DNS_RESOLVE -w "\n%{http_code}\n%{time_total}" \
   -X POST "$BASE_URL/api/v1/distance/calculate" \
   -H "Authorization: Bearer $API_KEY" \
   -H "Content-Type: application/json" \
@@ -150,7 +162,7 @@ echo -e "${YELLOW}Test 5: POST /distance/batch${NC}"
 echo -e "${BLUE}───────────────────────────────────────────────────────────────────────────────────${NC}"
 echo -e "${BLUE}Calculate distances for multiple pairs at once${NC}"
 echo -e "${BLUE}───────────────────────────────────────────────────────────────────────────────────${NC}"
-RESPONSE=$(curl -s -w "\n%{http_code}\n%{time_total}" \
+RESPONSE=$(curl -s $DNS_RESOLVE -w "\n%{http_code}\n%{time_total}" \
   -X POST "$BASE_URL/api/v1/distance/batch" \
   -H "Authorization: Bearer $API_KEY" \
   -H "Content-Type: application/json" \
@@ -195,7 +207,7 @@ test_error_endpoint() {
   echo -e "${BLUE}───────────────────────────────────────────────────────────────────────────────────${NC}"
   echo "Expected Status: $expected_status"
 
-  RESPONSE=$(curl -s -w "\n%{http_code}" \
+  RESPONSE=$(curl -s $DNS_RESOLVE -w "\n%{http_code}" \
     -X POST "$BASE_URL/api/v1/distance/calculate" \
     -H "Authorization: Bearer $API_KEY" \
     -H "Content-Type: application/json" \
@@ -278,7 +290,7 @@ echo -e "${BLUE}─────────────────────�
 echo -e "${BLUE}POST /distance/batch (empty pairs)${NC}"
 echo -e "${BLUE}───────────────────────────────────────────────────────────────────────────────────${NC}"
 echo "Expected Status: 400"
-RESPONSE=$(curl -s -w "\n%{http_code}" \
+RESPONSE=$(curl -s $DNS_RESOLVE -w "\n%{http_code}" \
   -X POST "$BASE_URL/api/v1/distance/batch" \
   -H "Authorization: Bearer $API_KEY" \
   -H "Content-Type: application/json" \
@@ -303,7 +315,7 @@ echo -e "${BLUE}─────────────────────�
 echo -e "${BLUE}POST /distance/calculate (No Auth)${NC}"
 echo -e "${BLUE}───────────────────────────────────────────────────────────────────────────────────${NC}"
 echo "Expected Status: 401"
-RESPONSE=$(curl -s -w "\n%{http_code}" \
+RESPONSE=$(curl -s $DNS_RESOLVE -w "\n%{http_code}" \
   -X POST "$BASE_URL/api/v1/distance/calculate" \
   -H "Content-Type: application/json" \
   -d '{"from": {"pincode": "110001"}, "to": {"pincode": "400001"}, "unit": "km"}')
