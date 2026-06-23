@@ -1,13 +1,17 @@
 import { Controller, Get } from '@nestjs/common';
 import { AppService } from './app.service';
-import { Public } from './auth/decorators/public.decorator';
 
+/**
+ * AppController
+ *
+ * Root endpoint (/) providing API welcome message and documentation
+ * This endpoint does not require authentication
+ */
 @Controller()
 export class AppController {
   constructor(private readonly appService: AppService) {}
 
   @Get()
-  @Public()
   getWelcome() {
     return this.appService.getWelcome();
   }
