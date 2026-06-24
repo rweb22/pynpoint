@@ -180,6 +180,14 @@ echo -e "${YELLOW}━━━━━━━━━━━━━━━━━━━━�
 echo ""
 test_endpoint "GET /api/v1/administrative/regions?state=Maharashtra&limit=10" "GET" "/api/v1/administrative/regions?state=Maharashtra&limit=10"
 
+# Test 8: Reverse Geocode (Coordinates to Pincode)
+echo -e "${YELLOW}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+echo -e "${YELLOW}Test 8: Reverse Geocode (India Gate, New Delhi)${NC}"
+echo -e "${YELLOW}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+echo ""
+test_endpoint "POST /api/v1/pincodes/reverse-geocode" "POST" "/api/v1/pincodes/reverse-geocode" \
+  '{"latitude":28.6129,"longitude":77.2295,"maxDistance":5,"limit":3}'
+
 # NEGATIVE TESTS - Error Handling
 echo ""
 echo -e "${RED}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
@@ -293,7 +301,7 @@ echo -e "${GREEN}✅ Track 1 Testing Complete!${NC}"
 echo -e "${GREEN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
 echo ""
 echo -e "${BLUE}Summary:${NC}"
-echo "  Positive Tests: 7 tests"
+echo "  Positive Tests: 8 tests"
 echo "  Negative Tests: 7 tests"
-echo "  Total: 14 tests"
+echo "  Total: 15 tests"
 echo ""
