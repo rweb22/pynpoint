@@ -1,4 +1,4 @@
-import { Controller, Get } from '@nestjs/common';
+import { Controller, Get, Post, Headers, UnauthorizedException } from '@nestjs/common';
 import {
   HealthCheck,
   HealthCheckService,
@@ -6,6 +6,7 @@ import {
 } from '@nestjs/terminus';
 import { HealthService } from '../initialization/health.service';
 import { RedisCacheService } from '../redis/redis-cache.service';
+import { ConfigService } from '@nestjs/config';
 
 /**
  * HealthController
@@ -26,6 +27,7 @@ export class HealthController {
     private readonly db: TypeOrmHealthIndicator,
     private readonly healthService: HealthService,
     private readonly redisCache: RedisCacheService,
+    private readonly configService: ConfigService,
   ) {}
 
   /**
@@ -136,6 +138,39 @@ export class HealthController {
         status: 'degraded',
         timestamp: new Date().toISOString(),
         error: error.message,
+      };
+    }
+  }
+
+  /**
+   * Clear Redis cache (admin-only)
+   * Requires ADMIN_SECRET in Authorization header
+   */
+  @Post('clear-cache')
+  async clearCache(@Headers('authorization') authHeader: string) {
+    const adminSecret = this.configService.get<string>('ADMIN_SECRET');
+
+    if (!authHeader || !adminSecret) {
+      throw new UnauthorizedException('Missing authorization');
+    }
+
+    const token = authHeader.replace('Bearer ', '');
+    if (token !== adminSecret) {
+      throw new UnauthorizedException('Invalid admin secret');
+    }
+
+    try {
+      await this.redisCache.clearAll();
+      return {
+        status: 'success',
+        message: 'Cache cleared successfully',
+        timestamp: new Date().toISOString(),
+      };
+    } catch (error) {
+      return {
+        status: 'error',
+        message: error.message,
+        timestamp: new Date().toISOString(),
       };
     }
   }

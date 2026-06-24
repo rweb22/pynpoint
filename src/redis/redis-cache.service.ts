@@ -200,4 +200,11 @@ export class RedisCacheService implements OnModuleInit, OnModuleDestroy {
     this.logger.warn('⚠️  Flushing CACHE Redis - all cached data will be deleted!');
     return this.client.flushdb();
   }
+
+  /**
+   * Clear all cache (alias for flushdb)
+   */
+  async clearAll(): Promise<'OK'> {
+    return this.flushdb();
+  }
 }
