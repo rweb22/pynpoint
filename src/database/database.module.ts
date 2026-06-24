@@ -30,8 +30,8 @@ import { ApiUsage } from './entities/api-usage.entity';
         url: configService.get<string>('DATABASE_URL'),
         entities: [Pincode, PostOffice, ApiKey, ApiUsage],
         migrations: ['dist/src/database/migrations/*.js'],
-        migrationsTableName: 'typeorm_migrations',
-        migrationsRun: false, // Disabled - normalization migration has table lock issues
+        migrationsTableName: 'migrations',
+        migrationsRun: true, // Auto-run migrations on startup
         synchronize: false, // Always false - use migrations instead
         logging: ['error', 'warn', 'migration'], // Always log migrations and errors
         // PostGIS extension is automatically detected
