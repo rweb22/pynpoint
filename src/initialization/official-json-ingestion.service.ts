@@ -126,16 +126,20 @@ export class OfficialJSONIngestionService {
       const download = (currentUrl: string) => {
         https
           .get(currentUrl, (response) => {
-            // Handle redirects (Google Drive confirmation page)
-            if (response.statusCode === 302 || response.statusCode === 301) {
+            // Handle redirects (Google Drive returns 301, 302, 303, 307, 308)
+            if (response.statusCode && response.statusCode >= 300 && response.statusCode < 400) {
               redirectCount++;
               if (redirectCount > MAX_REDIRECTS) {
                 reject(new Error('Too many redirects'));
                 return;
               }
               const redirectUrl = response.headers.location;
-              this.logger.debug(`Following redirect to: ${redirectUrl}`);
-              download(redirectUrl!);
+              if (!redirectUrl) {
+                reject(new Error(`Redirect without location header: ${response.statusCode}`));
+                return;
+              }
+              this.logger.debug(`Following redirect ${response.statusCode} to: ${redirectUrl}`);
+              download(redirectUrl);
               return;
             }
 
