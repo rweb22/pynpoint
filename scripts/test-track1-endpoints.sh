@@ -173,6 +173,13 @@ echo -e "${YELLOW}━━━━━━━━━━━━━━━━━━━━�
 echo ""
 test_endpoint "GET /api/v1/administrative/districts?state=Delhi&limit=10" "GET" "/api/v1/administrative/districts?state=Delhi&limit=10"
 
+# Test 7: List Regions
+echo -e "${YELLOW}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+echo -e "${YELLOW}Test 7: List Regions (Maharashtra)${NC}"
+echo -e "${YELLOW}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+echo ""
+test_endpoint "GET /api/v1/administrative/regions?state=Maharashtra&limit=10" "GET" "/api/v1/administrative/regions?state=Maharashtra&limit=10"
+
 # NEGATIVE TESTS - Error Handling
 echo ""
 echo -e "${RED}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
@@ -286,7 +293,7 @@ echo -e "${GREEN}✅ Track 1 Testing Complete!${NC}"
 echo -e "${GREEN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
 echo ""
 echo -e "${BLUE}Summary:${NC}"
-echo "  Positive Tests: 6 tests"
+echo "  Positive Tests: 7 tests"
 echo "  Negative Tests: 7 tests"
-echo "  Total: 13 tests"
+echo "  Total: 14 tests"
 echo ""

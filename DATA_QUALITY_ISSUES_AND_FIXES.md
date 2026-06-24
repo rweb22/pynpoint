@@ -167,7 +167,10 @@ if (rawResult?.centroid_geojson) {
   - Tested all 36 states individually
   - No "na", "unknown", or suspicious district names found
   - Sample states tested: Delhi (11 districts), Maharashtra (36 districts), Kerala (14 districts), Punjab (23 districts), Odisha (30 districts)
-- `GET /administrative/cities` - ✅ Returns 0 cities (expected, no source data)
+- `GET /administrative/regions` - ✅ Returns postal regions with circle grouping
+  - Replaces the old cities endpoint (which always returned 0 results)
+  - Filters by state and/or circle
+  - Sample: Maharashtra has 6 regions (Mumbai Region, Pune Region, Nagpur Region, etc.)
 
 ### ✅ Pincode Endpoints
 - `GET /pincodes/{pincode}` - ✅ All fields correct
