@@ -32,7 +32,7 @@ response=$(curl -s -w "\n__STATUS__:%{http_code}" \
     "tier": "pro",
     "environment": "live"
   }' \
-  "$BASE_URL/admin/api-keys" 2>&1)
+  "$BASE_URL/api/v1/admin/api-keys" 2>&1)
 
 # Extract status
 status=$(echo "$response" | grep "__STATUS__:" | cut -d: -f2)

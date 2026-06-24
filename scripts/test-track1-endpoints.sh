@@ -26,7 +26,7 @@ if [ -z "$API_KEY" ]; then
   echo "Usage: ./scripts/test-track1-endpoints.sh <API_KEY>"
   echo ""
   echo "To generate an API key, run:"
-  echo "curl -X POST $BASE_URL/admin/api-keys \\"
+  echo "curl -X POST $BASE_URL/api/v1/admin/api-keys \\"
   echo "  -H 'X-Admin-Secret: \$ADMIN_API_SECRET' \\"
   echo "  -H 'Content-Type: application/json' \\"
   echo "  -d '{\"externalCustomerId\":\"test-user-001\",\"tier\":\"free\"}'"
