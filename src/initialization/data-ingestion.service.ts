@@ -73,22 +73,26 @@ export class DataIngestionService {
       }
     }
 
-    // Use local GeoJSON file (should be in project or downloaded separately)
+    // Use local GeoJSON file or download from URL
     const geojsonFile =
       process.env.GEOJSON_FILE_PATH ||
-      './Datagov_Pincode_Boundaries.geojson';
+      '/tmp/Datagov_Pincode_Boundaries.geojson';
 
-    this.logger.log(`Enriching pincodes with boundaries from ${geojsonFile}...`);
+    const geojsonUrl =
+      process.env.GEOJSON_URL ||
+      'https://pub-0429b8e3b5a946e69ea007df844a6f1c.r2.dev/postal/boundaries/Datagov_Pincode_Boundaries.geojson';
+
+    this.logger.log(`Enriching pincodes with boundaries from GeoJSON...`);
 
     try {
-      // Check if file exists
+      // Check if file exists, download if missing
       try {
         await access(geojsonFile);
+        this.logger.log(`✅ Using existing GeoJSON file: ${geojsonFile}`);
       } catch {
-        throw new Error(
-          `GeoJSON file not found: ${geojsonFile}. ` +
-          `Please download it separately or set GEOJSON_FILE_PATH environment variable.`,
-        );
+        this.logger.log(`GeoJSON file not found locally, downloading from Cloudflare R2...`);
+        await this.downloadFile(geojsonUrl, geojsonFile);
+        this.logger.log('✅ Download complete');
       }
 
       // Step 1: Parse and update pincodes
@@ -333,6 +337,81 @@ export class DataIngestionService {
         this.logger.debug(`Could not delete ${file}: ${error.message}`);
       }
     }
+  }
+
+  /**
+   * Download file from URL (with redirect handling)
+   */
+  private async downloadFile(url: string, destPath: string): Promise<void> {
+    return new Promise((resolve, reject) => {
+      const file = createWriteStream(destPath);
+      let redirectCount = 0;
+      const MAX_REDIRECTS = 5;
+
+      const download = (currentUrl: string) => {
+        https
+          .get(currentUrl, (response) => {
+            // Handle redirects (all 3xx codes)
+            if (response.statusCode && response.statusCode >= 300 && response.statusCode < 400) {
+              redirectCount++;
+              if (redirectCount > MAX_REDIRECTS) {
+                reject(new Error('Too many redirects'));
+                return;
+              }
+              const redirectUrl = response.headers.location;
+              if (!redirectUrl) {
+                reject(new Error(`Redirect without location header: ${response.statusCode}`));
+                return;
+              }
+              this.logger.debug(`Following redirect ${response.statusCode} to: ${redirectUrl}`);
+              download(redirectUrl);
+              return;
+            }
+
+            if (response.statusCode !== 200) {
+              reject(new Error(`HTTP ${response.statusCode}: ${currentUrl}`));
+              return;
+            }
+
+            const totalBytes = parseInt(response.headers['content-length'] || '0', 10);
+            let downloadedBytes = 0;
+            let lastLoggedProgress = 0;
+
+            response.on('data', (chunk) => {
+              downloadedBytes += chunk.length;
+              if (totalBytes > 0) {
+                const progress = Math.floor((downloadedBytes / totalBytes) * 100);
+                // Log every 10%
+                if (progress >= lastLoggedProgress + 10) {
+                  this.logger.log(`  Download progress: ${progress}%`);
+                  lastLoggedProgress = progress;
+                }
+              }
+            });
+
+            response.pipe(file);
+
+            file.on('finish', () => {
+              file.close();
+              this.logger.log(`  Downloaded ${(downloadedBytes / 1024 / 1024).toFixed(2)} MB`);
+              resolve();
+            });
+
+            file.on('error', (err) => {
+              file.close();
+              unlink(destPath).catch(() => {});
+              reject(err);
+            });
+          })
+          .on('error', (err) => {
+            file.close();
+            unlink(destPath).catch(() => {});
+            reject(err);
+          });
+      };
+
+      download(url);
+    });
   }
 }
 
