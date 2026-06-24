@@ -40,11 +40,6 @@ export class PincodeQueryDto {
   @Transform(({ value }) => value === 'true' || value === true)
   @IsBoolean()
   includePostOffices?: boolean = false;
-
-  @IsOptional()
-  @Transform(({ value }) => value === 'true' || value === true)
-  @IsBoolean()
-  includeBoundary?: boolean = false;
 }
 
 /**
@@ -106,10 +101,6 @@ export class BulkPincodeLookupDto {
   @IsOptional()
   @IsBoolean()
   includePostOffices?: boolean = false;
-
-  @IsOptional()
-  @IsBoolean()
-  includeBoundary?: boolean = false;
 }
 
 /**

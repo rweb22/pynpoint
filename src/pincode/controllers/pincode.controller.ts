@@ -96,14 +96,12 @@ export class PincodeController {
   async getPincode(
     @Param('pincode', PincodeValidationPipe) pincode: string,
     @Query('includePostOffices') includePostOffices?: string,
-    @Query('includeBoundary') includeBoundary?: string,
   ) {
     this.logger.log(`GET /pincodes/${pincode}`);
 
     return this.pincodeService.findByPincode(
       pincode,
       includePostOffices === 'true',
-      includeBoundary === 'true',
     );
   }
 

@@ -44,12 +44,7 @@ export class PincodeDetailResponseDto {
    * Centroid coordinates (geometric center of the pincode boundary)
    */
   coordinates?: CoordinatesDto;
-  
-  /**
-   * PostGIS boundary in GeoJSON format (optional, for mapping applications)
-   */
-  boundary?: any; // GeoJSON MultiPolygon
-  
+
   /**
    * List of post offices within this pincode
    */

@@ -51,12 +51,11 @@ export class PincodeService {
   async findByPincode(
     pincode: string,
     includePostOffices = true,
-    includeBoundary = false,
   ): Promise<PincodeDetailResponseDto> {
     const startTime = Date.now();
 
     // Check cache first
-    const cacheKey = `pincode:${pincode}:${includePostOffices}:${includeBoundary}`;
+    const cacheKey = `pincode:${pincode}:${includePostOffices}`;
     this.logger.log(`🔍 Checking cache for key: ${cacheKey}`);
 
     const cached = await this.redisCache.get(cacheKey);
@@ -72,21 +71,45 @@ export class PincodeService {
 
     // Query database
     const dbStartTime = Date.now();
-    const pincodeEntity = await this.pincodeRepository.findOne({
-      where: { pincode, is_active: true },
-    });
+
+    // Use query builder to properly retrieve PostGIS geography columns
+    const result = await this.pincodeRepository
+      .createQueryBuilder('p')
+      .select([
+        'p.id',
+        'p.pincode',
+        'p.office_name',
+        'p.state',
+        'p.district',
+        'p.city',
+        'p.region',
+        'p.circle',
+        'p.is_active',
+      ])
+      .addSelect('ST_AsGeoJSON(p.centroid)::json', 'centroid_geojson')
+      .where('p.pincode = :pincode', { pincode })
+      .andWhere('p.is_active = :active', { active: true })
+      .getRawAndEntities();
+
     const dbTime = Date.now() - dbStartTime;
     this.logger.log(`📊 DB query completed in ${dbTime}ms`);
 
-    if (!pincodeEntity) {
+    if (!result.entities || result.entities.length === 0) {
       throw new NotFoundException(`Pincode ${pincode} not found`);
+    }
+
+    const pincodeEntity = result.entities[0];
+    const rawResult = result.raw[0];
+
+    // Attach the centroid GeoJSON to the entity for parsing
+    if (rawResult?.centroid_geojson) {
+      (pincodeEntity as any).centroid_geojson = rawResult.centroid_geojson;
     }
 
     // Build response
     const response = await this.buildPincodeResponse(
       pincodeEntity,
       includePostOffices,
-      includeBoundary,
     );
 
     // Cache the result
@@ -106,7 +129,7 @@ export class PincodeService {
    * GET /pincodes?state=...&district=...
    */
   async findPincodes(query: PincodeQueryDto): Promise<PincodeListResponseDto> {
-    const { state, district, city, search, limit = 25, page = 1, includePostOffices, includeBoundary } = query;
+    const { state, district, city, search, limit = 25, page = 1, includePostOffices } = query;
 
     // Build query
     const queryBuilder = this.pincodeRepository
@@ -141,7 +164,7 @@ export class PincodeService {
 
     // Build responses
     const pincodes = await Promise.all(
-      results.map(p => this.buildPincodeResponse(p, includePostOffices || false, includeBoundary || false)),
+      results.map(p => this.buildPincodeResponse(p, includePostOffices || false)),
     );
 
     return {
@@ -157,7 +180,7 @@ export class PincodeService {
    * POST /pincodes/bulk/lookup
    */
   async bulkLookup(dto: BulkPincodeLookupDto) {
-    const { pincodes, includePostOffices, includeBoundary } = dto;
+    const { pincodes, includePostOffices } = dto;
 
     // Validate max 100 pincodes
     if (pincodes.length > 100) {
@@ -167,7 +190,7 @@ export class PincodeService {
     const results = await Promise.all(
       pincodes.map(async (pincode) => {
         try {
-          const data = await this.findByPincode(pincode, includePostOffices, includeBoundary);
+          const data = await this.findByPincode(pincode, includePostOffices);
           return { pincode, found: true, data };
         } catch (error) {
           return { pincode, found: false, error: error.message };
@@ -187,7 +210,6 @@ export class PincodeService {
   private async buildPincodeResponse(
     pincodeEntity: Pincode,
     includePostOffices: boolean,
-    includeBoundary: boolean,
   ): Promise<PincodeDetailResponseDto> {
     const response: PincodeDetailResponseDto = {
       pincode: pincodeEntity.pincode,
@@ -200,17 +222,14 @@ export class PincodeService {
       isActive: pincodeEntity.is_active,
     };
 
-    // Add centroid coordinates if available
-    if (pincodeEntity.centroid) {
-      const coords = this.parseCoordinates(pincodeEntity.centroid);
-      if (coords) {
-        response.coordinates = coords;
-      }
-    }
-
-    // Add boundary if requested
-    if (includeBoundary && pincodeEntity.boundary) {
-      response.boundary = this.parseBoundary(pincodeEntity.boundary);
+    // Add centroid coordinates if available (from GeoJSON)
+    const centroidGeoJson = (pincodeEntity as any).centroid_geojson;
+    if (centroidGeoJson && centroidGeoJson.type === 'Point') {
+      const [longitude, latitude] = centroidGeoJson.coordinates;
+      response.coordinates = {
+        latitude,
+        longitude,
+      };
     }
 
     // Add post offices if requested
