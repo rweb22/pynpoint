@@ -101,6 +101,7 @@ export class AdministrativeService {
       .addSelect('COUNT(DISTINCT pincode.district)', 'districtCount')
       .where('pincode.is_active = :isActive', { isActive: true })
       .andWhere('pincode.state IS NOT NULL')
+      .andWhere('pincode.state != :na', { na: 'na' })
       .groupBy('pincode.state')
       .orderBy('pincode.state', 'ASC')
       .getRawMany();
@@ -200,7 +201,9 @@ export class AdministrativeService {
       .addSelect('COUNT(DISTINCT pincode.pincode)', 'pincodeCount')
       .where('pincode.is_active = :isActive', { isActive: true })
       .andWhere('pincode.district IS NOT NULL')
+      .andWhere('pincode.district != :na', { na: 'na' })
       .andWhere('LOWER(pincode.state) != :unknown', { unknown: 'unknown' })
+      .andWhere('pincode.state != :naState', { naState: 'na' })
       .groupBy('pincode.district, pincode.state')
       .orderBy('pincode.state', 'ASC')
       .addOrderBy('pincode.district', 'ASC');
@@ -273,7 +276,10 @@ export class AdministrativeService {
       .addSelect('COUNT(*)', 'pincodeCount')
       .where('p.is_active = :active', { active: true })
       .andWhere('p.city IS NOT NULL')
-      .andWhere("p.city != ''");
+      .andWhere("p.city != ''")
+      .andWhere('p.state != :na', { na: 'na' })
+      .andWhere('p.district != :naDistrict', { naDistrict: 'na' })
+      .andWhere('LOWER(p.state) != :unknown', { unknown: 'unknown' });
 
     // Apply state filter
     if (state) {
