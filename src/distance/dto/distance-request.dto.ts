@@ -1,4 +1,4 @@
-import { IsOptional, IsString, IsNumber, IsEnum, ValidateNested, IsArray, ArrayMaxSize, IsBoolean } from 'class-validator';
+import { IsOptional, IsString, IsNumber, IsEnum, ValidateNested, IsArray, ArrayMaxSize, ArrayMinSize, IsNotEmpty } from 'class-validator';
 import { Type } from 'class-transformer';
 
 /**
@@ -40,10 +40,12 @@ export enum DistanceUnit {
  * POST /distance/calculate
  */
 export class CalculateDistanceDto {
+  @IsNotEmpty({ message: 'from location is required' })
   @ValidateNested()
   @Type(() => LocationDto)
   from: LocationDto;
 
+  @IsNotEmpty({ message: 'to location is required' })
   @ValidateNested()
   @Type(() => LocationDto)
   to: LocationDto;
@@ -57,10 +59,12 @@ export class CalculateDistanceDto {
  * POST /distance/batch
  */
 export class DistancePairDto {
+  @IsNotEmpty({ message: 'from location is required in each pair' })
   @ValidateNested()
   @Type(() => LocationDto)
   from: LocationDto;
 
+  @IsNotEmpty({ message: 'to location is required in each pair' })
   @ValidateNested()
   @Type(() => LocationDto)
   to: LocationDto;
@@ -68,9 +72,10 @@ export class DistancePairDto {
 
 export class BatchDistanceDto {
   @IsArray()
+  @ArrayMinSize(1, { message: 'At least one location pair is required' })
+  @ArrayMaxSize(100, { message: 'Maximum 100 location pairs allowed per request' })
   @ValidateNested({ each: true })
   @Type(() => DistancePairDto)
-  @ArrayMaxSize(100, { message: 'Maximum 100 location pairs allowed per request' })
   pairs: DistancePairDto[];
 
   @IsOptional()

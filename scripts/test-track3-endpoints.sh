@@ -79,8 +79,8 @@ RESPONSE=$(curl -s $DNS_RESOLVE -w "\n%{http_code}\n%{time_total}" \
   -H "Authorization: Bearer $API_KEY" \
   -H "Content-Type: application/json" \
   -d '{
-    "from": {"digipin": "M32M7L"},
-    "to": {"digipin": "M3CHC9"},
+    "from": {"digipin": "39J438"},
+    "to": {"digipin": "4FK595"},
     "unit": "km"
   }')
 
@@ -98,38 +98,8 @@ echo "Response:"
 echo "$BODY" | jq '.'
 echo ""
 
-# Test 3: H3 to H3 with grid distance
-echo -e "${YELLOW}Test 3: POST /distance/calculate (H3 to H3 with grid distance)${NC}"
-echo -e "${BLUE}───────────────────────────────────────────────────────────────────────────────────${NC}"
-echo -e "${BLUE}Calculate distance between H3 hexagons with grid distance${NC}"
-echo -e "${BLUE}───────────────────────────────────────────────────────────────────────────────────${NC}"
-RESPONSE=$(curl -s $DNS_RESOLVE -w "\n%{http_code}\n%{time_total}" \
-  -X POST "$BASE_URL/api/v1/distance/calculate" \
-  -H "Authorization: Bearer $API_KEY" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "from": {"h3": "893da11401bffff"},
-    "to": {"h3": "893da114003ffff"},
-    "unit": "km",
-    "includeGridDistance": true
-  }')
-
-STATUS=$(echo "$RESPONSE" | tail -n 2 | head -n 1)
-LATENCY=$(echo "$RESPONSE" | tail -n 1 | awk '{printf "%.6fms", $1*1000}')
-BODY=$(echo "$RESPONSE" | sed '$d' | sed '$d')
-
-if [ "$STATUS" = "201" ] || [ "$STATUS" = "200" ]; then
-  echo -e "Status: ${GREEN}$STATUS${NC}"
-else
-  echo -e "Status: ${RED}$STATUS${NC}"
-fi
-echo -e "Latency: ${RED}$LATENCY${NC}"
-echo "Response:"
-echo "$BODY" | jq '.'
-echo ""
-
-# Test 4: Coordinate to Pincode
-echo -e "${YELLOW}Test 4: POST /distance/calculate (Coordinate to Pincode)${NC}"
+# Test 3: Coordinate to Pincode
+echo -e "${YELLOW}Test 3: POST /distance/calculate (Coordinate to Pincode)${NC}"
 echo -e "${BLUE}───────────────────────────────────────────────────────────────────────────────────${NC}"
 echo -e "${BLUE}Calculate distance from coordinates to pincode${NC}"
 echo -e "${BLUE}───────────────────────────────────────────────────────────────────────────────────${NC}"
@@ -157,8 +127,8 @@ echo "Response:"
 echo "$BODY" | jq '.'
 echo ""
 
-# Test 5: Batch distance calculation
-echo -e "${YELLOW}Test 5: POST /distance/batch${NC}"
+# Test 4: Batch distance calculation
+echo -e "${YELLOW}Test 4: POST /distance/batch${NC}"
 echo -e "${BLUE}───────────────────────────────────────────────────────────────────────────────────${NC}"
 echo -e "${BLUE}Calculate distances for multiple pairs at once${NC}"
 echo -e "${BLUE}───────────────────────────────────────────────────────────────────────────────────${NC}"
@@ -170,7 +140,7 @@ RESPONSE=$(curl -s $DNS_RESOLVE -w "\n%{http_code}\n%{time_total}" \
     "pairs": [
       {"from": {"pincode": "110001"}, "to": {"pincode": "400001"}},
       {"from": {"pincode": "110001"}, "to": {"pincode": "560001"}},
-      {"from": {"digipin": "M32M7L"}, "to": {"digipin": "M3CHC9"}}
+      {"from": {"digipin": "39J438"}, "to": {"digipin": "4FK595"}}
     ],
     "unit": "km"
   }')
