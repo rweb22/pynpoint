@@ -81,15 +81,17 @@ export class PostOffice {
 
   /**
    * District name (normalized: lowercase, trimmed)
+   * Nullable: Some post offices have "NA" in source data
    */
-  @Column({ length: 100 })
+  @Column({ length: 100, nullable: true })
   @Index()
   district: string;
 
   /**
    * State/UT name (normalized: lowercase, trimmed)
+   * Nullable: Some post offices have "NA" in source data
    */
-  @Column({ length: 100 })
+  @Column({ length: 100, nullable: true })
   @Index()
   state: string;
 
