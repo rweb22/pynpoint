@@ -12,20 +12,22 @@ import { Pincode } from '../database/entities/pincode.entity';
 /**
  * DataIngestionService
  *
- * Handles downloading and ingesting pincode boundary data from data.gov.in
- * into the PostgreSQL pincodes table.
+ * Phase 3: Enriches existing pincodes with boundary data from GeoJSON
  *
- * Data Source: 29.71 MB GeoJSON (gzipped) from Indian government open data portal
+ * NEW STRATEGY (2025-06):
+ * - This service NO LONGER creates pincodes (that's done in Phase 2)
+ * - It ONLY updates existing pincodes with boundary geometries
+ * - Updates ~19,312 pincodes with MultiPolygon boundaries
+ *
+ * Data Source: Datagov_Pincode_Boundaries.geojson (87MB, local file)
  *
  * Process:
- * 1. Check if data already exists in PostgreSQL
- * 2. If missing, download GeoJSON from data.gov.in
- * 3. Verify checksum (prevent corruption/tampering)
- * 4. Decompress .gz file
- * 5. Parse GeoJSON and bulk insert into PostgreSQL
- * 6. Cleanup temporary files
+ * 1. Check if boundaries already exist
+ * 2. Parse GeoJSON file
+ * 3. For each feature: UPDATE existing pincode with boundary + centroid
+ * 4. Log coverage statistics
  *
- * Idempotent: Safe to run multiple times, skips if data exists.
+ * Idempotent: Safe to run multiple times, updates existing records.
  */
 @Injectable()
 export class DataIngestionService {
@@ -37,78 +39,76 @@ export class DataIngestionService {
   ) {}
 
   /**
-   * Check if pincode data already exists in PostgreSQL
+   * Check how many pincodes have boundary data
    */
-  async checkDataExists(): Promise<boolean> {
+  async checkBoundaryCount(): Promise<number> {
     try {
-      const count = await this.pincodeRepository.count();
-      this.logger.debug(`Found ${count} pincodes in database`);
-      return count > 0;
+      const result = await this.pincodeRepository.query(
+        'SELECT COUNT(*) as count FROM pincodes WHERE boundary IS NOT NULL',
+      );
+      const count = parseInt(result[0].count, 10);
+      this.logger.debug(`Found ${count} pincodes with boundaries`);
+      return count;
     } catch (error) {
-      this.logger.error('Error checking data existence:', error);
+      this.logger.error('Error checking boundary count:', error);
       throw error;
     }
   }
 
   /**
-   * Download and ingest pincode boundary data
+   * Enrich existing pincodes with boundary data from GeoJSON
    *
-   * @param force - If true, re-ingest even if data exists
+   * @param force - If true, re-enrich even if boundaries exist
    */
-  async ingestData(force = false): Promise<void> {
-    const forceReingest = force || process.env.FORCE_REINGEST_DATA === 'true';
+  async enrichBoundaries(force = false): Promise<void> {
+    const forceEnrich = force || process.env.FORCE_ENRICH_BOUNDARIES === 'true';
 
-    if (!forceReingest && (await this.checkDataExists())) {
-      this.logger.log('Pincode data already exists, skipping ingestion');
-      return;
+    if (!forceEnrich) {
+      const boundaryCount = await this.checkBoundaryCount();
+      const MIN_BOUNDARIES = 19000; // ~97% of 19,312 expected
+
+      if (boundaryCount >= MIN_BOUNDARIES) {
+        this.logger.log(`Boundaries already exist (${boundaryCount.toLocaleString()}), skipping enrichment`);
+        return;
+      }
     }
 
-    const dataUrl =
-      process.env.PINCODE_DATA_URL ||
-      'https://pub-0429b8e3b5a946e69ea007df844a6f1c.r2.dev/postal/boundaries/Datagov_Pincode_Boundaries.geojson';
-    const expectedChecksum = process.env.PINCODE_DATA_CHECKSUM;
-    const isGzipped = dataUrl.endsWith('.gz');
+    // Use local GeoJSON file (should be in project or downloaded separately)
+    const geojsonFile =
+      process.env.GEOJSON_FILE_PATH ||
+      './Datagov_Pincode_Boundaries.geojson';
 
-    this.logger.log(`Downloading pincode data from ${dataUrl}...`);
+    this.logger.log(`Enriching pincodes with boundaries from ${geojsonFile}...`);
 
     try {
-      // Step 1: Download file
-      const tempFile = isGzipped
-        ? '/tmp/pincode-boundaries.geojson.gz'
-        : '/tmp/pincode-boundaries.geojson';
-
-      await this.downloadFile(dataUrl, tempFile);
-      this.logger.log('✅ Download complete');
-
-      // Step 2: Verify checksum (if configured)
-      if (expectedChecksum) {
-        this.logger.log('Verifying file integrity...');
-        await this.verifyChecksum(tempFile, expectedChecksum);
-        this.logger.log('✅ Checksum verified');
+      // Check if file exists
+      try {
+        await access(geojsonFile);
+      } catch {
+        throw new Error(
+          `GeoJSON file not found: ${geojsonFile}. ` +
+          `Please download it separately or set GEOJSON_FILE_PATH environment variable.`,
+        );
       }
 
-      // Step 3: Decompress (if needed)
-      let geojsonFile = tempFile;
-      if (isGzipped) {
-        const decompressedFile = '/tmp/pincode-boundaries.geojson';
-        await this.decompressFile(tempFile, decompressedFile);
-        this.logger.log('✅ File decompressed');
-        geojsonFile = decompressedFile;
-      } else {
-        this.logger.log('✅ File is already uncompressed');
-      }
+      // Step 1: Parse and update pincodes
+      this.logger.log('Parsing GeoJSON and updating pincodes...');
+      await this.parseAndEnrich(geojsonFile);
+      this.logger.log('✅ Boundary enrichment complete');
 
-      // Step 4: Parse and insert into PostgreSQL
-      this.logger.log('Parsing GeoJSON and inserting into database...');
-      await this.parseAndInsert(geojsonFile);
-      this.logger.log('✅ Data inserted into PostgreSQL');
+      // Step 2: Log statistics
+      const finalCount = await this.checkBoundaryCount();
+      const totalPincodes = await this.pincodeRepository.count();
+      const coverage = ((finalCount / totalPincodes) * 100).toFixed(1);
 
-      // Step 5: Cleanup
-      const filesToClean = isGzipped ? [tempFile, geojsonFile] : [tempFile];
-      await this.cleanup(filesToClean);
-      this.logger.log('✅ Temporary files cleaned up');
+      this.logger.log('');
+      this.logger.log('📊 Boundary Enrichment Summary:');
+      this.logger.log(`  • Total pincodes: ${totalPincodes.toLocaleString()}`);
+      this.logger.log(`  • With boundaries: ${finalCount.toLocaleString()}`);
+      this.logger.log(`  • Coverage: ${coverage}%`);
+      this.logger.log(`  • Missing: ${(totalPincodes - finalCount).toLocaleString()}`);
     } catch (error) {
-      this.logger.error('Data ingestion failed:', error.stack);
+      this.logger.error('Boundary enrichment failed:', error.stack);
       throw error;
     }
   }
@@ -208,9 +208,9 @@ export class DataIngestionService {
   }
 
   /**
-   * Parse GeoJSON and bulk insert into PostgreSQL
+   * Parse GeoJSON and UPDATE existing pincodes with boundary data
    */
-  private async parseAndInsert(geojsonPath: string): Promise<void> {
+  private async parseAndEnrich(geojsonPath: string): Promise<void> {
     this.logger.log('Parsing GeoJSON file...');
 
     try {
@@ -222,85 +222,87 @@ export class DataIngestionService {
         throw new Error('Invalid GeoJSON: missing features array');
       }
 
-      this.logger.log(`Found ${geojson.features.length} features to insert`);
+      this.logger.log(`Found ${geojson.features.length} features to process`);
 
       // Process in batches for better performance
       const batchSize = 500;
-      let processedCount = 0;
+      let updatedCount = 0;
+      let notFoundCount = 0;
       const startTime = Date.now();
 
-      this.logger.log(`Starting batch insertion (batch size: ${batchSize})...`);
+      this.logger.log(`Starting batch UPDATE (batch size: ${batchSize})...`);
 
       for (let i = 0; i < geojson.features.length; i += batchSize) {
         const batchStartTime = Date.now();
         const batch = geojson.features.slice(i, i + batchSize);
 
-        // Build raw SQL INSERT with ST_GeogFromGeoJSON
-        // TypeORM doesn't handle PostGIS geography types automatically
-        const values = batch.map((feature: any, index: number) => {
+        // Process each feature individually (UPDATE requires individual queries)
+        for (const feature of batch) {
           const props = feature.properties;
-
           const pincode = props.Pincode || props.pincode || props.PINCODE;
-          const state = props.Circle || props.circle || props.state || props.STATE;
-          const district = props.Division || props.division || props.district || props.DISTRICT;
-          const city = props.Region || props.region || props.city || props.CITY;
-          const officeName = props.Office_Name || props.office_name || props.OFFICE_NAME;
           const geometryJson = JSON.stringify(feature.geometry);
 
           // Log first feature for debugging
-          if (i === 0 && index === 0) {
+          if (i === 0 && updatedCount === 0) {
             this.logger.debug(`Sample feature - Pincode: ${pincode}, Type: ${feature.geometry.type}`);
           }
 
           // Validate required fields
           if (!pincode) {
-            this.logger.warn(`Skipping feature at index ${i + index}: missing pincode`);
-            return null;
+            this.logger.warn(`Skipping feature: missing pincode`);
+            continue;
           }
 
-          return `(
-            ${this.escapeString(pincode)},
-            ST_GeomFromGeoJSON(${this.escapeString(geometryJson)})::geography,
-            ${this.escapeString(state)},
-            ${this.escapeString(district)},
-            ${this.escapeString(city)},
-            ${this.escapeString(officeName)},
-            true
-          )`;
-        }).filter(v => v !== null).join(',\n');
+          // UPDATE existing pincode with boundary and centroid
+          // Note: We do NOT update state/district/city (those come from JSON in Phase 2)
+          const sql = `
+            UPDATE pincodes
+            SET
+              boundary = ST_GeomFromGeoJSON(${this.escapeString(geometryJson)})::geography,
+              centroid = ST_Centroid(ST_GeomFromGeoJSON(${this.escapeString(geometryJson)}))::geography,
+              updated_at = CURRENT_TIMESTAMP
+            WHERE pincode = ${this.escapeString(pincode)}
+          `;
 
-        const sql = `
-          INSERT INTO pincodes (pincode, boundary, state, district, city, office_name, is_active)
-          VALUES ${values}
-          ON CONFLICT (pincode) DO NOTHING
-        `;
+          try {
+            const result = await this.pincodeRepository.query(sql);
 
-        try {
-          await this.pincodeRepository.query(sql);
-
-          processedCount += batch.length;
-          const progress = ((processedCount / geojson.features.length) * 100).toFixed(1);
-          const batchDuration = ((Date.now() - batchStartTime) / 1000).toFixed(2);
-          const totalDuration = ((Date.now() - startTime) / 1000).toFixed(1);
-          const estimatedRemaining = ((Date.now() - startTime) / processedCount * (geojson.features.length - processedCount) / 1000).toFixed(0);
-
-          // Log every 10 batches to reduce log volume (Railway limit: 500 logs/sec)
-          if (i === 0 || (Math.floor(i / batchSize) + 1) % 10 === 0 || processedCount >= geojson.features.length) {
-            this.logger.log(
-              `✓ Batch ${Math.floor(i / batchSize) + 1}: ${processedCount}/${geojson.features.length} (${progress}%) | ` +
-              `Batch: ${batchDuration}s | Total: ${totalDuration}s | ETA: ~${estimatedRemaining}s`
-            );
+            // Check if row was updated (result[1] is the affected row count)
+            if (result[1] > 0) {
+              updatedCount++;
+            } else {
+              notFoundCount++;
+              if (notFoundCount <= 5) {
+                this.logger.debug(`Pincode ${pincode} not found in database (will skip)`);
+              }
+            }
+          } catch (error) {
+            this.logger.error(`Failed to update pincode ${pincode}:`, error.message);
+            // Continue with next pincode instead of failing entire batch
           }
-        } catch (error) {
-          this.logger.error(`Failed to insert batch starting at index ${i}:`, error.message);
-          this.logger.error(`First pincode in failed batch: ${batch[0]?.properties?.Pincode}`);
-          throw error;
+        }
+
+        // Log progress
+        const processedCount = updatedCount + notFoundCount;
+        const progress = ((processedCount / geojson.features.length) * 100).toFixed(1);
+        const batchDuration = ((Date.now() - batchStartTime) / 1000).toFixed(2);
+        const totalDuration = ((Date.now() - startTime) / 1000).toFixed(1);
+
+        // Log every 10 batches to reduce log volume
+        if (i === 0 || (Math.floor(i / batchSize) + 1) % 10 === 0 || processedCount >= geojson.features.length) {
+          this.logger.log(
+            `✓ Batch ${Math.floor(i / batchSize) + 1}: ${updatedCount} updated, ${notFoundCount} not found | ` +
+            `Progress: ${progress}% | Total: ${totalDuration}s`
+          );
         }
       }
 
-      this.logger.log(`✅ Successfully inserted ${processedCount} pincodes`);
+      this.logger.log(`✅ Successfully updated ${updatedCount.toLocaleString()} pincodes with boundaries`);
+      if (notFoundCount > 0) {
+        this.logger.warn(`⚠️  ${notFoundCount.toLocaleString()} pincodes from GeoJSON not found in database (expected for new pincodes)`);
+      }
     } catch (error) {
-      this.logger.error('Failed to parse and insert GeoJSON:', error.stack);
+      this.logger.error('Failed to parse and enrich GeoJSON:', error.stack);
       throw error;
     }
   }

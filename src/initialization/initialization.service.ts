@@ -1,4 +1,5 @@
 import { Injectable, Logger, OnApplicationBootstrap } from '@nestjs/common';
+import { OfficialJSONIngestionService } from './official-json-ingestion.service';
 import { DataIngestionService } from './data-ingestion.service';
 import { CSVIngestionService } from './csv-ingestion.service';
 import { HealthService } from './health.service';
@@ -19,10 +20,13 @@ import { HealthService } from './health.service';
  * 4. onApplicationBootstrap() ← THIS RUNS HERE
  * 5. Server starts listening
  *
+ * NEW STRATEGY (2025-06):
  * Phases:
  * 1. Database validation (PostGIS)
- * 2. Pincode boundary ingestion (GeoJSON - 19,312 pincodes with boundaries)
- * 3. CSV data ingestion (165,627 post offices + pincode metadata updates)
+ * 2. Official JSON ingestion (data.gov.in - 19,586 pincodes + 165,627 postoffices)
+ * 3. GeoJSON boundary enrichment (updates ~19,312 pincodes with spatial data)
+ *
+ * Key change: JSON data first (correct state/district), then GeoJSON enrichment
  *
  * Behavior modes (controlled by environment variables):
  * - Production: Validate data exists, fail fast if missing
@@ -34,6 +38,7 @@ export class InitializationService implements OnApplicationBootstrap {
   private readonly logger = new Logger(InitializationService.name);
 
   constructor(
+    private readonly officialJSONIngestionService: OfficialJSONIngestionService,
     private readonly dataIngestionService: DataIngestionService,
     private readonly csvIngestionService: CSVIngestionService,
     private readonly healthService: HealthService,
@@ -57,15 +62,15 @@ export class InitializationService implements OnApplicationBootstrap {
       await this.healthService.checkPostGIS();
       this.logger.log('✅ Database validated (PostGIS enabled)');
 
-      // Phase 2: Ensure pincode boundary data exists (GeoJSON)
-      this.logger.log('Phase 2: Checking pincode boundary data...');
-      const dataExists = await this.dataIngestionService.checkDataExists();
+      // Phase 2: Ensure official JSON data exists (pincodes + postoffices)
+      this.logger.log('Phase 2: Checking official JSON data (data.gov.in)...');
+      const jsonDataExists = await this.officialJSONIngestionService.checkDataExists();
 
-      if (!dataExists) {
+      if (!jsonDataExists) {
         if (isProduction) {
           // Production: Fail fast - data should be pre-loaded
           this.logger.error(
-            '❌ Pincode boundary data not found. In production, data must be pre-loaded.',
+            '❌ Official JSON data not found. In production, data must be pre-loaded.',
           );
           this.logger.error(
             'Run: npm run cli init -- before starting the application.',
@@ -73,36 +78,35 @@ export class InitializationService implements OnApplicationBootstrap {
           process.exit(1);
         } else {
           // Development: Auto-download and ingest
-          this.logger.log('Pincode boundary data not found, starting ingestion...');
-          await this.dataIngestionService.ingestData();
-          this.logger.log('✅ Pincode boundary data ingested');
+          this.logger.log('Official JSON data not found, starting download and ingestion...');
+          await this.officialJSONIngestionService.ingestData();
+          this.logger.log('✅ Official JSON data ingested');
         }
       } else {
-        this.logger.log('✅ Pincode boundary data already exists');
+        this.logger.log('✅ Official JSON data already exists');
       }
 
-      // Phase 3: Ensure CSV data exists (post offices + pincode metadata)
-      this.logger.log('Phase 3: Checking CSV data (post offices)...');
-      const csvDataExists = await this.csvIngestionService.checkCSVDataExists();
+      // Phase 3: Enrich pincodes with GeoJSON boundary data (optional)
+      this.logger.log('Phase 3: Checking GeoJSON boundary enrichment...');
+      const boundaryCount = await this.dataIngestionService.checkBoundaryCount();
 
-      if (!csvDataExists) {
+      if (boundaryCount === 0) {
         if (isProduction) {
-          // Production: Fail fast - data should be pre-loaded
-          this.logger.error(
-            '❌ CSV data not found. In production, data must be pre-loaded.',
+          // Production: Warn but don't fail - boundaries are optional
+          this.logger.warn(
+            '⚠️  No pincode boundaries found. Spatial queries will be limited.',
           );
-          this.logger.error(
-            'Run: npm run cli init -- before starting the application.',
+          this.logger.warn(
+            'Consider running: npm run cli enrich-boundaries',
           );
-          process.exit(1);
         } else {
-          // Development: Auto-download and ingest
-          this.logger.log('CSV data not found, starting download and ingestion...');
-          await this.csvIngestionService.ingestCSVData();
-          this.logger.log('✅ CSV data ingested');
+          // Development: Auto-enrich from GeoJSON
+          this.logger.log('No boundaries found, enriching from GeoJSON...');
+          await this.dataIngestionService.enrichBoundaries();
+          this.logger.log('✅ Boundary enrichment complete');
         }
       } else {
-        this.logger.log('✅ CSV data already exists');
+        this.logger.log(`✅ Found ${boundaryCount.toLocaleString()} pincodes with boundaries`);
       }
 
       // Phase 4: Mark system as ready
@@ -134,8 +138,11 @@ export class InitializationService implements OnApplicationBootstrap {
     this.logger.log('🔄 Force re-initialization requested...');
 
     if (options?.forceReingest) {
-      this.logger.log('Force re-ingesting pincode data...');
-      await this.dataIngestionService.ingestData(true);
+      this.logger.log('Force re-ingesting official JSON data...');
+      await this.officialJSONIngestionService.ingestData(true);
+
+      this.logger.log('Force enriching boundaries from GeoJSON...');
+      await this.dataIngestionService.enrichBoundaries(true);
     }
 
     await this.healthService.markReady();
