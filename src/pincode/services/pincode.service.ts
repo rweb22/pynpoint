@@ -195,6 +195,8 @@ export class PincodeService {
       state: pincodeEntity.state,
       district: pincodeEntity.district,
       city: pincodeEntity.city,
+      region: pincodeEntity.region,
+      circle: pincodeEntity.circle,
       isActive: pincodeEntity.is_active,
     };
 

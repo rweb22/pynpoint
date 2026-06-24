@@ -2,20 +2,25 @@ import { Entity, Column, PrimaryGeneratedColumn, Index } from 'typeorm';
 
 /**
  * Pincode Entity
- * 
+ *
  * Represents Indian postal codes (PINCODEs) with geographic boundaries.
- * 
+ *
  * Schema:
  * - id: Auto-incrementing primary key
  * - pincode: 6-digit postal code (indexed)
  * - boundary: PostGIS geometry (MultiPolygon)
- * - state: State name
- * - district: District name
+ * - centroid: PostGIS geometry (Point) - geometric center
+ * - state: State name (normalized, indexed)
+ * - district: District name (normalized, indexed)
+ * - city: City name (always null - not in source data)
+ * - region: Postal region (e.g., "Mumbai Region", indexed)
+ * - circle: Postal circle (e.g., "Maharashtra Circle", indexed)
+ * - office_name: Main post office name
  * - is_active: Soft delete flag
  * - created_at: Timestamp
  * - updated_at: Timestamp
- * 
- * Spatial Index: boundary column uses PostGIS GIST index for fast queries
+ *
+ * Spatial Index: boundary and centroid columns use PostGIS GIST index for fast queries
  */
 @Entity('pincodes')
 @Index('idx_pincode_boundary', { synchronize: false }) // Created manually for PostGIS GIST
@@ -75,6 +80,14 @@ export class Pincode {
   @Column({ length: 100, nullable: true })
   @Index()
   city: string;
+
+  @Column({ length: 100, nullable: true })
+  @Index()
+  region: string;
+
+  @Column({ length: 100, nullable: true })
+  @Index()
+  circle: string;
 
   @Column({ length: 200, nullable: true })
   office_name: string;

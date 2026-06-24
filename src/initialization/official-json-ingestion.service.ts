@@ -214,6 +214,8 @@ export class OfficialJSONIngestionService {
           state: this.normalize(record.statename),
           district: this.normalize(record.district),
           city: null, // No city/area in official JSON
+          region: record.regionname?.trim().substring(0, 100) || null,
+          circle: record.circlename?.trim().substring(0, 100) || null,
           office_name: record.officename?.trim().substring(0, 200),
           officetype: record.officetype?.trim().toUpperCase(),
         });
@@ -229,6 +231,8 @@ export class OfficialJSONIngestionService {
             state: this.normalize(record.statename),
             district: this.normalize(record.district),
             city: null,
+            region: record.regionname?.trim().substring(0, 100) || null,
+            circle: record.circlename?.trim().substring(0, 100) || null,
             office_name: record.officename?.trim().substring(0, 200),
             officetype: record.officetype?.trim().toUpperCase(),
           });
@@ -271,6 +275,8 @@ export class OfficialJSONIngestionService {
       state: data.state?.substring(0, 100) || null,
       district: data.district?.substring(0, 100) || null,
       city: null as string | null,
+      region: data.region?.substring(0, 100) || null,
+      circle: data.circle?.substring(0, 100) || null,
       office_name: data.office_name?.substring(0, 200) || null,
       boundary: undefined, // Will be filled in Phase 3
       centroid: undefined, // Will be filled in Phase 3

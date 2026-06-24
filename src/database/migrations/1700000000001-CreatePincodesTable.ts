@@ -38,6 +38,8 @@ export class CreatePincodesTable1700000000001 implements MigrationInterface {
         state VARCHAR(100) NULL,
         district VARCHAR(100) NULL,
         city VARCHAR(100) NULL,
+        region VARCHAR(100) NULL,
+        circle VARCHAR(100) NULL,
         office_name VARCHAR(200) NULL,
         is_active BOOLEAN NOT NULL DEFAULT true,
         created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -56,8 +58,10 @@ export class CreatePincodesTable1700000000001 implements MigrationInterface {
     await queryRunner.query(`CREATE INDEX idx_pincodes_state ON pincodes(state);`);
     await queryRunner.query(`CREATE INDEX idx_pincodes_district ON pincodes(district);`);
     await queryRunner.query(`CREATE INDEX idx_pincodes_city ON pincodes(city);`);
+    await queryRunner.query(`CREATE INDEX idx_pincodes_region ON pincodes(region);`);
+    await queryRunner.query(`CREATE INDEX idx_pincodes_circle ON pincodes(circle);`);
     await queryRunner.query(`CREATE INDEX idx_pincodes_is_active ON pincodes(is_active);`);
-    console.log('[Migration] ✅ B-tree indexes created (4)');
+    console.log('[Migration] ✅ B-tree indexes created (6)');
 
     // Create functional composite index for case-insensitive state+district queries
     await queryRunner.query(`
@@ -104,7 +108,7 @@ export class CreatePincodesTable1700000000001 implements MigrationInterface {
     `);
 
     console.log('[Migration] CreatePincodesTable - Complete');
-    console.log('[Migration] Summary: 1 table, 8 indexes, 1 trigger, 1 function');
+    console.log('[Migration] Summary: 1 table, 10 indexes, 1 trigger, 1 function');
   }
 
   public async down(queryRunner: QueryRunner): Promise<void> {

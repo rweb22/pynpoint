@@ -37,7 +37,9 @@ export class PincodeDetailResponseDto {
   state?: string;
   district?: string;
   city?: string;
-  
+  region?: string;
+  circle?: string;
+
   /**
    * Centroid coordinates (geometric center of the pincode boundary)
    */

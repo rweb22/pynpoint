@@ -35,7 +35,7 @@ city: null, // No city/area in official JSON
 
 ### ❌ Issue 2: "na" appears as a state
 
-**Status:** ✅ FIXED (pending deployment)
+**Status:** ✅ FIXED & DEPLOYED
 
 **Root Cause:**
 - Source data contains "NA" (not available) as `statename` for 106 pincodes
