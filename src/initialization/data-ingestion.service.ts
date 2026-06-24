@@ -118,55 +118,6 @@ export class DataIngestionService {
   }
 
   /**
-   * Download file from URL to local path
-   */
-  private async downloadFile(url: string, destPath: string): Promise<void> {
-    return new Promise((resolve, reject) => {
-      const file = createWriteStream(destPath);
-
-      https
-        .get(url, (response) => {
-          if (response.statusCode !== 200) {
-            reject(new Error(`HTTP ${response.statusCode}: ${url}`));
-            return;
-          }
-
-          const totalBytes = parseInt(
-            response.headers['content-length'] || '0',
-            10,
-          );
-          let downloadedBytes = 0;
-
-          response.on('data', (chunk) => {
-            downloadedBytes += chunk.length;
-            const progress = ((downloadedBytes / totalBytes) * 100).toFixed(1);
-            // Log progress every 10%
-            if (downloadedBytes % Math.floor(totalBytes / 10) < chunk.length) {
-              this.logger.debug(`Download progress: ${progress}%`);
-            }
-          });
-
-          response.pipe(file);
-
-          file.on('finish', () => {
-            file.close();
-            resolve();
-          });
-        })
-        .on('error', (err) => {
-          unlink(destPath).catch(() => {});
-          reject(err);
-        });
-
-      file.on('error', (err) => {
-        unlink(destPath).catch(() => {});
-        reject(err);
-      });
-    });
-  }
-
-
-  /**
    * Verify file checksum
    */
   private async verifyChecksum(
