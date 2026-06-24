@@ -200,6 +200,7 @@ export class AdministrativeService {
       .addSelect('COUNT(DISTINCT pincode.pincode)', 'pincodeCount')
       .where('pincode.is_active = :isActive', { isActive: true })
       .andWhere('pincode.district IS NOT NULL')
+      .andWhere('LOWER(pincode.state) != :unknown', { unknown: 'unknown' })
       .groupBy('pincode.district, pincode.state')
       .orderBy('pincode.state', 'ASC')
       .addOrderBy('pincode.district', 'ASC');
