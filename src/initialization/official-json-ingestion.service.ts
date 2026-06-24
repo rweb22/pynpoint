@@ -250,10 +250,16 @@ export class OfficialJSONIngestionService {
 
   /**
    * Normalize text: lowercase, trim
+   * Filters out "NA" (not available) values which appear in source data
    */
   private normalize(value: string | null | undefined): string | null {
     if (!value || value.trim() === '') return null;
-    return value.trim().toLowerCase();
+    const normalized = value.trim().toLowerCase();
+    // Filter out "na" which means "not available" in source data
+    if (normalized === 'na' || normalized === 'n/a' || normalized === 'not available') {
+      return null;
+    }
+    return normalized;
   }
 
   /**
