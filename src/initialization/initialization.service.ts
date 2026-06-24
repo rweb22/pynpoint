@@ -67,21 +67,10 @@ export class InitializationService implements OnApplicationBootstrap {
       const jsonDataExists = await this.officialJSONIngestionService.checkDataExists();
 
       if (!jsonDataExists) {
-        if (isProduction) {
-          // Production: Fail fast - data should be pre-loaded
-          this.logger.error(
-            '❌ Official JSON data not found. In production, data must be pre-loaded.',
-          );
-          this.logger.error(
-            'Run: npm run cli init -- before starting the application.',
-          );
-          process.exit(1);
-        } else {
-          // Development: Auto-download and ingest
-          this.logger.log('Official JSON data not found, starting download and ingestion...');
-          await this.officialJSONIngestionService.ingestData();
-          this.logger.log('✅ Official JSON data ingested');
-        }
+        // Auto-download and ingest if database is empty (all environments)
+        this.logger.log('Official JSON data not found, starting download and ingestion...');
+        await this.officialJSONIngestionService.ingestData();
+        this.logger.log('✅ Official JSON data ingested');
       } else {
         this.logger.log('✅ Official JSON data already exists');
       }
@@ -91,20 +80,10 @@ export class InitializationService implements OnApplicationBootstrap {
       const boundaryCount = await this.dataIngestionService.checkBoundaryCount();
 
       if (boundaryCount === 0) {
-        if (isProduction) {
-          // Production: Warn but don't fail - boundaries are optional
-          this.logger.warn(
-            '⚠️  No pincode boundaries found. Spatial queries will be limited.',
-          );
-          this.logger.warn(
-            'Consider running: npm run cli enrich-boundaries',
-          );
-        } else {
-          // Development: Auto-enrich from GeoJSON
-          this.logger.log('No boundaries found, enriching from GeoJSON...');
-          await this.dataIngestionService.enrichBoundaries();
-          this.logger.log('✅ Boundary enrichment complete');
-        }
+        // Auto-enrich from GeoJSON if no boundaries exist (all environments)
+        this.logger.log('No boundaries found, enriching from GeoJSON...');
+        await this.dataIngestionService.enrichBoundaries();
+        this.logger.log('✅ Boundary enrichment complete');
       } else {
         this.logger.log(`✅ Found ${boundaryCount.toLocaleString()} pincodes with boundaries`);
       }
