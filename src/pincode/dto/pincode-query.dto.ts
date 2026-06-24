@@ -65,16 +65,16 @@ export class DistrictQueryDto {
 }
 
 /**
- * Query DTO for GET /administrative/cities
+ * Query DTO for GET /administrative/regions
  */
-export class CityQueryDto {
+export class RegionQueryDto {
   @IsOptional()
   @IsString()
   state?: string;
 
   @IsOptional()
   @IsString()
-  district?: string;
+  circle?: string;
 
   @IsOptional()
   @Type(() => Number)

@@ -7,12 +7,12 @@ import {
   StatesListResponseDto,
   StateDetailResponseDto,
   DistrictsListResponseDto,
-  CitiesListResponseDto,
+  RegionsListResponseDto,
   StateDto,
   DistrictDto,
-  CityDto,
+  RegionDto,
 } from '../dto/pincode-response.dto';
-import { DistrictQueryDto, CityQueryDto } from '../dto/pincode-query.dto';
+import { DistrictQueryDto, RegionQueryDto } from '../dto/pincode-query.dto';
 
 /**
  * AdministrativeService
@@ -246,39 +246,39 @@ export class AdministrativeService {
   }
 
   /**
-   * Get all cities (optionally filtered by state and/or district)
-   * GET /administrative/cities?state=...&district=...
+   * Get all regions (optionally filtered by state and/or circle)
+   * GET /administrative/regions?state=...&circle=...
    */
-  async getCities(query: CityQueryDto): Promise<CitiesListResponseDto> {
+  async getRegions(query: RegionQueryDto): Promise<RegionsListResponseDto> {
     const startTime = Date.now();
-    const { state, district, limit = 100, page = 1 } = query;
+    const { state, circle, limit = 100, page = 1 } = query;
 
     // Build cache key based on filters
-    const cacheKey = `admin:cities:${state || 'all'}:${district || 'all'}:${page}:${limit}`;
-    this.logger.log(`🔍 Fetching cities (state: ${state || 'all'}, district: ${district || 'all'})`);
+    const cacheKey = `admin:regions:${state || 'all'}:${circle || 'all'}:${page}:${limit}`;
+    this.logger.log(`🔍 Fetching regions (state: ${state || 'all'}, circle: ${circle || 'all'})`);
 
     // Check cache first
     const cached = await this.redisCache.get(cacheKey);
     if (cached) {
       const cacheTime = Date.now() - startTime;
-      this.logger.log(`✅ Cache HIT for cities (${cacheTime}ms)`);
+      this.logger.log(`✅ Cache HIT for regions (${cacheTime}ms)`);
       return JSON.parse(cached);
     }
 
-    this.logger.log(`❌ Cache MISS for cities - querying DB...`);
+    this.logger.log(`❌ Cache MISS for regions - querying DB...`);
 
     // Build query with filters
     const queryBuilder = this.pincodeRepository
       .createQueryBuilder('p')
-      .select('p.city', 'name')
+      .select('p.region', 'name')
+      .addSelect('p.circle', 'circle')
       .addSelect('p.state', 'state')
-      .addSelect('p.district', 'district')
       .addSelect('COUNT(*)', 'pincodeCount')
       .where('p.is_active = :active', { active: true })
-      .andWhere('p.city IS NOT NULL')
-      .andWhere("p.city != ''")
-      .andWhere('p.state != :na', { na: 'na' })
-      .andWhere('p.district != :naDistrict', { naDistrict: 'na' })
+      .andWhere('p.region IS NOT NULL')
+      .andWhere("p.region != ''")
+      .andWhere('p.state IS NOT NULL')
+      .andWhere('LOWER(p.state) != :na', { na: 'na' })
       .andWhere('LOWER(p.state) != :unknown', { unknown: 'unknown' });
 
     // Apply state filter
@@ -286,16 +286,16 @@ export class AdministrativeService {
       queryBuilder.andWhere('LOWER(p.state) = LOWER(:state)', { state });
     }
 
-    // Apply district filter
-    if (district) {
-      queryBuilder.andWhere('LOWER(p.district) = LOWER(:district)', { district });
+    // Apply circle filter
+    if (circle) {
+      queryBuilder.andWhere('LOWER(p.circle) = LOWER(:circle)', { circle });
     }
 
-    // Group by city, state, district
-    queryBuilder.groupBy('p.city, p.state, p.district');
+    // Group by region, circle, state
+    queryBuilder.groupBy('p.region, p.circle, p.state');
 
-    // Order by city name
-    queryBuilder.orderBy('p.city', 'ASC');
+    // Order by region name
+    queryBuilder.orderBy('p.region', 'ASC');
 
     // Pagination
     const offset = (page - 1) * limit;
@@ -304,32 +304,32 @@ export class AdministrativeService {
     const dbStartTime = Date.now();
     const rawResults = await queryBuilder.getRawMany();
     const dbTime = Date.now() - dbStartTime;
-    this.logger.log(`📊 DB query completed in ${dbTime}ms, found ${rawResults.length} cities`);
+    this.logger.log(`📊 DB query completed in ${dbTime}ms, found ${rawResults.length} regions`);
 
     // Build response
-    const cities: CityDto[] = rawResults.map((row) => {
+    const regions: RegionDto[] = rawResults.map((row) => {
       const stateName = row.state || 'Unknown';
       const stateCode = this.getStateCode(stateName);
 
       return {
         name: row.name,
+        circle: row.circle || undefined,
         state: stateName,
         stateCode,
-        district: row.district || undefined,
         pincodeCount: parseInt(row.pincodeCount, 10),
       };
     });
 
-    const response: CitiesListResponseDto = {
-      total: cities.length,
-      cities,
+    const response: RegionsListResponseDto = {
+      total: regions.length,
+      regions,
     };
 
     // Cache the result
     await this.redisCache.set(cacheKey, JSON.stringify(response), this.CACHE_TTL);
 
     const totalTime = Date.now() - startTime;
-    this.logger.log(`✅ Cities fetched successfully (${totalTime}ms)`);
+    this.logger.log(`✅ Regions fetched successfully (${totalTime}ms)`);
 
     return response;
   }

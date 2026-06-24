@@ -18,7 +18,7 @@ import {
   PincodeQueryDto,
   BulkPincodeLookupDto,
   DistrictQueryDto,
-  CityQueryDto,
+  RegionQueryDto,
   NearbyPincodeQueryDto,
   ReverseGeocodeDto,
 } from '../dto/pincode-query.dto';
@@ -172,12 +172,12 @@ export class AdministrativeController {
   }
 
   /**
-   * GET /api/v1/administrative/cities
-   * Get cities (optionally filtered by state and/or district)
+   * GET /api/v1/administrative/regions
+   * Get regions (optionally filtered by state and/or circle)
    */
-  @Get('cities')
-  async getCities(@Query() query: CityQueryDto) {
-    this.logger.log(`GET /administrative/cities?${JSON.stringify(query)}`);
-    return this.administrativeService.getCities(query);
+  @Get('regions')
+  async getRegions(@Query() query: RegionQueryDto) {
+    this.logger.log(`GET /administrative/regions?${JSON.stringify(query)}`);
+    return this.administrativeService.getRegions(query);
   }
 }

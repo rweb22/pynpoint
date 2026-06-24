@@ -124,24 +124,24 @@ export class DistrictsListResponseDto {
 }
 
 /**
- * City Response DTO
+ * Region Response DTO
  */
-export class CityDto {
+export class RegionDto {
   name: string;
+  circle?: string;
   state: string;
   stateCode: string;
-  district?: string;
   pincodeCount: number;
 }
 
 /**
- * Cities List Response
+ * Regions List Response
  *
- * GET /administrative/cities?state=...&district=...
+ * GET /administrative/regions?state=...&circle=...
  */
-export class CitiesListResponseDto {
+export class RegionsListResponseDto {
   total: number;
-  cities: CityDto[];
+  regions: RegionDto[];
 }
 
 /**
