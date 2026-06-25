@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
+import { APP_INTERCEPTOR } from '@nestjs/core';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { DatabaseModule } from './database/database.module';
@@ -10,6 +11,8 @@ import { AuthModule } from './auth/auth.module';
 import { PincodeModule } from './pincode/pincode.module';
 import { DigipinModule } from './digipin/digipin.module';
 import { DistanceModule } from './distance/distance.module';
+import { MonitoringModule } from './monitoring/monitoring.module';
+import { RequestTrackingInterceptor } from './monitoring/request-tracking.interceptor';
 import configuration from './config/configuration';
 
 /**
@@ -38,6 +41,9 @@ import configuration from './config/configuration';
     DatabaseModule,
     RedisModule,
 
+    // Monitoring (global)
+    MonitoringModule,
+
     // Authentication
     AuthModule,
 
@@ -53,6 +59,13 @@ import configuration from './config/configuration';
     HealthModule,
   ],
   controllers: [AppController],
-  providers: [AppService],
+  providers: [
+    AppService,
+    // Global request tracking interceptor
+    {
+      provide: APP_INTERCEPTOR,
+      useClass: RequestTrackingInterceptor,
+    },
+  ],
 })
 export class AppModule {}
