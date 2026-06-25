@@ -35,11 +35,13 @@ import { ApiUsage } from './entities/api-usage.entity';
         synchronize: false, // Always false - use migrations instead
         logging: ['error', 'warn', 'migration'], // Always log migrations and errors
         // PostGIS extension is automatically detected
-        // Connection pooling
+        // Connection pooling (optimized for concurrent load)
         extra: {
-          max: 10,
-          min: 2,
+          max: 50,  // Increased from 10 to handle 100+ concurrent requests
+          min: 5,   // Increased from 2 to keep more connections ready
           idleTimeoutMillis: 30000,
+          connectionTimeoutMillis: 10000,  // Timeout for getting connection from pool
+          acquireTimeoutMillis: 10000,     // Timeout for acquiring connection
         },
       }),
     }),
