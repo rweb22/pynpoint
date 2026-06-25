@@ -17,14 +17,14 @@ import { PincodeQueryDto, BulkPincodeLookupDto, NearbyPincodeQueryDto, ReverseGe
 
 /**
  * PincodeService
- * 
+ *
  * Handles all pincode-related business logic for Track 1.
- * 
+ *
  * Caching Strategy (RedisCacheService):
  * - Single pincode lookup: 1 hour TTL
  * - Query results: 10 minutes TTL (more dynamic)
  * - Bulk lookups: Reuse individual pincode cache
- * 
+ *
  * Performance:
  * - Single lookup: ~1-10ms (cached) | ~10-50ms (DB)
  * - Query: ~20-50ms
@@ -127,6 +127,8 @@ export class PincodeService {
   /**
    * Search/filter pincodes
    * GET /pincodes?state=...&district=...
+   *
+   * OPTIMIZED: Batch fetch post offices if requested
    */
   async findPincodes(query: PincodeQueryDto): Promise<PincodeListResponseDto> {
     const { state, district, city, search, limit = 25, page = 1, includePostOffices } = query;
@@ -162,10 +164,26 @@ export class PincodeService {
     // Execute
     const [results, total] = await queryBuilder.getManyAndCount();
 
+    // Optimization: Batch fetch post offices if requested
+    let postOfficesMap: Map<string, PostOffice[]> | null = null;
+    if (includePostOffices && results.length > 0) {
+      const pincodesList = results.map(p => p.pincode);
+      postOfficesMap = await this.fetchPostOfficesForPincodes(pincodesList);
+    }
+
     // Build responses
-    const pincodes = await Promise.all(
-      results.map(p => this.buildPincodeResponse(p, includePostOffices || false)),
-    );
+    const pincodes = results.map(p => {
+      const response = this.buildPincodeResponseSync(p);
+
+      // Add post offices from batch query if available
+      if (postOfficesMap && postOfficesMap.has(p.pincode)) {
+        const postOffices = postOfficesMap.get(p.pincode)!;
+        response.postOffices = postOffices.map(po => this.buildPostOfficeDto(po));
+        response.postOfficeCount = postOffices.length;
+      }
+
+      return response;
+    });
 
     return {
       total,
@@ -178,6 +196,8 @@ export class PincodeService {
   /**
    * Bulk pincode lookup
    * POST /pincodes/bulk/lookup
+   *
+   * OPTIMIZED: Fetches all post offices in ONE query (not N queries)
    */
   async bulkLookup(dto: BulkPincodeLookupDto) {
     const { pincodes, includePostOffices } = dto;
@@ -187,10 +207,24 @@ export class PincodeService {
       throw new NotFoundException('Maximum 100 pincodes allowed per request');
     }
 
+    // Optimization: If includePostOffices, fetch ALL post offices in one query
+    let postOfficesMap: Map<string, PostOffice[]> | null = null;
+    if (includePostOffices) {
+      postOfficesMap = await this.fetchPostOfficesForPincodes(pincodes);
+    }
+
     const results = await Promise.all(
       pincodes.map(async (pincode) => {
         try {
-          const data = await this.findByPincode(pincode, includePostOffices);
+          const data = await this.findByPincode(pincode, false); // Don't fetch post offices individually
+
+          // Add post offices from batch query if available
+          if (postOfficesMap && postOfficesMap.has(pincode)) {
+            const postOffices = postOfficesMap.get(pincode)!;
+            data.postOffices = postOffices.map(po => this.buildPostOfficeDto(po));
+            data.postOfficeCount = postOffices.length;
+          }
+
           return { pincode, found: true, data };
         } catch (error) {
           return { pincode, found: false, error: error.message };
@@ -246,6 +280,35 @@ export class PincodeService {
   }
 
   /**
+   * Helper: Build pincode response DTO from entity (synchronous version)
+   * Does NOT fetch post offices - use fetchPostOfficesForPincodes() for batch fetching
+   */
+  private buildPincodeResponseSync(pincodeEntity: Pincode): PincodeDetailResponseDto {
+    const response: PincodeDetailResponseDto = {
+      pincode: pincodeEntity.pincode,
+      officeName: pincodeEntity.office_name,
+      state: pincodeEntity.state,
+      district: pincodeEntity.district,
+      city: pincodeEntity.city,
+      region: pincodeEntity.region,
+      circle: pincodeEntity.circle,
+      isActive: pincodeEntity.is_active,
+    };
+
+    // Add centroid coordinates if available (from GeoJSON)
+    const centroidGeoJson = (pincodeEntity as any).centroid_geojson;
+    if (centroidGeoJson && centroidGeoJson.type === 'Point') {
+      const [longitude, latitude] = centroidGeoJson.coordinates;
+      response.coordinates = {
+        latitude,
+        longitude,
+      };
+    }
+
+    return response;
+  }
+
+  /**
    * Helper: Build post office DTO
    */
   private buildPostOfficeDto(po: PostOffice): PostOfficeDto {
@@ -267,6 +330,42 @@ export class PincodeService {
     }
 
     return dto;
+  }
+
+  /**
+   * Helper: Batch fetch post offices for multiple pincodes in ONE query
+   *
+   * OPTIMIZATION: Eliminates N+1 query problem
+   * Before: 100 pincodes = 100 separate queries
+   * After: 100 pincodes = 1 query with IN clause
+   */
+  private async fetchPostOfficesForPincodes(pincodes: string[]): Promise<Map<string, PostOffice[]>> {
+    if (pincodes.length === 0) {
+      return new Map();
+    }
+
+    const startTime = Date.now();
+
+    // Fetch all post offices for all pincodes in ONE query
+    const postOffices = await this.postOfficeRepository
+      .createQueryBuilder('po')
+      .where('po.pincode IN (:...pincodes)', { pincodes })
+      .andWhere('po.is_active = :active', { active: true })
+      .getMany();
+
+    const queryTime = Date.now() - startTime;
+    this.logger.log(`📊 Batch fetched ${postOffices.length} post offices for ${pincodes.length} pincodes in ${queryTime}ms`);
+
+    // Group by pincode
+    const grouped = new Map<string, PostOffice[]>();
+    for (const po of postOffices) {
+      if (!grouped.has(po.pincode)) {
+        grouped.set(po.pincode, []);
+      }
+      grouped.get(po.pincode)!.push(po);
+    }
+
+    return grouped;
   }
 
   /**

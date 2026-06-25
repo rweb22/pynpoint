@@ -52,7 +52,6 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
       enableReadyCheck: true,
       lazyConnect: false,
       enableAutoPipelining: true,  // Batch multiple commands automatically
-      maxRedirections: 3,
     });
 
     this.client.on('connect', () => {
