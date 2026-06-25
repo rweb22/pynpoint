@@ -2,7 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { InjectDataSource } from '@nestjs/typeorm';
 import { DataSource } from 'typeorm';
-import { RedisService } from '../redis/redis.service';
+import { RedisCacheService } from '../redis/redis-cache.service';
 
 /**
  * Performance Monitoring Service
@@ -31,7 +31,7 @@ export class PerformanceMonitor {
 
   constructor(
     @InjectDataSource() private readonly dataSource: DataSource,
-    private readonly redisService: RedisService,
+    private readonly redisCacheService: RedisCacheService,
   ) {}
 
   /**
@@ -143,9 +143,10 @@ export class PerformanceMonitor {
    */
   private async getRedisMetrics() {
     try {
-      const info = await this.redisService.getClient().info('stats');
+      const client = this.redisCacheService.getClient();
+      const info = await client.info('stats');
       const lines = info.split('\r\n');
-      
+
       const metrics: any = {};
       lines.forEach(line => {
         const [key, value] = line.split(':');
@@ -155,7 +156,7 @@ export class PerformanceMonitor {
       });
 
       return {
-        connected: this.redisService.getClient().status === 'ready',
+        connected: client.status === 'ready',
         totalCommandsProcessed: parseInt(metrics.total_commands_processed) || 0,
         opsPerSec: parseInt(metrics.instantaneous_ops_per_sec) || 0,
       };
