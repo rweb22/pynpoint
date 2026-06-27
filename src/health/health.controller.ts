@@ -7,6 +7,7 @@ import {
 import { HealthService } from '../initialization/health.service';
 import { RedisCacheService } from '../redis/redis-cache.service';
 import { ConfigService } from '@nestjs/config';
+import { Public } from '../auth/decorators/public.decorator';
 
 /**
  * HealthController
@@ -34,6 +35,7 @@ export class HealthController {
    * Overall health check
    * Returns 200 OK if all checks pass, 503 Service Unavailable otherwise
    */
+  @Public()
   @Get()
   @HealthCheck()
   check() {
@@ -68,6 +70,7 @@ export class HealthController {
    * Liveness probe
    * Checks if the service is alive and running
    */
+  @Public()
   @Get('live')
   @HealthCheck()
   liveness() {
@@ -82,6 +85,7 @@ export class HealthController {
    * Readiness probe
    * Checks if the service is ready to accept traffic
    */
+  @Public()
   @Get('ready')
   async readiness() {
     const isReady = this.healthService.isReady();
@@ -103,6 +107,7 @@ export class HealthController {
   /**
    * Detailed status endpoint (optional - for monitoring dashboards)
    */
+  @Public()
   @Get('status')
   async status() {
     try {
