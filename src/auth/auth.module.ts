@@ -6,6 +6,7 @@ import { ApiUsage } from '../database/entities/api-usage.entity';
 import { ApiKeyService } from './services/api-key.service';
 import { ApiKeyGuard } from './guards/api-key.guard';
 import { AdminAuthGuard } from './guards/admin-auth.guard';
+import { MarketplaceProxyGuard } from './guards/marketplace-proxy.guard';
 import { RateLimitInterceptor } from './interceptors/rate-limit.interceptor';
 import { UsageTrackingInterceptor } from './interceptors/usage-tracking.interceptor';
 import { AdminApiKeyController } from './controllers/admin-api-key.controller';
@@ -25,6 +26,7 @@ import { RedisModule } from '../redis/redis.module';
  * - ApiKeyService: Key generation, validation, caching
  *
  * Guards:
+ * - MarketplaceProxyGuard: Validate marketplace proxy requests (RapidAPI, AWS, Azure)
  * - ApiKeyGuard: Validate API keys from Authorization header
  * - AdminAuthGuard: Protect admin endpoints with ADMIN_API_SECRET
  *
@@ -44,6 +46,7 @@ import { RedisModule } from '../redis/redis.module';
   controllers: [AdminApiKeyController],
   providers: [
     ApiKeyService,
+    MarketplaceProxyGuard,
     ApiKeyGuard,
     AdminAuthGuard,
     RateLimitInterceptor,
@@ -51,6 +54,7 @@ import { RedisModule } from '../redis/redis.module';
   ],
   exports: [
     ApiKeyService,
+    MarketplaceProxyGuard,
     ApiKeyGuard,
     AdminAuthGuard,
     RateLimitInterceptor,

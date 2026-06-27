@@ -61,6 +61,12 @@ export class ApiKeyGuard implements CanActivate {
   async canActivate(context: ExecutionContext): Promise<boolean> {
     const request = context.switchToHttp().getRequest<Request>();
 
+    // Skip if already authenticated by marketplace proxy guard
+    if (request.user && request.user.authType === 'marketplace-proxy') {
+      this.logger.debug(`Request already authenticated via ${request.user.marketplace} - skipping API key validation`);
+      return true;
+    }
+
     // Extract API key from Authorization header
     const apiKey = this.extractApiKey(request);
 

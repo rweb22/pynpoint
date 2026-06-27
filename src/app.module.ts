@@ -1,6 +1,6 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
-import { APP_INTERCEPTOR } from '@nestjs/core';
+import { APP_INTERCEPTOR, APP_GUARD } from '@nestjs/core';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { DatabaseModule } from './database/database.module';
@@ -61,6 +61,15 @@ import configuration from './config/configuration';
   controllers: [AppController],
   providers: [
     AppService,
+    // Global guards (run in order: marketplace first, then API key)
+    {
+      provide: APP_GUARD,
+      useClass: require('./auth/guards/marketplace-proxy.guard').MarketplaceProxyGuard,
+    },
+    {
+      provide: APP_GUARD,
+      useClass: require('./auth/guards/api-key.guard').ApiKeyGuard,
+    },
     // Global request tracking interceptor
     {
       provide: APP_INTERCEPTOR,
