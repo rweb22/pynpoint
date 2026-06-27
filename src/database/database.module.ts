@@ -5,6 +5,7 @@ import { Pincode } from './entities/pincode.entity';
 import { PostOffice } from './entities/postoffice.entity';
 import { ApiKey } from './entities/api-key.entity';
 import { ApiUsage } from './entities/api-usage.entity';
+import { MarketplaceConfig } from './entities/marketplace-config.entity';
 
 /**
  * DatabaseModule
@@ -28,7 +29,7 @@ import { ApiUsage } from './entities/api-usage.entity';
       useFactory: (configService: ConfigService) => ({
         type: 'postgres',
         url: configService.get<string>('DATABASE_URL'),
-        entities: [Pincode, PostOffice, ApiKey, ApiUsage],
+        entities: [Pincode, PostOffice, ApiKey, ApiUsage, MarketplaceConfig],
         migrations: ['dist/src/database/migrations/*.js'],
         migrationsTableName: 'migrations',
         migrationsRun: true, // Auto-run migrations on startup
@@ -45,7 +46,7 @@ import { ApiUsage } from './entities/api-usage.entity';
         },
       }),
     }),
-    TypeOrmModule.forFeature([Pincode, PostOffice, ApiKey, ApiUsage]),
+    TypeOrmModule.forFeature([Pincode, PostOffice, ApiKey, ApiUsage, MarketplaceConfig]),
   ],
   exports: [TypeOrmModule],
 })
