@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Headers, UnauthorizedException } from '@nestjs/common';
+import { Controller, Get, Post, Headers, UnauthorizedException, VERSION_NEUTRAL } from '@nestjs/common';
 import {
   HealthCheck,
   HealthCheckService,
@@ -14,14 +14,17 @@ import { Public } from '../auth/decorators/public.decorator';
  *
  * Provides health check endpoints for Railway, Kubernetes, and monitoring tools.
  *
- * Endpoints:
+ * Endpoints available at BOTH paths:
+ * - /health (for Railway, K8s)
+ * - /api/v1/health (for RapidAPI, API consumers)
+ *
+ * Routes:
  * - GET /health - Overall system health (liveness + readiness)
  * - GET /health/live - Liveness probe (is the service running?)
  * - GET /health/ready - Readiness probe (is the service ready to accept traffic?)
- *
- * Railway uses /health for its health checks.
+ * - GET /health/status - Detailed status with latency metrics
  */
-@Controller('health')
+@Controller({ path: 'health', version: ['1', VERSION_NEUTRAL] })
 export class HealthController {
   constructor(
     private readonly health: HealthCheckService,
