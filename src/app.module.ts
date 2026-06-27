@@ -13,6 +13,8 @@ import { DigipinModule } from './digipin/digipin.module';
 import { DistanceModule } from './distance/distance.module';
 import { MonitoringModule } from './monitoring/monitoring.module';
 import { RequestTrackingInterceptor } from './monitoring/request-tracking.interceptor';
+import { MarketplaceProxyGuard } from './auth/guards/marketplace-proxy.guard';
+import { ApiKeyGuard } from './auth/guards/api-key.guard';
 import configuration from './config/configuration';
 
 /**
@@ -64,11 +66,11 @@ import configuration from './config/configuration';
     // Global guards (run in order: marketplace first, then API key)
     {
       provide: APP_GUARD,
-      useClass: require('./auth/guards/marketplace-proxy.guard').MarketplaceProxyGuard,
+      useClass: MarketplaceProxyGuard,
     },
     {
       provide: APP_GUARD,
-      useClass: require('./auth/guards/api-key.guard').ApiKeyGuard,
+      useClass: ApiKeyGuard,
     },
     // Global request tracking interceptor
     {
