@@ -30,10 +30,15 @@ export interface MarketplaceAuthConfig {
 @Injectable()
 export class MarketplaceConfigService implements OnModuleInit {
   private readonly logger = new Logger(MarketplaceConfigService.name);
-  
-  // In-memory cache: Map<header_name, Map<secret_key, config>>
-  // Example: { 'x-rapidapi-proxy-secret': { 'secret123': {...config...} } }
-  private marketplaceCache: Map<string, Map<string, MarketplaceAuthConfig>> = new Map();
+
+  // In-memory cache: Map<secret_key, config>
+  // Direct O(1) lookup by secret value, regardless of header name
+  // Example: { 'secret123': { marketplace_id: 'rapidapi', header_name: 'x-rapidapi-proxy-secret', ... } }
+  private secretCache: Map<string, MarketplaceAuthConfig> = new Map();
+
+  // Set of known header names for quick check
+  // Example: Set(['x-rapidapi-proxy-secret', 'x-aws-marketplace-token'])
+  private knownHeaders: Set<string> = new Set();
 
   constructor(
     @InjectRepository(MarketplaceConfig)
@@ -60,18 +65,15 @@ export class MarketplaceConfigService implements OnModuleInit {
       });
 
       // Clear existing cache
-      this.marketplaceCache.clear();
+      this.secretCache.clear();
+      this.knownHeaders.clear();
 
-      // Build in-memory cache
+      // Build in-memory cache - direct secret lookup
       for (const config of configs) {
         const headerName = config.header_name.toLowerCase();
-        
-        if (!this.marketplaceCache.has(headerName)) {
-          this.marketplaceCache.set(headerName, new Map());
-        }
 
-        const secretsMap = this.marketplaceCache.get(headerName)!;
-        secretsMap.set(config.secret_key, {
+        // Add to secret cache (O(1) lookup)
+        this.secretCache.set(config.secret_key, {
           marketplace_id: config.marketplace_id,
           marketplace_name: config.marketplace_name,
           secret_key: config.secret_key,
@@ -79,6 +81,9 @@ export class MarketplaceConfigService implements OnModuleInit {
           user_header_name: config.user_header_name,
           metadata: config.metadata,
         });
+
+        // Track known header names
+        this.knownHeaders.add(headerName);
 
         this.logger.log(
           `Loaded marketplace config: ${config.marketplace_name} (${config.marketplace_id}) via ${config.header_name}`
@@ -95,22 +100,32 @@ export class MarketplaceConfigService implements OnModuleInit {
   }
 
   /**
-   * Validate a marketplace secret from a specific header
-   * 
-   * @param headerName - HTTP header name (e.g., 'x-rapidapi-proxy-secret')
-   * @param secretValue - Secret value from the header
+   * Validate a marketplace secret - O(1) lookup
+   *
+   * @param secretValue - Secret value from any marketplace header
    * @returns Marketplace config if valid, null otherwise
    */
-  validateSecret(headerName: string, secretValue: string): MarketplaceAuthConfig | null {
-    const normalizedHeader = headerName.toLowerCase();
-    const secretsMap = this.marketplaceCache.get(normalizedHeader);
+  validateSecret(secretValue: string): MarketplaceAuthConfig | null {
+    return this.secretCache.get(secretValue) || null;
+  }
 
-    if (!secretsMap) {
-      return null;
-    }
+  /**
+   * Check if a header name is a known marketplace header
+   *
+   * @param headerName - HTTP header name to check
+   * @returns true if this is a known marketplace header
+   */
+  isKnownMarketplaceHeader(headerName: string): boolean {
+    return this.knownHeaders.has(headerName.toLowerCase());
+  }
 
-    const config = secretsMap.get(secretValue);
-    return config || null;
+  /**
+   * Get all known marketplace header names
+   *
+   * @returns Array of header names
+   */
+  getKnownHeaders(): string[] {
+    return Array.from(this.knownHeaders);
   }
 
   /**

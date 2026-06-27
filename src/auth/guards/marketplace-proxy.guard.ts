@@ -67,24 +67,16 @@ export class MarketplaceProxyGuard implements CanActivate {
   async canActivate(context: ExecutionContext): Promise<boolean> {
     const request = context.switchToHttp().getRequest<Request>();
 
-    // Check all known marketplace headers from database config
-    const marketplaceHeaders = [
-      'x-rapidapi-proxy-secret',
-      'x-aws-marketplace-token',
-      'x-azure-marketplace-token',
-      'x-apigee-proxy-secret',
-      // Add more as needed - or load dynamically from database
-    ];
+    // Get all known marketplace headers from the service
+    const knownHeaders = this.marketplaceConfigService.getKnownHeaders();
 
-    for (const headerName of marketplaceHeaders) {
+    // Check each known marketplace header
+    for (const headerName of knownHeaders) {
       const secretValue = request.headers[headerName] as string;
 
       if (secretValue) {
-        // Found a marketplace header - validate it
-        const config = this.marketplaceConfigService.validateSecret(
-          headerName,
-          secretValue,
-        );
+        // Found a marketplace header - validate secret with O(1) lookup
+        const config = this.marketplaceConfigService.validateSecret(secretValue);
 
         if (config) {
           // Valid marketplace request
