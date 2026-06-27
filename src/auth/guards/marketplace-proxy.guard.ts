@@ -5,38 +5,42 @@ import {
   UnauthorizedException,
   Logger,
 } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
 import { Request } from 'express';
+import { MarketplaceConfigService } from '../services/marketplace-config.service';
 
 /**
  * MarketplaceProxyGuard
- * 
- * Validates requests from API marketplace platforms (RapidAPI, AWS Marketplace, etc.)
+ *
+ * Validates requests from API marketplace platforms using database-driven configuration.
+ * Marketplace configs are loaded from database on startup and cached in memory.
+ *
  * If valid marketplace headers are present, authenticates the request and skips ApiKeyGuard.
  * If no marketplace headers, passes through to ApiKeyGuard.
- * 
- * Supported Marketplaces:
- * - RapidAPI (X-RapidAPI-Proxy-Secret, X-RapidAPI-User)
- * - AWS Marketplace (future: X-AWS-Marketplace-Token)
- * - Azure Marketplace (future: X-Azure-Marketplace-Token)
- * 
- * Environment Variables:
- * - RAPIDAPI_PROXY_SECRET: Secret from RapidAPI dashboard
- * - RAPIDAPI_ENABLED: Enable/disable RapidAPI authentication
- * - AWS_MARKETPLACE_ENABLED: Enable/disable AWS Marketplace (future)
- * - AZURE_MARKETPLACE_ENABLED: Enable/disable Azure Marketplace (future)
- * 
+ *
+ * Supported Marketplaces (configured in database):
+ * - RapidAPI: x-rapidapi-proxy-secret, x-rapidapi-user
+ * - AWS Marketplace: x-aws-marketplace-token, x-aws-marketplace-customer-id
+ * - Azure Marketplace: x-azure-marketplace-token, x-azure-marketplace-customer-id
+ * - Any custom marketplace: configure in marketplace_configs table
+ *
+ * Database Table: marketplace_configs
+ * - marketplace_id: Identifier (e.g., 'rapidapi')
+ * - secret_key: The secret to validate
+ * - header_name: Header to check (e.g., 'x-rapidapi-proxy-secret')
+ * - user_header_name: Header for user ID (e.g., 'x-rapidapi-user')
+ * - is_active: Enable/disable this marketplace
+ *
  * Flow:
- * 1. Check for marketplace headers (RapidAPI, AWS, Azure, etc.)
- * 2. If present, validate the secret
+ * 1. Check all configured marketplace headers
+ * 2. If found, validate the secret against database config
  * 3. If valid, attach user info to request and return true (authenticated)
  * 4. If no marketplace headers, return true (pass through to ApiKeyGuard)
- * 5. If invalid marketplace headers, throw 401
- * 
+ * 5. If invalid marketplace secret, throw 401
+ *
  * Request Enhancement (on successful marketplace auth):
- *   - request.user.marketplace: 'rapidapi' | 'aws' | 'azure'
- *   - request.user.customerId: marketplace customer ID
- *   - request.user.tier: 'marketplace' (marketplace handles their own tiers)
+ *   - request.user.marketplace: marketplace_id from database
+ *   - request.user.customerId: from user header
+ *   - request.user.tier: 'marketplace'
  *   - request.user.authType: 'marketplace-proxy'
  */
 
@@ -56,102 +60,62 @@ declare module 'express' {
 export class MarketplaceProxyGuard implements CanActivate {
   private readonly logger = new Logger(MarketplaceProxyGuard.name);
 
-  constructor(private readonly configService: ConfigService) {}
+  constructor(
+    private readonly marketplaceConfigService: MarketplaceConfigService,
+  ) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
     const request = context.switchToHttp().getRequest<Request>();
 
-    // Try RapidAPI authentication
-    const rapidApiResult = this.validateRapidAPI(request);
-    if (rapidApiResult !== null) {
-      return rapidApiResult;
+    // Check all known marketplace headers from database config
+    const marketplaceHeaders = [
+      'x-rapidapi-proxy-secret',
+      'x-aws-marketplace-token',
+      'x-azure-marketplace-token',
+      'x-apigee-proxy-secret',
+      // Add more as needed - or load dynamically from database
+    ];
+
+    for (const headerName of marketplaceHeaders) {
+      const secretValue = request.headers[headerName] as string;
+
+      if (secretValue) {
+        // Found a marketplace header - validate it
+        const config = this.marketplaceConfigService.validateSecret(
+          headerName,
+          secretValue,
+        );
+
+        if (config) {
+          // Valid marketplace request
+          const userId = request.headers[config.user_header_name] as string;
+
+          request.user = {
+            marketplace: config.marketplace_id,
+            customerId: userId || 'anonymous',
+            tier: 'marketplace',
+            authType: 'marketplace-proxy',
+          };
+
+          this.logger.log(
+            `✅ Authenticated ${config.marketplace_name} request from user: ${userId || 'anonymous'} (IP: ${request.ip})`
+          );
+
+          return true;
+        } else {
+          // Invalid secret for this marketplace
+          this.logger.warn(
+            `❌ Invalid ${headerName} secret from ${request.ip}`
+          );
+          throw new UnauthorizedException(
+            `Invalid marketplace authentication token`
+          );
+        }
+      }
     }
-
-    // Try AWS Marketplace authentication (future)
-    // const awsResult = this.validateAWSMarketplace(request);
-    // if (awsResult !== null) {
-    //   return awsResult;
-    // }
-
-    // Try Azure Marketplace authentication (future)
-    // const azureResult = this.validateAzureMarketplace(request);
-    // if (azureResult !== null) {
-    //   return azureResult;
-    // }
 
     // No marketplace headers found - pass through to ApiKeyGuard
     return true;
   }
 
-  /**
-   * Validate RapidAPI proxy request
-   * 
-   * @param request - Express request
-   * @returns true if valid, false if invalid headers present, null if no RapidAPI headers
-   */
-  private validateRapidAPI(request: Request): boolean | null {
-    const proxySecret = request.headers['x-rapidapi-proxy-secret'] as string;
-    const rapidApiUser = request.headers['x-rapidapi-user'] as string;
-
-    // No RapidAPI headers - not a RapidAPI request
-    if (!proxySecret) {
-      return null;
-    }
-
-    // Check if RapidAPI is enabled
-    const enabled = this.configService.get<boolean>('RAPIDAPI_ENABLED', false);
-    if (!enabled) {
-      this.logger.warn('RapidAPI headers present but RAPIDAPI_ENABLED=false');
-      throw new UnauthorizedException('RapidAPI integration is not enabled');
-    }
-
-    // Validate the proxy secret
-    const expectedSecret = this.configService.get<string>('RAPIDAPI_PROXY_SECRET');
-    if (!expectedSecret) {
-      this.logger.error('RAPIDAPI_PROXY_SECRET not configured but RAPIDAPI_ENABLED=true');
-      throw new UnauthorizedException('RapidAPI is misconfigured');
-    }
-
-    if (proxySecret !== expectedSecret) {
-      this.logger.warn(
-        `Invalid RapidAPI proxy secret from ${request.ip}. ` +
-        `Expected: ${expectedSecret.substring(0, 10)}..., ` +
-        `Got: ${proxySecret.substring(0, 10)}...`
-      );
-      throw new UnauthorizedException('Invalid RapidAPI proxy secret');
-    }
-
-    // Valid RapidAPI request - attach user info
-    request.user = {
-      marketplace: 'rapidapi',
-      customerId: rapidApiUser || 'anonymous',
-      tier: 'marketplace',
-      authType: 'marketplace-proxy',
-    };
-
-    this.logger.log(
-      `Authenticated RapidAPI request from user: ${rapidApiUser || 'anonymous'} (IP: ${request.ip})`
-    );
-
-    return true;
-  }
-
-  /**
-   * Validate AWS Marketplace request (future implementation)
-   * 
-   * @param request - Express request
-   * @returns true if valid, false if invalid headers present, null if no AWS headers
-   */
-  // private validateAWSMarketplace(request: Request): boolean | null {
-  //   const marketplaceToken = request.headers['x-aws-marketplace-token'] as string;
-  //   
-  //   if (!marketplaceToken) {
-  //     return null;
-  //   }
-  //   
-  //   // AWS Marketplace token validation logic here
-  //   // ...
-  //   
-  //   return true;
-  // }
 }

@@ -3,7 +3,9 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { ConfigModule } from '@nestjs/config';
 import { ApiKey } from '../database/entities/api-key.entity';
 import { ApiUsage } from '../database/entities/api-usage.entity';
+import { MarketplaceConfig } from '../database/entities/marketplace-config.entity';
 import { ApiKeyService } from './services/api-key.service';
+import { MarketplaceConfigService } from './services/marketplace-config.service';
 import { ApiKeyGuard } from './guards/api-key.guard';
 import { AdminAuthGuard } from './guards/admin-auth.guard';
 import { MarketplaceProxyGuard } from './guards/marketplace-proxy.guard';
@@ -40,12 +42,13 @@ import { RedisModule } from '../redis/redis.module';
 @Module({
   imports: [
     ConfigModule,
-    TypeOrmModule.forFeature([ApiKey, ApiUsage]),
+    TypeOrmModule.forFeature([ApiKey, ApiUsage, MarketplaceConfig]),
     RedisModule, // Provides RedisCacheService
   ],
   controllers: [AdminApiKeyController],
   providers: [
     ApiKeyService,
+    MarketplaceConfigService,
     MarketplaceProxyGuard,
     ApiKeyGuard,
     AdminAuthGuard,
@@ -54,6 +57,7 @@ import { RedisModule } from '../redis/redis.module';
   ],
   exports: [
     ApiKeyService,
+    MarketplaceConfigService,
     MarketplaceProxyGuard,
     ApiKeyGuard,
     AdminAuthGuard,
