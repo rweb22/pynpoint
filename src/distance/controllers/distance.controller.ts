@@ -1,4 +1,5 @@
 import { Controller, Post, Body, UseGuards, UseInterceptors, Logger } from '@nestjs/common';
+import { ApiTags, ApiOperation, ApiResponse, ApiSecurity } from '@nestjs/swagger';
 import { DistanceService } from '../services/distance.service';
 import { ApiKeyGuard } from '../../auth/guards/api-key.guard';
 import { RateLimitInterceptor } from '../../auth/interceptors/rate-limit.interceptor';
@@ -13,6 +14,8 @@ import {
 } from '../dto/distance-response.dto';
 
 @Controller({ path: 'distance', version: '1' })
+@ApiTags('distance')
+@ApiSecurity('api-key')
 @UseGuards(ApiKeyGuard)
 @UseInterceptors(RateLimitInterceptor, UsageTrackingInterceptor)
 export class DistanceController {
@@ -25,6 +28,12 @@ export class DistanceController {
    * Universal distance calculator
    */
   @Post('calculate')
+  @ApiOperation({
+    summary: 'Calculate distance between two locations',
+    description: 'Calculate distance between any two locations (PINCODE, DIGIPIN, or coordinates) with delivery time estimates.',
+  })
+  @ApiResponse({ status: 200, description: 'Distance calculated successfully' })
+  @ApiResponse({ status: 400, description: 'Invalid location data' })
   async calculateDistance(@Body() dto: CalculateDistanceDto): Promise<DistanceCalculationResponse> {
     this.logger.log(`POST /distance/calculate`);
     return this.distanceService.calculateDistance(dto);

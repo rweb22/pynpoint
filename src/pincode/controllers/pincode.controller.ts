@@ -9,6 +9,7 @@ import {
   UseInterceptors,
   Logger,
 } from '@nestjs/common';
+import { ApiTags, ApiOperation, ApiResponse, ApiParam, ApiQuery, ApiSecurity } from '@nestjs/swagger';
 import { ApiKeyGuard } from '../../auth/guards/api-key.guard';
 import { RateLimitInterceptor } from '../../auth/interceptors/rate-limit.interceptor';
 import { UsageTrackingInterceptor } from '../../auth/interceptors/usage-tracking.interceptor';
@@ -26,17 +27,19 @@ import { PincodeValidationPipe } from '../pipes/pincode-validation.pipe';
 
 /**
  * PincodeController
- * 
+ *
  * Track 1: Pincode Solo Operations
- * 
+ *
  * All endpoints are protected by:
  * - ApiKeyGuard: Require valid API key
  * - RateLimitInterceptor: Enforce tier-based rate limits
  * - UsageTrackingInterceptor: Track API usage
- * 
+ *
  * Base path: /api/v1/pincodes
  */
 @Controller({ path: 'pincodes', version: '1' })
+@ApiTags('pincodes')
+@ApiSecurity('api-key')
 @UseGuards(ApiKeyGuard)
 @UseInterceptors(RateLimitInterceptor, UsageTrackingInterceptor)
 export class PincodeController {
@@ -54,6 +57,13 @@ export class PincodeController {
    * IMPORTANT: POST routes should come BEFORE parameterized GET routes
    */
   @Post('reverse-geocode')
+  @ApiOperation({
+    summary: 'Reverse geocode coordinates to pincode',
+    description: 'Convert latitude/longitude coordinates to the nearest Indian postal code using spatial PostGIS queries.',
+  })
+  @ApiResponse({ status: 200, description: 'Nearest pincode found successfully' })
+  @ApiResponse({ status: 400, description: 'Invalid coordinates' })
+  @ApiResponse({ status: 404, description: 'No pincode found for these coordinates' })
   async reverseGeocode(@Body() dto: ReverseGeocodeDto) {
     this.logger.log(`POST /pincodes/reverse-geocode (${dto.latitude}, ${dto.longitude})`);
     return this.pincodeService.reverseGeocode(dto);
@@ -93,6 +103,25 @@ export class PincodeController {
    * Get details of a single pincode
    */
   @Get(':pincode')
+  @ApiOperation({
+    summary: 'Get pincode details',
+    description: 'Retrieve complete information for a specific 6-digit Indian postal code including location, administrative boundaries, and post office details.',
+  })
+  @ApiParam({
+    name: 'pincode',
+    description: '6-digit Indian postal code',
+    example: '110001',
+  })
+  @ApiQuery({
+    name: 'includePostOffices',
+    required: false,
+    description: 'Include associated post offices in the response',
+    example: 'true',
+  })
+  @ApiResponse({ status: 200, description: 'Pincode details retrieved successfully' })
+  @ApiResponse({ status: 404, description: 'Pincode not found' })
+  @ApiResponse({ status: 401, description: 'Invalid API key' })
+  @ApiResponse({ status: 429, description: 'Rate limit exceeded' })
   async getPincode(
     @Param('pincode', PincodeValidationPipe) pincode: string,
     @Query('includePostOffices') includePostOffices?: string,
@@ -128,12 +157,14 @@ export class PincodeController {
 
 /**
  * AdministrativeController
- * 
+ *
  * Administrative endpoints for states and districts
- * 
+ *
  * Base path: /api/v1/administrative
  */
 @Controller({ path: 'administrative', version: '1' })
+@ApiTags('administrative')
+@ApiSecurity('api-key')
 @UseGuards(ApiKeyGuard)
 @UseInterceptors(RateLimitInterceptor, UsageTrackingInterceptor)
 export class AdministrativeController {

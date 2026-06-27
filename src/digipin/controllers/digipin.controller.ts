@@ -9,6 +9,7 @@ import {
   UseInterceptors,
   Logger,
 } from '@nestjs/common';
+import { ApiTags, ApiOperation, ApiResponse, ApiParam, ApiSecurity } from '@nestjs/swagger';
 import { ApiKeyGuard } from '../../auth/guards/api-key.guard';
 import { RateLimitInterceptor } from '../../auth/interceptors/rate-limit.interceptor';
 import { UsageTrackingInterceptor } from '../../auth/interceptors/usage-tracking.interceptor';
@@ -56,6 +57,8 @@ import {
  * - Usage tracked by UsageTrackingInterceptor
  */
 @Controller({ path: 'digipin', version: '1' })
+@ApiTags('digipin')
+@ApiSecurity('api-key')
 @UseGuards(ApiKeyGuard)
 @UseInterceptors(RateLimitInterceptor, UsageTrackingInterceptor)
 export class DigipinController {
