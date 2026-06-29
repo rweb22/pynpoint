@@ -12,24 +12,24 @@ Implement persistent Redis caching for all Track 1 endpoints to achieve:
 
 ### **Track 1A - Pincodes** (7 endpoints)
 
-| # | Method | Endpoint | Current | Cache Strategy |
-|---|--------|----------|---------|----------------|
-| 1 | GET | `/pincodes/:pincode` | DB | ✅ Redis HASH `pincode:{code}` |
-| 2 | GET | `/pincodes` | DB | ✅ Redis SET operations (state/district indexes) |
-| 3 | GET | `/pincodes/:pincode/validate` | DB | ✅ Redis HASH exists check |
-| 4 | GET | `/pincodes/:pincode/nearby` | DB+PostGIS | ✅ Redis GEORADIUS for centroid-based |
-| 5 | POST | `/pincodes/locate` | PostGIS | ⚠️ PostGIS only (ST_Contains required) |
-| 6 | POST | `/pincodes/reverse-geocode` | PostGIS | ⚠️ PostGIS only (ST_Distance required) |
-| 7 | POST | `/pincodes/bulk/lookup` | DB | ✅ Redis pipeline MGET |
+| # | Method | Endpoint | Status | Cache Strategy |
+|---|--------|----------|--------|----------------|
+| 1 | GET | `/pincodes/:pincode` | ✅ **DONE** | Redis HASH `pincode:{code}` + DB fallback |
+| 2 | GET | `/pincodes` | 🔄 TODO | Redis SET operations (state/district indexes) |
+| 3 | GET | `/pincodes/:pincode/validate` | ✅ **DONE** | Redis EXISTS + HGET + DB fallback |
+| 4 | GET | `/pincodes/:pincode/nearby` | 🔄 TODO | Redis GEORADIUS for centroid-based |
+| 5 | POST | `/pincodes/locate` | ⚠️ PostGIS | No cache (ST_Contains required) |
+| 6 | POST | `/pincodes/reverse-geocode` | ⚠️ PostGIS | No cache (ST_Distance required) |
+| 7 | POST | `/pincodes/bulk/lookup` | ✅ **DONE** | Redis pipeline + DB fallback |
 
 ### **Track 1B - Administrative** (4 endpoints)
 
-| # | Method | Endpoint | Current | Cache Strategy |
-|---|--------|----------|---------|----------------|
-| 8 | GET | `/administrative/states` | DB | ✅ Redis HASH `states:meta` |
-| 9 | GET | `/administrative/states/:code` | DB | ✅ Redis HASH field |
-| 10 | GET | `/administrative/districts` | DB | ✅ Redis HASH `districts:meta` |
-| 11 | GET | `/administrative/regions` | DB | ✅ Redis HASH `regions:meta` |
+| # | Method | Endpoint | Status | Cache Strategy |
+|---|--------|----------|--------|----------------|
+| 8 | GET | `/administrative/states` | 🔄 TODO | Redis HASH `states:meta` |
+| 9 | GET | `/administrative/states/:code` | 🔄 TODO | Redis HASH field |
+| 10 | GET | `/administrative/districts` | 🔄 TODO | Redis HASH `districts:meta` |
+| 11 | GET | `/administrative/regions` | 🔄 TODO | Redis HASH `regions:meta` |
 
 ---
 
@@ -62,13 +62,13 @@ regions:meta (HASH) → {delhi-region: {circle, count}, ...}
 
 ---
 
-## ✅ Implementation Steps
+## ✅ Implementation Progress
 
-### **Phase 1: Core Caching (Endpoints 1, 3, 7)**
-1. Inject `PincodeCacheService` into `PincodeService`
-2. Update `findByPincode()` to check Redis first
-3. Update `validatePincode()` to use Redis EXISTS + HGET
-4. Update `bulkLookup()` to use Redis pipeline
+### **Phase 1: Core Caching (Endpoints 1, 3, 7)** ✅ **COMPLETED**
+1. ✅ Injected `PincodeCacheService` into `PincodeService`
+2. ✅ Updated `findByPincode()` to check Redis first with DB fallback
+3. ✅ Updated `validatePincode()` to use Redis EXISTS + HGET with DB fallback
+4. ✅ Updated `bulkLookup()` to use Redis pipeline with DB fallback
 
 ### **Phase 2: Search Endpoints (Endpoint 2)**
 5. Update `findPincodes()` to use SET operations for state/district filtering
