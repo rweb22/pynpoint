@@ -31,12 +31,13 @@ Fields:
   city: "New Delhi"
   centroid_lat: "28.6139"
   centroid_lng: "77.2090"
-  ho_lat: "28.6305"        # NEW! Head Office coordinates (preferred for distance)
-  ho_lng: "77.2173"        # NEW! More accurate than centroid for logistics
+  office_lat: "28.6305"        # Physical post office location (HO/SO/BO - preferred for distance)
+  office_lng: "77.2173"        # More accurate than centroid for logistics
+  office_type: "HO"            # Type of office: HO (Head) > SO (Sub) > BO (Branch)
   post_office_count: "5"
   is_active: "true"
 
-Priority for Distance Calculations: HO coordinates > Centroid
+Priority for Distance Calculations: Office coordinates (HO > SO > BO) > Centroid
 Access Time: O(1) - HGETALL
 Use Case: GET /pincodes/:pincode, Distance calculations
 ```

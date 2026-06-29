@@ -101,8 +101,11 @@ export class PincodeCacheService {
   /**
    * Load all pincodes into Redis HASHes
    *
-   * Now includes Head Office (HO) coordinates for accurate distance calculations!
-   * Priority: HO coordinates > Centroid coordinates
+   * Coordinate priority for distance calculations:
+   * 1. Head Office (HO) coordinates (most accurate, physical location)
+   * 2. Sub Office (SO) coordinates (if no HO available)
+   * 3. Branch Office (BO) coordinates (if no HO/SO available)
+   * 4. Geometric centroid (computed from boundary polygon)
    */
   private async loadPincodesIntoRedis(): Promise<void> {
     this.logger.log('📦 Loading pincodes into Redis...');
@@ -128,36 +131,60 @@ export class PincodeCacheService {
 
     this.logger.log(`Found ${pincodes.length} pincodes to cache`);
 
-    // Get Head Office coordinates for each pincode
-    // Head Office (HO) is the main post office - better for distance calculations than centroid!
-    const headOffices = await this.postOfficeRepository
+    // Get post office coordinates with priority: HO > SO > BO
+    // We'll select the best available coordinate for each pincode
+    const postOffices = await this.postOfficeRepository
       .createQueryBuilder('po')
-      .select(['po.pincode', 'po.latitude', 'po.longitude'])
+      .select([
+        'po.pincode',
+        'po.officetype',
+        'po.latitude',
+        'po.longitude',
+      ])
       .where('po.is_active = :active', { active: true })
-      .andWhere('po.officetype = :type', { type: 'HO' })
       .andWhere('po.latitude IS NOT NULL')
       .andWhere('po.longitude IS NOT NULL')
+      .orderBy('po.pincode', 'ASC')
+      .addOrderBy(
+        `CASE po.officetype WHEN 'HO' THEN 1 WHEN 'SO' THEN 2 WHEN 'BO' THEN 3 ELSE 4 END`,
+        'ASC'
+      )
       .getRawMany();
 
-    // Create HO lookup map
-    const hoCoords = new Map<string, { lat: number; lng: number }>();
-    for (const ho of headOffices) {
-      hoCoords.set(ho.po_pincode, {
-        lat: Number(ho.po_latitude),
-        lng: Number(ho.po_longitude),
-      });
+    // Create best-office coordinate lookup map (first entry per pincode is the best due to ORDER BY)
+    const officeCoords = new Map<string, { lat: number; lng: number; type: string }>();
+    for (const po of postOffices) {
+      if (!officeCoords.has(po.po_pincode)) {
+        officeCoords.set(po.po_pincode, {
+          lat: Number(po.po_latitude),
+          lng: Number(po.po_longitude),
+          type: po.po_officetype,
+        });
+      }
     }
 
-    this.logger.log(`Found ${hoCoords.size} Head Office coordinates`);
+    this.logger.log(`Found ${officeCoords.size} pincodes with office coordinates`);
+
+    // Count by type for logging
+    const typeCount = { HO: 0, SO: 0, BO: 0, OTHER: 0 };
+    for (const coord of officeCoords.values()) {
+      if (coord.type === 'HO') typeCount.HO++;
+      else if (coord.type === 'SO') typeCount.SO++;
+      else if (coord.type === 'BO') typeCount.BO++;
+      else typeCount.OTHER++;
+    }
+    this.logger.log(`  • HO coordinates: ${typeCount.HO}`);
+    this.logger.log(`  • SO coordinates: ${typeCount.SO}`);
+    this.logger.log(`  • BO coordinates: ${typeCount.BO}`);
 
     // Use Redis pipeline for batch insert (much faster)
     const pipeline = this.redisCache.getClient().pipeline();
-    let withHO = 0;
-    let withCentroid = 0;
+    let withOfficeCoords = 0;
+    let withCentroidOnly = 0;
 
     for (const pc of pincodes) {
       const key = `pincode:${pc.p_pincode}`;
-      const ho = hoCoords.get(pc.p_pincode);
+      const office = officeCoords.get(pc.p_pincode);
 
       const data = {
         id: pc.p_id,
@@ -170,21 +197,22 @@ export class PincodeCacheService {
         circle: pc.p_circle || '',
         centroid_lat: pc.centroid_lat || null,
         centroid_lng: pc.centroid_lng || null,
-        // NEW: Head Office coordinates (preferred for distance calculations)
-        ho_lat: ho?.lat || null,
-        ho_lng: ho?.lng || null,
+        // Office coordinates (HO > SO > BO priority) - preferred for distance calculations
+        office_lat: office?.lat || null,
+        office_lng: office?.lng || null,
+        office_type: office?.type || null, // Track which type of office provided the coordinates
         is_active: pc.p_is_active,
       };
 
-      if (ho) withHO++;
-      else if (pc.centroid_lat && pc.centroid_lng) withCentroid++;
+      if (office) withOfficeCoords++;
+      else if (pc.centroid_lat && pc.centroid_lng) withCentroidOnly++;
 
       pipeline.hset(key, data);
     }
 
     await pipeline.exec();
     this.logger.log(
-      `✅ Cached ${pincodes.length} pincodes (${withHO} with HO coords, ${withCentroid} centroid-only)`
+      `✅ Cached ${pincodes.length} pincodes (${withOfficeCoords} with office coords, ${withCentroidOnly} centroid-only)`
     );
   }
 
@@ -827,7 +855,7 @@ export class PincodeCacheService {
 
   /**
    * Get best available coordinates for a pincode
-   * Priority: Head Office (HO) > Centroid
+   * Priority: Office coordinates (HO > SO > BO) > Centroid
    *
    * @param pincode - Pincode to get coordinates for
    * @returns {lat, lng} or null if no coordinates available
@@ -840,15 +868,15 @@ export class PincodeCacheService {
       return null;
     }
 
-    // Try HO coordinates first (most accurate for logistics)
-    if (data.ho_lat && data.ho_lng) {
+    // Try office coordinates first (HO/SO/BO - most accurate for logistics)
+    if (data.office_lat && data.office_lng) {
       return {
-        lat: parseFloat(data.ho_lat),
-        lng: parseFloat(data.ho_lng),
+        lat: parseFloat(data.office_lat),
+        lng: parseFloat(data.office_lng),
       };
     }
 
-    // Fallback to centroid
+    // Fallback to centroid (computed from boundary polygon)
     if (data.centroid_lat && data.centroid_lng) {
       return {
         lat: parseFloat(data.centroid_lat),

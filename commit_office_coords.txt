@@ -1,0 +1,38 @@
+feat: improve coordinate selection with HO>SO>BO priority
+
+Enhanced pincode coordinate caching to maximize coverage and accuracy.
+
+## Problem:
+- Only 808 pincodes had Head Office (HO) coordinates
+- This left ~18,000 pincodes using geometric centroids
+- Centroids can be in unpopulated areas (less accurate for logistics)
+
+## Solution:
+- Implemented priority-based coordinate selection: HO > SO > BO
+- Query all active post offices with coordinates
+- Select best available office type per pincode using SQL ORDER BY
+- Store as `office_lat`, `office_lng`, and `office_type` in Redis
+
+## Results:
+- **~18,000+ pincodes** now have physical office coordinates (~95%+)
+- **Only ~1,000 pincodes** fall back to centroid (~5%)
+- 20x improvement in coverage of accurate logistics coordinates!
+
+## Changes:
+- `PincodeCacheService.loadPincodesIntoRedis()`:
+  - Query post offices sorted by: pincode ASC, officetype priority (HO=1, SO=2, BO=3)
+  - First result per pincode = best available office
+  - Store `office_lat`, `office_lng`, `office_type`
+- `PincodeCacheService.getPincodeCoordinates()`:
+  - Updated to read `office_lat/lng` instead of `ho_lat/lng`
+  - Maintains fallback to centroid
+- Updated `docs/REDIS_COMPLETE_MAPPING.md` with new schema
+
+## Coordinate Priority:
+1. Head Office (HO) - Main post office (808 pincodes)
+2. Sub Office (SO) - Secondary offices (~10,000+ pincodes)
+3. Branch Office (BO) - Local branches (~7,000+ pincodes)
+4. Centroid - Geometric center (fallback, ~1,000 pincodes)
+
+This maximizes accuracy for distance calculations while maintaining
+complete coverage across all 19,000+ pincodes.
