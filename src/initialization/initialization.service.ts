@@ -3,6 +3,7 @@ import { OfficialJSONIngestionService } from './official-json-ingestion.service'
 import { DataIngestionService } from './data-ingestion.service';
 import { CSVIngestionService } from './csv-ingestion.service';
 import { HealthService } from './health.service';
+import { PincodeCacheService } from '../redis/pincode-cache.service';
 
 /**
  * InitializationService
@@ -25,6 +26,7 @@ import { HealthService } from './health.service';
  * 1. Database validation (PostGIS)
  * 2. Official JSON ingestion (data.gov.in - 19,586 pincodes + 165,627 postoffices)
  * 3. GeoJSON boundary enrichment (updates ~19,312 pincodes with spatial data)
+ * 4. Redis cache initialization (loads PostgreSQL → Redis for O(1) lookups)
  *
  * Key change: JSON data first (correct state/district), then GeoJSON enrichment
  *
@@ -42,6 +44,7 @@ export class InitializationService implements OnApplicationBootstrap {
     private readonly dataIngestionService: DataIngestionService,
     private readonly csvIngestionService: CSVIngestionService,
     private readonly healthService: HealthService,
+    private readonly pincodeCacheService: PincodeCacheService,
   ) {}
 
   async onApplicationBootstrap(): Promise<void> {
@@ -88,7 +91,18 @@ export class InitializationService implements OnApplicationBootstrap {
         this.logger.log(`✅ Found ${boundaryCount.toLocaleString()} pincodes with boundaries`);
       }
 
-      // Phase 4: Mark system as ready
+      // Phase 4: Initialize Redis cache from PostgreSQL
+      this.logger.log('Phase 4: Initializing Redis cache...');
+      try {
+        await this.pincodeCacheService.initializeCache();
+        this.logger.log('✅ Redis cache initialized');
+      } catch (error) {
+        this.logger.warn('⚠️  Redis cache initialization failed (app will use database fallback)');
+        this.logger.warn(`   Error: ${error.message}`);
+        // Don't fail startup - app can work with database only
+      }
+
+      // Phase 5: Mark system as ready
       await this.healthService.markReady();
 
       const duration = ((Date.now() - startTime) / 1000).toFixed(2);
@@ -123,6 +137,10 @@ export class InitializationService implements OnApplicationBootstrap {
       this.logger.log('Force enriching boundaries from GeoJSON...');
       await this.dataIngestionService.enrichBoundaries(true);
     }
+
+    // Always reload Redis cache on force re-initialization
+    this.logger.log('Force reloading Redis cache...');
+    await this.pincodeCacheService.reloadCache();
 
     await this.healthService.markReady();
     this.logger.log('✅ Force re-initialization complete');

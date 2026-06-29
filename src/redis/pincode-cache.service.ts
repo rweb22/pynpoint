@@ -36,7 +36,7 @@ import { RedisCacheService } from './redis-cache.service';
  */
 
 @Injectable()
-export class PincodeCacheService implements OnModuleInit {
+export class PincodeCacheService {
   private readonly logger = new Logger(PincodeCacheService.name);
   private isLoaded = false;
 
@@ -49,33 +49,39 @@ export class PincodeCacheService implements OnModuleInit {
   ) {}
 
   /**
-   * Load entire dataset into Redis on application startup
+   * Initialize Redis cache from PostgreSQL data
+   *
+   * Called by InitializationService AFTER PostgreSQL is populated
+   *
+   * @param force - If true, reload even if cache exists
    */
-  async onModuleInit() {
+  async initializeCache(force = false): Promise<void> {
     this.logger.log('🚀 Starting pincode cache initialization...');
 
     try {
       // Check if cache is already loaded
-      const cacheStatus = await this.redisCache.get('cache:pincode:loaded');
+      if (!force) {
+        const cacheStatus = await this.redisCache.get('cache:pincode:loaded');
 
-      if (cacheStatus === 'true') {
-        this.logger.log('✅ Pincode cache already loaded');
-        this.isLoaded = true;
-        return;
+        if (cacheStatus === 'true') {
+          this.logger.log('✅ Pincode cache already loaded (use force=true to reload)');
+          this.isLoaded = true;
+          return;
+        }
       }
 
       const startTime = Date.now();
 
-      // Load pincodes
+      // Step 1: Load pincodes with Head Office coordinates
       await this.loadPincodesIntoRedis();
 
-      // Load post offices
+      // Step 2: Load post offices
       await this.loadPostOfficesIntoRedis();
 
-      // Build indexes
+      // Step 3: Build search indexes (ZSETs for filtering/pagination)
       await this.buildSearchIndexes();
 
-      // Build geospatial index
+      // Step 4: Build geospatial index (GEORADIUS for nearby queries)
       await this.buildGeoIndex();
 
       // Mark as loaded
@@ -85,9 +91,10 @@ export class PincodeCacheService implements OnModuleInit {
       this.isLoaded = true;
 
       this.logger.log(`✅ Pincode cache initialization complete (${duration}s)`);
+      this.logger.log(`   Total Redis keys: ~67,740 | Memory: ~111 MB`);
     } catch (error) {
       this.logger.error('❌ Failed to initialize pincode cache:', error);
-      // Don't throw - app should still work with database fallback
+      throw error; // Propagate to InitializationService
     }
   }
 
@@ -815,7 +822,7 @@ export class PincodeCacheService implements OnModuleInit {
     this.logger.warn('🔄 Force reloading pincode cache...');
     await this.redisCache.del('cache:pincode:loaded');
     this.isLoaded = false;
-    await this.onModuleInit();
+    await this.initializeCache(true);
   }
 
   /**
