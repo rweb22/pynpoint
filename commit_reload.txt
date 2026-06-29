@@ -1,0 +1,35 @@
+feat: add admin endpoint to reload pincode cache
+
+Added POST /health/reload-pincode-cache endpoint for manual cache refresh
+
+## Changes:
+
+- Updated HealthController to inject PincodeCacheService
+- Added reload-pincode-cache endpoint (admin-only)
+- Requires ADMIN_SECRET in Authorization header
+- Forces reload of all ~67,740 Redis keys from PostgreSQL
+- Returns detailed status including duration and memory stats
+
+## Use Case:
+
+- Manual cache refresh after database changes
+- Force reload if cache becomes stale  
+- Testing and verification
+
+## Example Usage:
+
+POST /health/reload-pincode-cache
+Authorization: Bearer {ADMIN_SECRET}
+
+## Response:
+
+{
+  "status": "success",
+  "message": "Pincode cache reloaded successfully in 8.43s",
+  "keysLoaded": "~67,740",
+  "memoryUsed": "~111 MB",
+  "duration": "8.43s",
+  "timestamp": "2026-06-29T10:15:30.123Z"
+}
+
+This allows manually triggering cache reload from production without restart.

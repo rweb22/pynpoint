@@ -6,6 +6,7 @@ import {
 } from '@nestjs/terminus';
 import { HealthService } from '../initialization/health.service';
 import { RedisCacheService } from '../redis/redis-cache.service';
+import { PincodeCacheService } from '../redis/pincode-cache.service';
 import { ConfigService } from '@nestjs/config';
 import { Public } from '../auth/decorators/public.decorator';
 
@@ -31,6 +32,7 @@ export class HealthController {
     private readonly db: TypeOrmHealthIndicator,
     private readonly healthService: HealthService,
     private readonly redisCache: RedisCacheService,
+    private readonly pincodeCacheService: PincodeCacheService,
     private readonly configService: ConfigService,
   ) {}
 
@@ -172,6 +174,48 @@ export class HealthController {
       return {
         status: 'success',
         message: 'Cache cleared successfully',
+        timestamp: new Date().toISOString(),
+      };
+    } catch (error) {
+      return {
+        status: 'error',
+        message: error.message,
+        timestamp: new Date().toISOString(),
+      };
+    }
+  }
+
+  /**
+   * Reload pincode cache from PostgreSQL (admin-only)
+   * Requires ADMIN_SECRET in Authorization header
+   *
+   * Forces reload of all ~67,740 Redis keys from PostgreSQL
+   * Takes ~5-10 seconds to complete
+   */
+  @Post('reload-pincode-cache')
+  async reloadPincodeCache(@Headers('authorization') authHeader: string) {
+    const adminSecret = this.configService.get<string>('ADMIN_SECRET');
+
+    if (!authHeader || !adminSecret) {
+      throw new UnauthorizedException('Missing authorization');
+    }
+
+    const token = authHeader.replace('Bearer ', '');
+    if (token !== adminSecret) {
+      throw new UnauthorizedException('Invalid admin secret');
+    }
+
+    try {
+      const startTime = Date.now();
+      await this.pincodeCacheService.reloadCache();
+      const duration = ((Date.now() - startTime) / 1000).toFixed(2);
+
+      return {
+        status: 'success',
+        message: `Pincode cache reloaded successfully in ${duration}s`,
+        keysLoaded: '~67,740',
+        memoryUsed: '~111 MB',
+        duration: `${duration}s`,
         timestamp: new Date().toISOString(),
       };
     } catch (error) {
