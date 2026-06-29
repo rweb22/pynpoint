@@ -273,22 +273,90 @@ export class PincodeCacheService implements OnModuleInit {
       }
     }
 
-    // Store all pincodes set
-    pipeline.sadd('pincodes:all', ...Array.from(allPincodes));
+    // Store all pincodes as SORTED SET (sorted by pincode number for natural ordering)
+    const allPincodesArray = Array.from(allPincodes).flatMap(pincode => [
+      parseInt(pincode), // score
+      pincode,           // member
+    ]);
+    pipeline.zadd('pincodes:all', ...allPincodesArray);
+    pipeline.set('count:all', allPincodes.size);
 
-    // Store state indexes
+    // Store state indexes as SORTED SETS
     for (const [state, pincodeSet] of byState.entries()) {
-      pipeline.sadd(`state:index:${state}`, ...Array.from(pincodeSet));
+      const members = Array.from(pincodeSet).flatMap(pincode => [
+        parseInt(pincode), // score = pincode number for natural sorting
+        pincode,           // member
+      ]);
+      pipeline.zadd(`state:index:${state}`, ...members);
+      pipeline.set(`count:state:${state}`, pincodeSet.size);
     }
 
-    // Store district indexes
+    // Store district indexes as SORTED SETS
     for (const [districtKey, pincodeSet] of byDistrict.entries()) {
-      pipeline.sadd(`district:index:${districtKey}`, ...Array.from(pincodeSet));
+      const members = Array.from(pincodeSet).flatMap(pincode => [
+        parseInt(pincode),
+        pincode,
+      ]);
+      pipeline.zadd(`district:index:${districtKey}`, ...members);
+      pipeline.set(`count:district:${districtKey}`, pincodeSet.size);
     }
 
-    // Store city indexes
+    // Store city indexes as SORTED SETS
     for (const [city, pincodeSet] of byCity.entries()) {
-      pipeline.sadd(`city:index:${city}`, ...Array.from(pincodeSet));
+      const members = Array.from(pincodeSet).flatMap(pincode => [
+        parseInt(pincode),
+        pincode,
+      ]);
+      pipeline.zadd(`city:index:${city}`, ...members);
+      pipeline.set(`count:city:${city}`, pincodeSet.size);
+    }
+
+    // Build multi-criteria lookup tables (state+city combinations)
+    this.logger.log('📦 Building multi-criteria lookup tables...');
+    const stateCityMap = new Map<string, Set<string>>();
+    const districtCityMap = new Map<string, Set<string>>();
+
+    for (const pc of pincodes) {
+      const state = this.normalizeKey(pc.state || '');
+      const district = this.normalizeKey(pc.district || '');
+      const city = this.normalizeKey(pc.city || '');
+
+      // State + City combinations
+      if (state && state !== 'na' && city && city !== 'na') {
+        const key = `${state}:${city}`;
+        if (!stateCityMap.has(key)) {
+          stateCityMap.set(key, new Set());
+        }
+        stateCityMap.get(key)!.add(pc.pincode);
+      }
+
+      // District + City combinations (state:district:city)
+      if (state && state !== 'na' && district && district !== 'na' && city && city !== 'na') {
+        const key = `${state}:${district}:${city}`;
+        if (!districtCityMap.has(key)) {
+          districtCityMap.set(key, new Set());
+        }
+        districtCityMap.get(key)!.add(pc.pincode);
+      }
+    }
+
+    // Store multi-criteria lookups
+    for (const [key, pincodeSet] of stateCityMap.entries()) {
+      const members = Array.from(pincodeSet).flatMap(pincode => [
+        parseInt(pincode),
+        pincode,
+      ]);
+      pipeline.zadd(`lookup:state-city:${key}`, ...members);
+      pipeline.set(`count:state-city:${key}`, pincodeSet.size);
+    }
+
+    for (const [key, pincodeSet] of districtCityMap.entries()) {
+      const members = Array.from(pincodeSet).flatMap(pincode => [
+        parseInt(pincode),
+        pincode,
+      ]);
+      pipeline.zadd(`lookup:district-city:${key}`, ...members);
+      pipeline.set(`count:district-city:${key}`, pincodeSet.size);
     }
 
     // Store metadata
@@ -306,8 +374,12 @@ export class PincodeCacheService implements OnModuleInit {
 
     await pipeline.exec();
     this.logger.log(
-      `✅ Built indexes: ${byState.size} states, ${byDistrict.size} districts, ${byCity.size} cities, ${allPincodes.size} total pincodes`
+      `✅ Built indexes: ${byState.size} states, ${byDistrict.size} districts, ${byCity.size} cities`
     );
+    this.logger.log(
+      `✅ Built lookup tables: ${stateCityMap.size} state-city combos, ${districtCityMap.size} district-city combos`
+    );
+    this.logger.log(`✅ Total pincodes indexed: ${allPincodes.size}`);
   }
 
   /**
@@ -376,6 +448,29 @@ export class PincodeCacheService implements OnModuleInit {
   }
 
   /**
+   * Bulk fetch post offices for multiple pincodes
+   */
+  async getBulkPostOffices(pincodes: string[]): Promise<Map<string, any[]>> {
+    const pipeline = this.redisCache.getClient().pipeline();
+
+    for (const pincode of pincodes) {
+      pipeline.lrange(`postoffices:${pincode}`, 0, -1);
+    }
+
+    const results = await pipeline.exec();
+    const map = new Map<string, any[]>();
+
+    for (let i = 0; i < pincodes.length; i++) {
+      const [err, data] = results![i];
+      if (!err && data && Array.isArray(data) && data.length > 0) {
+        map.set(pincodes[i], data.map((o: string) => JSON.parse(o)));
+      }
+    }
+
+    return map;
+  }
+
+  /**
    * Bulk pincode lookup
    */
   async getBulkPincodes(pincodes: string[]): Promise<Map<string, any>> {
@@ -406,83 +501,134 @@ export class PincodeCacheService implements OnModuleInit {
   }
 
   /**
-   * Get pincodes by state
+   * Get paginated pincodes with count using SORTED SET
+   * Returns both the pincodes for the page AND the total count
    */
-  async getPincodesByState(state: string): Promise<string[]> {
-    const normalized = this.normalizeKey(state);
-    return await this.redisCache.getClient().smembers(`state:index:${normalized}`);
+  async getPincodesByFiltersWithPagination(filters: {
+    state?: string;
+    district?: string;
+    city?: string;
+    page?: number;
+    limit?: number;
+  }): Promise<{ pincodes: string[]; total: number }> {
+    const { state, district, city, page = 1, limit = 25 } = filters;
+
+    // Calculate range for ZRANGE (0-indexed)
+    const start = (page - 1) * limit;
+    const stop = start + limit - 1;
+
+    let indexKey: string;
+    let countKey: string;
+
+    // Strategy: Use most specific pre-computed index
+    if (state && district && city) {
+      // Use district-city lookup table
+      const normalized = `${this.normalizeKey(state)}:${this.normalizeKey(district)}:${this.normalizeKey(city)}`;
+      indexKey = `lookup:district-city:${normalized}`;
+      countKey = `count:district-city:${normalized}`;
+    } else if (state && city) {
+      // Use state-city lookup table
+      const normalized = `${this.normalizeKey(state)}:${this.normalizeKey(city)}`;
+      indexKey = `lookup:state-city:${normalized}`;
+      countKey = `count:state-city:${normalized}`;
+    } else if (state && district) {
+      // Use district index
+      const normalized = `${this.normalizeKey(state)}:${this.normalizeKey(district)}`;
+      indexKey = `district:index:${normalized}`;
+      countKey = `count:district:${normalized}`;
+    } else if (state) {
+      // Use state index
+      const normalized = this.normalizeKey(state);
+      indexKey = `state:index:${normalized}`;
+      countKey = `count:state:${normalized}`;
+    } else if (city) {
+      // Use city index
+      const normalized = this.normalizeKey(city);
+      indexKey = `city:index:${normalized}`;
+      countKey = `count:city:${normalized}`;
+    } else {
+      // No filters - all pincodes
+      indexKey = 'pincodes:all';
+      countKey = 'count:all';
+    }
+
+    // Fetch pincodes and count in parallel
+    const [pincodes, countStr] = await Promise.all([
+      this.redisCache.getClient().zrange(indexKey, start, stop),
+      this.redisCache.getClient().get(countKey),
+    ]);
+
+    // If count cache miss, use ZCARD (slower but still O(1))
+    const total = countStr ? parseInt(countStr, 10) : await this.redisCache.getClient().zcard(indexKey);
+
+    return { pincodes, total };
   }
 
   /**
-   * Get pincodes by district (requires state for compound key)
+   * Get pincodes by state (all, no pagination)
+   */
+  async getPincodesByState(state: string): Promise<string[]> {
+    const normalized = this.normalizeKey(state);
+    return await this.redisCache.getClient().zrange(`state:index:${normalized}`, 0, -1);
+  }
+
+  /**
+   * Get pincodes by district (all, no pagination)
    */
   async getPincodesByDistrict(state: string, district: string): Promise<string[]> {
     const normalizedState = this.normalizeKey(state);
     const normalizedDistrict = this.normalizeKey(district);
-    return await this.redisCache.getClient().smembers(`district:index:${normalizedState}:${normalizedDistrict}`);
+    return await this.redisCache.getClient().zrange(`district:index:${normalizedState}:${normalizedDistrict}`, 0, -1);
   }
 
   /**
-   * Get pincodes by city
+   * Get pincodes by city (all, no pagination)
    */
   async getPincodesByCity(city: string): Promise<string[]> {
     const normalized = this.normalizeKey(city);
-    return await this.redisCache.getClient().smembers(`city:index:${normalized}`);
+    return await this.redisCache.getClient().zrange(`city:index:${normalized}`, 0, -1);
   }
 
   /**
-   * Get all active pincodes
+   * Get all active pincodes (all, no pagination)
    */
   async getAllPincodes(): Promise<string[]> {
-    return await this.redisCache.getClient().smembers('pincodes:all');
+    return await this.redisCache.getClient().zrange('pincodes:all', 0, -1);
   }
 
   /**
-   * Filter pincodes by multiple criteria
-   * Uses most specific index available, then filters in-memory
+   * Get total count for filters (O(1) from cache or ZCARD)
    */
-  async getPincodesByFilters(filters: {
+  async getCountByFilters(filters: {
     state?: string;
     district?: string;
     city?: string;
-  }): Promise<string[]> {
+  }): Promise<number> {
     const { state, district, city } = filters;
 
-    // Strategy: Use the most specific index available
+    let countKey: string;
 
-    // Option 1: State + District (most specific compound index)
-    if (state && district) {
-      let pincodes = await this.getPincodesByDistrict(state, district);
-
-      // Further filter by city if provided
-      if (city) {
-        const cityPincodes = await this.getPincodesByCity(city);
-        pincodes = pincodes.filter(p => cityPincodes.includes(p));
-      }
-
-      return pincodes;
+    if (state && district && city) {
+      const normalized = `${this.normalizeKey(state)}:${this.normalizeKey(district)}:${this.normalizeKey(city)}`;
+      countKey = `count:district-city:${normalized}`;
+    } else if (state && city) {
+      const normalized = `${this.normalizeKey(state)}:${this.normalizeKey(city)}`;
+      countKey = `count:state-city:${normalized}`;
+    } else if (state && district) {
+      const normalized = `${this.normalizeKey(state)}:${this.normalizeKey(district)}`;
+      countKey = `count:district:${normalized}`;
+    } else if (state) {
+      const normalized = this.normalizeKey(state);
+      countKey = `count:state:${normalized}`;
+    } else if (city) {
+      const normalized = this.normalizeKey(city);
+      countKey = `count:city:${normalized}`;
+    } else {
+      countKey = 'count:all';
     }
 
-    // Option 2: State only
-    if (state) {
-      let pincodes = await this.getPincodesByState(state);
-
-      // Further filter by city if provided
-      if (city) {
-        const cityPincodes = await this.getPincodesByCity(city);
-        pincodes = pincodes.filter(p => cityPincodes.includes(p));
-      }
-
-      return pincodes;
-    }
-
-    // Option 3: City only
-    if (city) {
-      return this.getPincodesByCity(city);
-    }
-
-    // Option 4: No filters - return all
-    return this.getAllPincodes();
+    const count = await this.redisCache.getClient().get(countKey);
+    return count ? parseInt(count, 10) : 0;
   }
 
   /**

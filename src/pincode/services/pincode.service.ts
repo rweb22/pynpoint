@@ -189,9 +189,103 @@ export class PincodeService {
    * Search/filter pincodes
    * GET /pincodes?state=...&district=...
    *
-   * OPTIMIZED: Batch fetch post offices if requested
+   * REDIS-FIRST: Uses O(1) sorted set indexes for filtered + paginated queries
+   * Falls back to PostgreSQL for search queries or cache misses
    */
   async findPincodes(query: PincodeQueryDto): Promise<PincodeListResponseDto> {
+    const { state, district, city, search, limit = 25, page = 1, includePostOffices } = query;
+
+    // If there's a search term, we MUST use PostgreSQL (can't index arbitrary text search efficiently)
+    if (search) {
+      this.logger.log(`🔍 Search query detected: "${search}" - using PostgreSQL`);
+      return this.findPincodesFromDatabase(query);
+    }
+
+    // Try Redis-first for filtered + paginated queries
+    try {
+      this.logger.log(`⚡ Attempting Redis lookup: state=${state}, district=${district}, city=${city}, page=${page}`);
+
+      const { pincodes: pincodeIds, total } = await this.pincodeCacheService.getPincodesByFiltersWithPagination({
+        state,
+        district,
+        city,
+        page,
+        limit,
+      });
+
+      if (pincodeIds.length === 0 && total === 0) {
+        // Empty result is valid - return it
+        this.logger.log(`✅ Redis: No results found (empty set is valid)`);
+        return { total: 0, page, limit, pincodes: [] };
+      }
+
+      // Fetch full pincode details from Redis cache
+      const pincodesMap = await this.pincodeCacheService.getBulkPincodes(pincodeIds);
+
+      // Optimization: Batch fetch post offices if requested
+      let postOfficesMap: Map<string, any[]> | null = null;
+      if (includePostOffices && pincodeIds.length > 0) {
+        postOfficesMap = await this.pincodeCacheService.getBulkPostOffices(pincodeIds);
+      }
+
+      // Build response DTOs from cache
+      const pincodes = pincodeIds
+        .map(pincodeId => {
+          const cached = pincodesMap.get(pincodeId);
+          if (!cached) {
+            this.logger.warn(`⚠️ Pincode ${pincodeId} in index but not in cache - skipping`);
+            return null;
+          }
+
+          const response: PincodeDetailResponseDto = {
+            pincode: cached.pincode,
+            officeName: cached.office_name,
+            district: cached.district,
+            state: cached.state,
+            city: cached.city,
+            region: cached.region_name,
+            circle: cached.circle_name,
+            coordinates: cached.centroid_lat && cached.centroid_lng ? {
+              latitude: cached.centroid_lat,
+              longitude: cached.centroid_lng,
+            } : undefined,
+            postOfficeCount: cached.post_office_count,
+            isActive: cached.is_active,
+          };
+
+          // Add post offices if requested
+          if (postOfficesMap && postOfficesMap.has(pincodeId)) {
+            const offices = postOfficesMap.get(pincodeId);
+            if (offices) {
+              response.postOffices = offices;
+              response.postOfficeCount = offices.length;
+            }
+          }
+
+          return response;
+        })
+        .filter(p => p !== null) as PincodeDetailResponseDto[];
+
+      this.logger.log(`✅ Redis hit: ${pincodes.length}/${limit} pincodes, total=${total}, page=${page}`);
+
+      return {
+        total,
+        page,
+        limit,
+        pincodes,
+      };
+
+    } catch (error) {
+      this.logger.error(`❌ Redis error in findPincodes: ${error.message}`, error.stack);
+      this.logger.log('⚠️ Falling back to PostgreSQL');
+      return this.findPincodesFromDatabase(query);
+    }
+  }
+
+  /**
+   * Database fallback for search queries or Redis failures
+   */
+  private async findPincodesFromDatabase(query: PincodeQueryDto): Promise<PincodeListResponseDto> {
     const { state, district, city, search, limit = 25, page = 1, includePostOffices } = query;
 
     // Build query
