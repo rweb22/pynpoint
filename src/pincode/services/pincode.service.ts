@@ -4,6 +4,7 @@ import { Repository, Not, IsNull } from 'typeorm';
 import { Pincode } from '../../database/entities/pincode.entity';
 import { PostOffice } from '../../database/entities/postoffice.entity';
 import { RedisCacheService } from '../../redis/redis-cache.service';
+import { PincodeCacheService } from '../../redis/pincode-cache.service';
 import {
   PincodeDetailResponseDto,
   PincodeListResponseDto,
@@ -44,11 +45,17 @@ export class PincodeService {
     @InjectRepository(PostOffice)
     private readonly postOfficeRepository: Repository<PostOffice>,
     private readonly redisCache: RedisCacheService,
+    private readonly pincodeCacheService: PincodeCacheService,
   ) {}
 
   /**
    * Get single pincode details
    * GET /pincodes/:pincode
+   *
+   * CACHING STRATEGY:
+   * 1. Try persistent Redis cache (PincodeCacheService) - O(1) lookup
+   * 2. Fallback to PostgreSQL if cache miss
+   * 3. Cache miss should be rare after initial load
    */
   async findByPincode(
     pincode: string,
@@ -56,23 +63,81 @@ export class PincodeService {
   ): Promise<PincodeDetailResponseDto> {
     const startTime = Date.now();
 
-    // Check cache first
-    const cacheKey = `pincode:${pincode}:${includePostOffices}`;
-    this.logger.log(`🔍 Checking cache for key: ${cacheKey}`);
+    try {
+      // STEP 1: Try persistent Redis cache first
+      this.logger.log(`🔍 [REDIS] Checking persistent cache for pincode: ${pincode}`);
+      const cached = await this.pincodeCacheService.getPincode(pincode);
 
-    const cached = await this.redisCache.get(cacheKey);
+      if (cached) {
+        const cacheTime = Date.now() - startTime;
+        this.logger.log(`✅ [REDIS HIT] Pincode ${pincode} retrieved from cache (${cacheTime}ms)`);
 
-    if (cached) {
-      const cacheTime = Date.now() - startTime;
-      this.logger.log(`✅ Cache HIT for pincode ${pincode} (${cacheTime}ms)`);
-      return JSON.parse(cached);
+        // Build response from cached data
+        const response: PincodeDetailResponseDto = {
+          pincode: cached.pincode,
+          officeName: cached.office_name || undefined,
+          state: cached.state || undefined,
+          district: cached.district || undefined,
+          city: cached.city || undefined,
+          region: cached.region || undefined,
+          circle: cached.circle || undefined,
+          isActive: cached.is_active !== false, // Default to true if undefined
+          coordinates: cached.centroid_lat && cached.centroid_lng
+            ? {
+                latitude: cached.centroid_lat,
+                longitude: cached.centroid_lng,
+              }
+            : undefined,
+        };
+
+        // Include post offices if requested
+        if (includePostOffices) {
+          const postOffices = await this.pincodeCacheService.getPostOffices(pincode);
+          if (postOffices && postOffices.length > 0) {
+            response.postOffices = postOffices.map(po => ({
+              id: po.id,
+              pincode: po.pincode,
+              officeName: po.officename,
+              area: po.area,
+              officeType: po.officetype,
+              deliveryStatus: po.delivery,
+              district: po.district,
+              state: po.state,
+              region: po.region,
+              circle: po.circle,
+            }));
+          }
+        }
+
+        const totalTime = Date.now() - startTime;
+        this.logger.log(`⏱️  [REDIS] Total time: ${totalTime}ms`);
+        return response;
+      }
+
+      // Cache miss - log and fall through to database
+      const missTime = Date.now() - startTime;
+      this.logger.warn(`⚠️  [REDIS MISS] Pincode ${pincode} not in cache (${missTime}ms) - falling back to PostgreSQL`);
+    } catch (error) {
+      // Redis error - log but don't fail the request
+      this.logger.error(`❌ [REDIS ERROR] Failed to query cache for ${pincode}: ${error.message}`);
+      this.logger.warn(`🔄 Falling back to PostgreSQL for pincode ${pincode}`);
     }
 
-    const missTime = Date.now() - startTime;
-    this.logger.log(`❌ Cache MISS for pincode ${pincode} (${missTime}ms) - querying DB...`);
+    // STEP 2: Fallback to PostgreSQL
+    return this.findByPincodeFromDB(pincode, includePostOffices, startTime);
+  }
 
-    // Query database
+  /**
+   * Database fallback for findByPincode
+   * Called when Redis cache misses or fails
+   */
+  private async findByPincodeFromDB(
+    pincode: string,
+    includePostOffices: boolean,
+    requestStartTime: number,
+  ): Promise<PincodeDetailResponseDto> {
     const dbStartTime = Date.now();
+    this.logger.log(`📊 [DATABASE] Querying PostgreSQL for pincode: ${pincode}`);
 
     // Use query builder to properly retrieve PostGIS geography columns
     const result = await this.pincodeRepository
@@ -94,7 +159,7 @@ export class PincodeService {
       .getRawAndEntities();
 
     const dbTime = Date.now() - dbStartTime;
-    this.logger.log(`📊 DB query completed in ${dbTime}ms`);
+    this.logger.log(`📊 [DATABASE] Query completed in ${dbTime}ms`);
 
     if (!result.entities || result.entities.length === 0) {
       throw new NotFoundException(`Pincode ${pincode} not found`);
@@ -114,14 +179,8 @@ export class PincodeService {
       includePostOffices,
     );
 
-    // Cache the result
-    const cacheSetStart = Date.now();
-    await this.redisCache.set(cacheKey, JSON.stringify(response), this.CACHE_TTL_SINGLE);
-    const cacheSetTime = Date.now() - cacheSetStart;
-    this.logger.log(`💾 Cached result for ${pincode} (TTL: ${this.CACHE_TTL_SINGLE}s) in ${cacheSetTime}ms`);
-
-    const totalTime = Date.now() - startTime;
-    this.logger.log(`⏱️  Total request time: ${totalTime}ms`);
+    const totalTime = Date.now() - requestStartTime;
+    this.logger.log(`⏱️  [DATABASE] Total request time: ${totalTime}ms`);
 
     return response;
   }

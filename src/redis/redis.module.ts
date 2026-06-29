@@ -1,6 +1,10 @@
 import { Module, Global } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
+import { TypeOrmModule } from '@nestjs/typeorm';
 import { RedisCacheService } from './redis-cache.service';
+import { PincodeCacheService } from './pincode-cache.service';
+import { Pincode } from '../database/entities/pincode.entity';
+import { PostOffice } from '../database/entities/postoffice.entity';
 
 /**
  * RedisModule
@@ -9,10 +13,11 @@ import { RedisCacheService } from './redis-cache.service';
  * - API authentication (API key validation)
  * - Rate limiting (request counters)
  * - General caching (query results)
+ * - Persistent pincode/post office cache (PincodeCacheService)
  *
  * Configuration:
- * - maxmemory-policy: allkeys-lru
- * - NO persistence (ephemeral data)
+ * - RedisCacheService: maxmemory-policy allkeys-lru (ephemeral)
+ * - PincodeCacheService: noeviction (persistent cache)
  *
  * Environment variables:
  * - REDIS_CACHE_URL: redis://host:port (auth/rate-limit)
@@ -20,8 +25,11 @@ import { RedisCacheService } from './redis-cache.service';
  */
 @Global()
 @Module({
-  imports: [ConfigModule],
-  providers: [RedisCacheService],
-  exports: [RedisCacheService],
+  imports: [
+    ConfigModule,
+    TypeOrmModule.forFeature([Pincode, PostOffice]),
+  ],
+  providers: [RedisCacheService, PincodeCacheService],
+  exports: [RedisCacheService, PincodeCacheService],
 })
 export class RedisModule {}
