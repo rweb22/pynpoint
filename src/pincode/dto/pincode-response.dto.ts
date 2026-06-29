@@ -1,6 +1,6 @@
 /**
  * Pincode Response DTOs
- * 
+ *
  * Response objects for Track 1: Pincode Solo Operations
  */
 
@@ -28,7 +28,7 @@ export class PostOfficeDto {
 
 /**
  * Single Pincode Response
- * 
+ *
  * GET /pincodes/:pincode
  */
 export class PincodeDetailResponseDto {
@@ -49,18 +49,18 @@ export class PincodeDetailResponseDto {
    * List of post offices within this pincode
    */
   postOffices?: PostOfficeDto[];
-  
+
   /**
    * Number of post offices in this pincode
    */
   postOfficeCount?: number;
-  
+
   isActive: boolean;
 }
 
 /**
  * Paginated Pincode List Response
- * 
+ *
  * GET /pincodes?state=...&district=...
  */
 export class PincodeListResponseDto {
@@ -72,7 +72,7 @@ export class PincodeListResponseDto {
 
 /**
  * State Response DTO
- * 
+ *
  * GET /administrative/states
  */
 export class StateDto {
@@ -92,7 +92,7 @@ export class StatesListResponseDto {
 
 /**
  * State Details Response
- * 
+ *
  * GET /administrative/states/:code
  */
 export class StateDetailResponseDto {
@@ -309,4 +309,50 @@ export class ReverseGeocodeResponseDto {
     maxDistance: number;
     limit: number;
   };
+}
+
+/**
+ * Locate Pincode Response
+ *
+ * POST /pincodes/locate
+ */
+export class LocatePincodeResponseDto {
+  /**
+   * Input coordinates
+   */
+  coordinates: {
+    latitude: number;
+    longitude: number;
+    withinIndiaBounds: boolean;
+  };
+
+  /**
+   * The pincode that contains these coordinates
+   * null if no pincode boundary contains the point
+   */
+  pincode: string | null;
+
+  /**
+   * Full details if pincode found
+   */
+  details?: {
+    pincode: string;
+    officeName?: string;
+    state?: string;
+    district?: string;
+    city?: string;
+    region?: string;
+    circle?: string;
+    coordinates?: CoordinatesDto; // Centroid of pincode
+  };
+
+  /**
+   * Whether a pincode was found
+   */
+  found: boolean;
+
+  /**
+   * Error message if not found
+   */
+  message?: string;
 }

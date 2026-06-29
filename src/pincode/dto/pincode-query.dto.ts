@@ -3,7 +3,7 @@ import { Type, Transform } from 'class-transformer';
 
 /**
  * Query DTO for GET /pincodes
- * 
+ *
  * Supports filtering by state, district, city, and pagination
  */
 export class PincodeQueryDto {
@@ -163,4 +163,21 @@ export class ReverseGeocodeDto {
   @Min(1)
   @Max(10)
   limit?: number = 1; // Return top N closest pincodes
+}
+
+/**
+ * Request body for POST /pincodes/locate
+ *
+ * Find the pincode that contains the given coordinates (point-in-polygon)
+ */
+export class LocatePincodeDto {
+  @IsNumber()
+  @Min(-90)
+  @Max(90)
+  latitude: number;
+
+  @IsNumber()
+  @Min(-180)
+  @Max(180)
+  longitude: number;
 }

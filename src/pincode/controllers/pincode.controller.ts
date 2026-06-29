@@ -22,6 +22,7 @@ import {
   RegionQueryDto,
   NearbyPincodeQueryDto,
   ReverseGeocodeDto,
+  LocatePincodeDto,
 } from '../dto/pincode-query.dto';
 import { PincodeValidationPipe } from '../pipes/pincode-validation.pipe';
 
@@ -52,21 +53,55 @@ export class PincodeController {
 
   /**
    * POST /api/v1/pincodes/reverse-geocode
-   * Convert coordinates to nearest pincode
+   * Convert coordinates to nearest pincode(s)
    *
    * IMPORTANT: POST routes should come BEFORE parameterized GET routes
    */
   @Post('reverse-geocode')
   @ApiOperation({
-    summary: 'Reverse geocode coordinates to pincode',
-    description: 'Convert latitude/longitude coordinates to the nearest Indian postal code using spatial PostGIS queries.',
+    summary: 'Find nearest pincode(s) by distance',
+    description: 'Find the nearest Indian postal code(s) to given GPS coordinates. Returns pincodes sorted by distance from the point, useful when the point might be outside any pincode boundary or for finding nearby delivery options.',
   })
-  @ApiResponse({ status: 200, description: 'Nearest pincode found successfully' })
+  @ApiResponse({ status: 200, description: 'Nearest pincode(s) found successfully' })
   @ApiResponse({ status: 400, description: 'Invalid coordinates' })
-  @ApiResponse({ status: 404, description: 'No pincode found for these coordinates' })
+  @ApiResponse({ status: 404, description: 'No pincode found within search radius' })
   async reverseGeocode(@Body() dto: ReverseGeocodeDto) {
     this.logger.log(`POST /pincodes/reverse-geocode (${dto.latitude}, ${dto.longitude})`);
     return this.pincodeService.reverseGeocode(dto);
+  }
+
+  /**
+   * POST /api/v1/pincodes/locate
+   * Find pincode that contains the given coordinates (point-in-polygon)
+   *
+   * IMPORTANT: POST routes should come BEFORE parameterized GET routes
+   */
+  @Post('locate')
+  @ApiOperation({
+    summary: 'Find pincode from GPS coordinates',
+    description: 'Find the pincode whose boundary polygon contains the given GPS coordinates. Uses exact point-in-polygon matching. Returns the pincode you are currently located in. Perfect for "Where am I?" queries.',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Successfully located pincode or confirmed no pincode contains the point',
+    schema: {
+      example: {
+        coordinates: { latitude: 28.6139, longitude: 77.2090, withinIndiaBounds: true },
+        pincode: "110001",
+        found: true,
+        details: {
+          pincode: "110001",
+          officeName: "Connaught Place H.O",
+          state: "Delhi",
+          district: "Central Delhi"
+        }
+      }
+    }
+  })
+  @ApiResponse({ status: 400, description: 'Invalid coordinates' })
+  async locatePincode(@Body() dto: LocatePincodeDto) {
+    this.logger.log(`POST /pincodes/locate (${dto.latitude}, ${dto.longitude})`);
+    return this.pincodeService.locatePincode(dto);
   }
 
   /**

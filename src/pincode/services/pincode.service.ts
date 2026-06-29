@@ -12,8 +12,10 @@ import {
   NearbyPincodesResponseDto,
   NearbyPincodeResult,
   ReverseGeocodeResponseDto,
+  LocatePincodeResponseDto,
+  CoordinatesDto,
 } from '../dto/pincode-response.dto';
-import { PincodeQueryDto, BulkPincodeLookupDto, NearbyPincodeQueryDto, ReverseGeocodeDto } from '../dto/pincode-query.dto';
+import { PincodeQueryDto, BulkPincodeLookupDto, NearbyPincodeQueryDto, ReverseGeocodeDto, LocatePincodeDto } from '../dto/pincode-query.dto';
 
 /**
  * PincodeService
@@ -910,4 +912,125 @@ export class PincodeService {
       },
     };
   }
+
+  /**
+   * Locate pincode: Find the pincode whose boundary contains the given point
+   * POST /pincodes/locate
+   *
+   * Uses PostGIS ST_Contains for exact point-in-polygon check
+   */
+  async locatePincode(dto: LocatePincodeDto): Promise<LocatePincodeResponseDto> {
+    const startTime = Date.now();
+    const { latitude, longitude } = dto;
+
+    // India's bounding box
+    const INDIA_BBOX = {
+      minLat: 2.5,
+      maxLat: 38.5,
+      minLng: 63.5,
+      maxLng: 99.5,
+    };
+
+    // Check if coordinates are within India
+    const withinIndiaBounds =
+      latitude >= INDIA_BBOX.minLat &&
+      latitude <= INDIA_BBOX.maxLat &&
+      longitude >= INDIA_BBOX.minLng &&
+      longitude <= INDIA_BBOX.maxLng;
+
+    this.logger.log(
+      `📍 Locating pincode for coordinates (${latitude}, ${longitude}), withinIndia: ${withinIndiaBounds}`
+    );
+
+    // Query for pincode that contains this point
+    // Uses ST_Contains for exact point-in-polygon check
+    const result = await this.pincodeRepository
+      .createQueryBuilder('p')
+      .select([
+        'p.id',
+        'p.pincode',
+        'p.office_name',
+        'p.state',
+        'p.district',
+        'p.city',
+        'p.region',
+        'p.circle',
+      ])
+      .addSelect('ST_AsGeoJSON(p.centroid)::json', 'centroid_geojson')
+      .where('p.is_active = :active', { active: true })
+      .andWhere('p.boundary IS NOT NULL')
+      .andWhere(
+        `ST_Contains(p.boundary::geometry, ST_GeomFromText(:point, 4326))`,
+        { point: `POINT(${longitude} ${latitude})` }
+      )
+      .limit(1)
+      .getRawAndEntities();
+
+    const dbTime = Date.now() - startTime;
+    this.logger.log(`📊 DB query completed in ${dbTime}ms`);
+
+    // Build response
+    const baseResponse = {
+      coordinates: {
+        latitude,
+        longitude,
+        withinIndiaBounds,
+      },
+    };
+
+    if (!result.entities || result.entities.length === 0) {
+      // No pincode contains this point
+      const totalTime = Date.now() - startTime;
+      this.logger.log(`❌ No pincode found containing the point (${totalTime}ms)`);
+
+      return {
+        ...baseResponse,
+        pincode: null,
+        found: false,
+        message: 'No pincode boundary contains these coordinates. The point may be outside any pincode area or in a region without boundary data.',
+      };
+    }
+
+    // Found pincode!
+    const entity = result.entities[0];
+    const rawResult = result.raw[0];
+
+    // Parse centroid coordinates
+    let centroidCoords: CoordinatesDto | undefined;
+    if (rawResult?.centroid_geojson) {
+      try {
+        const geojson = rawResult.centroid_geojson;
+        if (geojson.coordinates) {
+          centroidCoords = {
+            latitude: geojson.coordinates[1],
+            longitude: geojson.coordinates[0],
+          };
+        }
+      } catch (error) {
+        this.logger.warn(`Failed to parse centroid for pincode ${entity.pincode}: ${error.message}`);
+      }
+    }
+
+    const totalTime = Date.now() - startTime;
+    this.logger.log(
+      `✅ Found pincode ${entity.pincode} containing the point (${totalTime}ms)`
+    );
+
+    return {
+      ...baseResponse,
+      pincode: entity.pincode,
+      found: true,
+      details: {
+        pincode: entity.pincode,
+        officeName: entity.office_name || undefined,
+        state: entity.state || undefined,
+        district: entity.district || undefined,
+        city: entity.city || undefined,
+        region: entity.region || undefined,
+        circle: entity.circle || undefined,
+        coordinates: centroidCoords,
+      },
+    };
+  }
 }
+
