@@ -258,15 +258,177 @@ export class PincodeService {
    * Bulk pincode lookup
    * POST /pincodes/bulk/lookup
    *
-   * OPTIMIZED: Fetches all post offices in ONE query (not N queries)
+   * CACHING STRATEGY:
+   * 1. Try Redis pipeline for all pincodes (single round-trip)
+   * 2. For cache misses, fall back to database
+   * 3. Fetch post offices from Redis or DB in batch
    */
   async bulkLookup(dto: BulkPincodeLookupDto) {
     const { pincodes, includePostOffices } = dto;
+    const startTime = Date.now();
 
     // Validate max 100 pincodes
     if (pincodes.length > 100) {
-      throw new NotFoundException('Maximum 100 pincodes allowed per request');
+      throw new BadRequestException('Maximum 100 pincodes allowed per request');
     }
+
+    this.logger.log(`🔍 [BULK] Processing ${pincodes.length} pincodes (includePostOffices: ${includePostOffices})`);
+
+    try {
+      // STEP 1: Try Redis bulk lookup with pipeline
+      this.logger.log(`🔍 [REDIS] Bulk lookup using pipeline for ${pincodes.length} pincodes`);
+      const cachedMap = await this.pincodeCacheService.getBulkPincodes(pincodes);
+
+      const cacheHits: string[] = [];
+      const cacheMisses: string[] = [];
+
+      // Separate hits and misses
+      pincodes.forEach(pincode => {
+        if (cachedMap.has(pincode)) {
+          cacheHits.push(pincode);
+        } else {
+          cacheMisses.push(pincode);
+        }
+      });
+
+      const cacheTime = Date.now() - startTime;
+      this.logger.log(`✅ [REDIS] Pipeline complete: ${cacheHits.length} hits, ${cacheMisses.length} misses (${cacheTime}ms)`);
+
+      // STEP 2: Fetch cache misses from database
+      const dbResults = new Map<string, PincodeDetailResponseDto>();
+
+      if (cacheMisses.length > 0) {
+        this.logger.log(`📊 [DATABASE] Fetching ${cacheMisses.length} cache misses from PostgreSQL`);
+        const dbStartTime = Date.now();
+
+        const dbEntities = await this.pincodeRepository
+          .createQueryBuilder('p')
+          .select([
+            'p.id', 'p.pincode', 'p.office_name', 'p.state',
+            'p.district', 'p.city', 'p.region', 'p.circle', 'p.is_active',
+          ])
+          .addSelect('ST_AsGeoJSON(p.centroid)::json', 'centroid_geojson')
+          .where('p.pincode IN (:...pincodes)', { pincodes: cacheMisses })
+          .andWhere('p.is_active = :active', { active: true })
+          .getRawAndEntities();
+
+        // Build responses from DB results
+        for (let i = 0; i < dbEntities.entities.length; i++) {
+          const entity = dbEntities.entities[i];
+          const rawResult = dbEntities.raw[i];
+
+          if (rawResult?.centroid_geojson) {
+            (entity as any).centroid_geojson = rawResult.centroid_geojson;
+          }
+
+          dbResults.set(entity.pincode, this.buildPincodeResponseSync(entity));
+        }
+
+        const dbTime = Date.now() - dbStartTime;
+        this.logger.log(`📊 [DATABASE] Fetched ${dbResults.size} pincodes in ${dbTime}ms`);
+      }
+
+      // STEP 3: Fetch post offices in batch if requested
+      let postOfficesMap: Map<string, any[]> | null = null;
+      if (includePostOffices) {
+        this.logger.log(`📫 Fetching post offices for ${pincodes.length} pincodes`);
+
+        // Try Redis first for all pincodes
+        const postOfficeStartTime = Date.now();
+        postOfficesMap = new Map();
+
+        for (const pincode of pincodes) {
+          try {
+            const offices = await this.pincodeCacheService.getPostOffices(pincode);
+            if (offices && offices.length > 0) {
+              postOfficesMap.set(pincode, offices);
+            }
+          } catch (error) {
+            // Redis miss - will fall back to DB
+          }
+        }
+
+        // Fall back to DB for post offices not in cache
+        const postOfficesFromDB = await this.fetchPostOfficesForPincodes(pincodes);
+        postOfficesFromDB.forEach((offices, pincode) => {
+          if (!postOfficesMap!.has(pincode)) {
+            postOfficesMap!.set(pincode, offices);
+          }
+        });
+
+        const postOfficeTime = Date.now() - postOfficeStartTime;
+        this.logger.log(`📫 Post offices fetched in ${postOfficeTime}ms`);
+      }
+
+      // STEP 4: Build final results
+      const results = pincodes.map((pincode) => {
+        // Get pincode data from cache or DB
+        const cachedData = cachedMap.get(pincode);
+        const dbData = dbResults.get(pincode);
+
+        if (!cachedData && !dbData) {
+          return { pincode, found: false, error: 'Pincode not found' };
+        }
+
+        // Build response from cache or DB
+        const data: PincodeDetailResponseDto = cachedData
+          ? {
+              pincode: cachedData.pincode,
+              officeName: cachedData.office_name || undefined,
+              state: cachedData.state || undefined,
+              district: cachedData.district || undefined,
+              city: cachedData.city || undefined,
+              region: cachedData.region || undefined,
+              circle: cachedData.circle || undefined,
+              isActive: cachedData.is_active !== false,
+              coordinates: cachedData.centroid_lat && cachedData.centroid_lng
+                ? { latitude: cachedData.centroid_lat, longitude: cachedData.centroid_lng }
+                : undefined,
+            }
+          : dbData!;
+
+        // Add post offices if requested
+        if (postOfficesMap && postOfficesMap.has(pincode)) {
+          const postOffices = postOfficesMap.get(pincode)!;
+          data.postOffices = postOffices.map(po => ({
+            id: po.id,
+            pincode: po.pincode,
+            officeName: po.officename || po.officeName,
+            area: po.area,
+            officeType: po.officetype || po.officeType,
+            deliveryStatus: po.delivery || po.deliveryStatus,
+            district: po.district,
+            state: po.state,
+            region: po.region,
+            circle: po.circle,
+          }));
+          data.postOfficeCount = postOffices.length;
+        }
+
+        return { pincode, found: true, data };
+      });
+
+      const totalTime = Date.now() - startTime;
+      this.logger.log(`⏱️  [BULK] Total time: ${totalTime}ms (${cacheHits.length} from cache, ${cacheMisses.length} from DB)`);
+
+      return {
+        total: results.length,
+        results,
+      };
+    } catch (error) {
+      // Redis error - fall back to original implementation
+      this.logger.error(`❌ [REDIS ERROR] Bulk lookup failed: ${error.message}`);
+      this.logger.warn(`🔄 Falling back to individual lookups for ${pincodes.length} pincodes`);
+
+      return this.bulkLookupFallback(dto);
+    }
+  }
+
+  /**
+   * Fallback implementation for bulk lookup (uses individual queries)
+   */
+  private async bulkLookupFallback(dto: BulkPincodeLookupDto) {
+    const { pincodes, includePostOffices } = dto;
 
     // Optimization: If includePostOffices, fetch ALL post offices in one query
     let postOfficesMap: Map<string, PostOffice[]> | null = null;
@@ -480,6 +642,11 @@ export class PincodeService {
   /**
    * Validate pincode format, existence, and geographic bounds
    * GET /pincodes/:pincode/validate
+   *
+   * CACHING STRATEGY:
+   * 1. Try Redis EXISTS check (O(1))
+   * 2. If exists in Redis, fetch details from cache
+   * 3. Fallback to PostgreSQL if cache miss
    */
   async validatePincode(pincode: string): Promise<PincodeValidationResponseDto> {
     const startTime = Date.now();
@@ -493,31 +660,55 @@ export class PincodeService {
       maxLng: 99.5,  // 99.5°E
     };
 
-    // Check cache first
-    const cacheKey = `pincode:validate:${pincode}`;
-    const cached = await this.redisCache.get(cacheKey);
-    if (cached) {
-      this.logger.log(`✅ Validation cache HIT for pincode ${pincode}`);
-      return JSON.parse(cached);
-    }
-
-    this.logger.log(`🔍 Validating pincode: ${pincode}`);
+    this.logger.log(`🔍 [VALIDATE] Validating pincode: ${pincode}`);
 
     // 1. Format validation: Exactly 6 digits, all numeric
     const formatValid = /^\d{6}$/.test(pincode);
     if (!formatValid) {
       errors.push('Invalid format: Pincode must be exactly 6 digits (0-9)');
+
+      return {
+        valid: false,
+        exists: false,
+        pincode,
+        errors,
+      };
     }
 
-    // 2. Database existence check
+    // 2. Try Redis cache for existence check
     let pincodeEntity: Pincode | null = null;
     let exists = false;
+    let cachedData: any = null;
 
-    if (formatValid) {
+    try {
+      this.logger.log(`🔍 [REDIS] Checking cache for pincode: ${pincode}`);
+      cachedData = await this.pincodeCacheService.getPincode(pincode);
+
+      if (cachedData) {
+        exists = true;
+        const cacheTime = Date.now() - startTime;
+        this.logger.log(`✅ [REDIS HIT] Pincode ${pincode} found in cache (${cacheTime}ms)`);
+      } else {
+        const missTime = Date.now() - startTime;
+        this.logger.log(`⚠️  [REDIS MISS] Pincode ${pincode} not in cache (${missTime}ms) - checking DB`);
+      }
+    } catch (error) {
+      this.logger.error(`❌ [REDIS ERROR] Failed to check cache: ${error.message}`);
+      this.logger.warn(`🔄 Falling back to database for validation`);
+    }
+
+    // 3. Fallback to database if not in cache
+    if (!cachedData) {
+      const dbStartTime = Date.now();
+      this.logger.log(`📊 [DATABASE] Querying PostgreSQL for validation`);
+
       pincodeEntity = await this.pincodeRepository.findOne({
         where: { pincode, is_active: true },
       });
       exists = !!pincodeEntity;
+
+      const dbTime = Date.now() - dbStartTime;
+      this.logger.log(`📊 [DATABASE] Query completed in ${dbTime}ms (exists: ${exists})`);
 
       if (!exists) {
         errors.push(`Pincode ${pincode} does not exist in database`);
@@ -536,8 +727,39 @@ export class PincodeService {
       response.errors = errors;
     }
 
-    // Add details if pincode exists
-    if (pincodeEntity) {
+    // Add details if pincode exists (from cache or DB)
+    if (cachedData) {
+      // Build details from cached data
+      response.details = {
+        state: cachedData.state || 'Unknown',
+        district: cachedData.district || 'Unknown',
+        officeName: cachedData.office_name || undefined,
+      };
+
+      // Add coordinates from cache
+      if (cachedData.centroid_lat && cachedData.centroid_lng) {
+        const lat = cachedData.centroid_lat;
+        const lng = cachedData.centroid_lng;
+
+        const withinBounds =
+          lat >= INDIA_BBOX.minLat && lat <= INDIA_BBOX.maxLat &&
+          lng >= INDIA_BBOX.minLng && lng <= INDIA_BBOX.maxLng;
+
+        response.coordinates = {
+          latitude: lat,
+          longitude: lng,
+          withinIndiaBounds: withinBounds,
+        };
+
+        if (!withinBounds) {
+          this.logger.warn(
+            `⚠️  Pincode ${pincode} has coordinates (${lat}, ${lng}) outside India bounds!`
+          );
+          errors.push('Coordinates are outside India geographic bounds');
+        }
+      }
+    } else if (pincodeEntity) {
+      // Build details from DB entity
       response.details = {
         state: pincodeEntity.state || 'Unknown',
         district: pincodeEntity.district || 'Unknown',
@@ -595,12 +817,9 @@ export class PincodeService {
       }
     }
 
-    // Cache the result (24 hours TTL for validation)
-    await this.redisCache.set(cacheKey, JSON.stringify(response), 86400);
-
     const totalTime = Date.now() - startTime;
     this.logger.log(
-      `✅ Validation complete for ${pincode}: valid=${response.valid}, exists=${exists} (${totalTime}ms)`
+      `✅ [VALIDATE] Complete for ${pincode}: valid=${response.valid}, exists=${exists} (${totalTime}ms)`
     );
 
     return response;
