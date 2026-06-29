@@ -18,6 +18,7 @@ import { ApiKeyService } from '../services/api-key.service';
 import { CreateApiKeyDto } from '../dto/create-api-key.dto';
 import { UpdateApiKeyTierDto } from '../dto/update-api-key-tier.dto';
 import { ApiKeyResponseDto, ApiKeyCreatedResponseDto } from '../dto/api-key-response.dto';
+import { Public } from '../decorators/public.decorator';
 
 /**
  * AdminApiKeyController
@@ -37,6 +38,7 @@ import { ApiKeyResponseDto, ApiKeyCreatedResponseDto } from '../dto/api-key-resp
  * - Subsequent responses only show prefix
  */
 @Controller('admin/api-keys')
+@Public()  // Bypass global ApiKeyGuard - uses AdminAuthGuard instead
 @UseGuards(AdminAuthGuard)
 export class AdminApiKeyController {
   private readonly logger = new Logger(AdminApiKeyController.name);
