@@ -201,30 +201,38 @@ export class PincodeCacheService implements OnModuleInit {
   }
 
   /**
-   * Build search indexes (state, district)
+   * Build search indexes (state, district, city)
+   * Creates inverted indexes for O(1) filtered queries
    */
   private async buildSearchIndexes(): Promise<void> {
     this.logger.log('📦 Building search indexes...');
 
     const pincodes = await this.pincodeRepository.find({
       where: { is_active: true },
-      select: ['pincode', 'state', 'district'],
+      select: ['pincode', 'state', 'district', 'city', 'office_name'],
     });
 
     const pipeline = this.redisCache.getClient().pipeline();
 
-    // Group by state
+    // Index maps
     const byState = new Map<string, Set<string>>();
     const byDistrict = new Map<string, Set<string>>();
+    const byCity = new Map<string, Set<string>>();
     const statesMeta = new Map<string, any>();
     const districtsMeta = new Map<string, any>();
+    const citiesMeta = new Map<string, any>();
+    const allPincodes = new Set<string>();
 
     for (const pc of pincodes) {
-      const state = (pc.state || '').toLowerCase().trim();
-      const district = (pc.district || '').toLowerCase().trim();
+      const state = this.normalizeKey(pc.state || '');
+      const district = this.normalizeKey(pc.district || '');
+      const city = this.normalizeKey(pc.city || '');
 
+      // Add to "all pincodes" set
+      allPincodes.add(pc.pincode);
+
+      // State index
       if (state && state !== 'na') {
-        // Add to state index
         if (!byState.has(state)) {
           byState.set(state, new Set());
           statesMeta.set(state, {
@@ -235,7 +243,7 @@ export class PincodeCacheService implements OnModuleInit {
         byState.get(state)!.add(pc.pincode);
         statesMeta.get(state)!.pincodeCount++;
 
-        // Add to district index
+        // District index (compound key: state:district)
         if (district && district !== 'na') {
           const districtKey = `${state}:${district}`;
           if (!byDistrict.has(districtKey)) {
@@ -250,7 +258,23 @@ export class PincodeCacheService implements OnModuleInit {
           districtsMeta.get(districtKey)!.pincodeCount++;
         }
       }
+
+      // City index
+      if (city && city !== 'na') {
+        if (!byCity.has(city)) {
+          byCity.set(city, new Set());
+          citiesMeta.set(city, {
+            name: pc.city,
+            pincodeCount: 0,
+          });
+        }
+        byCity.get(city)!.add(pc.pincode);
+        citiesMeta.get(city)!.pincodeCount++;
+      }
     }
+
+    // Store all pincodes set
+    pipeline.sadd('pincodes:all', ...Array.from(allPincodes));
 
     // Store state indexes
     for (const [state, pincodeSet] of byState.entries()) {
@@ -262,6 +286,11 @@ export class PincodeCacheService implements OnModuleInit {
       pipeline.sadd(`district:index:${districtKey}`, ...Array.from(pincodeSet));
     }
 
+    // Store city indexes
+    for (const [city, pincodeSet] of byCity.entries()) {
+      pipeline.sadd(`city:index:${city}`, ...Array.from(pincodeSet));
+    }
+
     // Store metadata
     for (const [state, meta] of statesMeta.entries()) {
       pipeline.hset('states:meta', state, JSON.stringify(meta));
@@ -271,8 +300,21 @@ export class PincodeCacheService implements OnModuleInit {
       pipeline.hset('districts:meta', districtKey, JSON.stringify(meta));
     }
 
+    for (const [city, meta] of citiesMeta.entries()) {
+      pipeline.hset('cities:meta', city, JSON.stringify(meta));
+    }
+
     await pipeline.exec();
-    this.logger.log(`✅ Built indexes: ${byState.size} states, ${byDistrict.size} districts`);
+    this.logger.log(
+      `✅ Built indexes: ${byState.size} states, ${byDistrict.size} districts, ${byCity.size} cities, ${allPincodes.size} total pincodes`
+    );
+  }
+
+  /**
+   * Normalize keys for consistent indexing (lowercase, trim, replace spaces with hyphens)
+   */
+  private normalizeKey(value: string): string {
+    return value.toLowerCase().trim().replace(/\s+/g, '-');
   }
 
   /**
@@ -367,17 +409,80 @@ export class PincodeCacheService implements OnModuleInit {
    * Get pincodes by state
    */
   async getPincodesByState(state: string): Promise<string[]> {
-    const normalized = state.toLowerCase().trim();
+    const normalized = this.normalizeKey(state);
     return await this.redisCache.getClient().smembers(`state:index:${normalized}`);
   }
 
   /**
-   * Get pincodes by district
+   * Get pincodes by district (requires state for compound key)
    */
   async getPincodesByDistrict(state: string, district: string): Promise<string[]> {
-    const normalizedState = state.toLowerCase().trim();
-    const normalizedDistrict = district.toLowerCase().trim();
+    const normalizedState = this.normalizeKey(state);
+    const normalizedDistrict = this.normalizeKey(district);
     return await this.redisCache.getClient().smembers(`district:index:${normalizedState}:${normalizedDistrict}`);
+  }
+
+  /**
+   * Get pincodes by city
+   */
+  async getPincodesByCity(city: string): Promise<string[]> {
+    const normalized = this.normalizeKey(city);
+    return await this.redisCache.getClient().smembers(`city:index:${normalized}`);
+  }
+
+  /**
+   * Get all active pincodes
+   */
+  async getAllPincodes(): Promise<string[]> {
+    return await this.redisCache.getClient().smembers('pincodes:all');
+  }
+
+  /**
+   * Filter pincodes by multiple criteria
+   * Uses most specific index available, then filters in-memory
+   */
+  async getPincodesByFilters(filters: {
+    state?: string;
+    district?: string;
+    city?: string;
+  }): Promise<string[]> {
+    const { state, district, city } = filters;
+
+    // Strategy: Use the most specific index available
+
+    // Option 1: State + District (most specific compound index)
+    if (state && district) {
+      let pincodes = await this.getPincodesByDistrict(state, district);
+
+      // Further filter by city if provided
+      if (city) {
+        const cityPincodes = await this.getPincodesByCity(city);
+        pincodes = pincodes.filter(p => cityPincodes.includes(p));
+      }
+
+      return pincodes;
+    }
+
+    // Option 2: State only
+    if (state) {
+      let pincodes = await this.getPincodesByState(state);
+
+      // Further filter by city if provided
+      if (city) {
+        const cityPincodes = await this.getPincodesByCity(city);
+        pincodes = pincodes.filter(p => cityPincodes.includes(p));
+      }
+
+      return pincodes;
+    }
+
+    // Option 3: City only
+    if (city) {
+      return this.getPincodesByCity(city);
+    }
+
+    // Option 4: No filters - return all
+    return this.getAllPincodes();
   }
 
   /**
