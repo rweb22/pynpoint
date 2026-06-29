@@ -4,7 +4,7 @@ import { Type, Transform } from 'class-transformer';
 /**
  * Query DTO for GET /pincodes
  *
- * Supports filtering by state, district, city, and pagination
+ * Supports filtering by state, district, and pagination
  */
 export class PincodeQueryDto {
   @IsOptional()
@@ -14,10 +14,6 @@ export class PincodeQueryDto {
   @IsOptional()
   @IsString()
   district?: string;
-
-  @IsOptional()
-  @IsString()
-  city?: string;
 
   @IsOptional()
   @IsString()

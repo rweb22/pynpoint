@@ -193,7 +193,7 @@ export class PincodeService {
    * Falls back to PostgreSQL for search queries or cache misses
    */
   async findPincodes(query: PincodeQueryDto): Promise<PincodeListResponseDto> {
-    const { state, district, city, search, limit = 25, page = 1, includePostOffices } = query;
+    const { state, district, search, limit = 25, page = 1, includePostOffices } = query;
 
     // If there's a search term, we MUST use PostgreSQL (can't index arbitrary text search efficiently)
     if (search) {
@@ -203,12 +203,11 @@ export class PincodeService {
 
     // Try Redis-first for filtered + paginated queries
     try {
-      this.logger.log(`⚡ Attempting Redis lookup: state=${state}, district=${district}, city=${city}, page=${page}`);
+      this.logger.log(`⚡ Attempting Redis lookup: state=${state}, district=${district}, page=${page}`);
 
       const { pincodes: pincodeIds, total } = await this.pincodeCacheService.getPincodesByFiltersWithPagination({
         state,
         district,
-        city,
         page,
         limit,
       });
@@ -286,7 +285,7 @@ export class PincodeService {
    * Database fallback for search queries or Redis failures
    */
   private async findPincodesFromDatabase(query: PincodeQueryDto): Promise<PincodeListResponseDto> {
-    const { state, district, city, search, limit = 25, page = 1, includePostOffices } = query;
+    const { state, district, search, limit = 25, page = 1, includePostOffices } = query;
 
     // Build query
     const queryBuilder = this.pincodeRepository
@@ -299,10 +298,6 @@ export class PincodeService {
 
     if (district) {
       queryBuilder.andWhere('LOWER(pincode.district) = LOWER(:district)', { district });
-    }
-
-    if (city) {
-      queryBuilder.andWhere('LOWER(pincode.city) = LOWER(:city)', { city });
     }
 
     if (search) {
@@ -1299,7 +1294,6 @@ export class PincodeService {
         'p.office_name',
         'p.state',
         'p.district',
-        'p.city',
         'p.centroid',
         'p.boundary',
       ])

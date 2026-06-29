@@ -281,7 +281,7 @@ export class PincodeCacheService {
 
     const pincodes = await this.pincodeRepository.find({
       where: { is_active: true },
-      select: ['pincode', 'state', 'district', 'city', 'office_name'],
+      select: ['pincode', 'state', 'district', 'office_name'],
     });
 
     const pipeline = this.redisCache.getClient().pipeline();
@@ -289,16 +289,13 @@ export class PincodeCacheService {
     // Index maps
     const byState = new Map<string, Set<string>>();
     const byDistrict = new Map<string, Set<string>>();
-    const byCity = new Map<string, Set<string>>();
     const statesMeta = new Map<string, any>();
     const districtsMeta = new Map<string, any>();
-    const citiesMeta = new Map<string, any>();
     const allPincodes = new Set<string>();
 
     for (const pc of pincodes) {
       const state = this.normalizeKey(pc.state || '');
       const district = this.normalizeKey(pc.district || '');
-      const city = this.normalizeKey(pc.city || '');
 
       // Add to "all pincodes" set
       allPincodes.add(pc.pincode);
@@ -330,19 +327,6 @@ export class PincodeCacheService {
           districtsMeta.get(districtKey)!.pincodeCount++;
         }
       }
-
-      // City index
-      if (city && city !== 'na') {
-        if (!byCity.has(city)) {
-          byCity.set(city, new Set());
-          citiesMeta.set(city, {
-            name: pc.city,
-            pincodeCount: 0,
-          });
-        }
-        byCity.get(city)!.add(pc.pincode);
-        citiesMeta.get(city)!.pincodeCount++;
-      }
     }
 
     // Store all pincodes as SORTED SET (sorted by pincode number for natural ordering)
@@ -373,64 +357,6 @@ export class PincodeCacheService {
       pipeline.set(`count:district:${districtKey}`, pincodeSet.size);
     }
 
-    // Store city indexes as SORTED SETS
-    for (const [city, pincodeSet] of byCity.entries()) {
-      const members = Array.from(pincodeSet).flatMap(pincode => [
-        parseInt(pincode),
-        pincode,
-      ]);
-      pipeline.zadd(`city:index:${city}`, ...members);
-      pipeline.set(`count:city:${city}`, pincodeSet.size);
-    }
-
-    // Build multi-criteria lookup tables (state+city combinations)
-    this.logger.log('📦 Building multi-criteria lookup tables...');
-    const stateCityMap = new Map<string, Set<string>>();
-    const districtCityMap = new Map<string, Set<string>>();
-
-    for (const pc of pincodes) {
-      const state = this.normalizeKey(pc.state || '');
-      const district = this.normalizeKey(pc.district || '');
-      const city = this.normalizeKey(pc.city || '');
-
-      // State + City combinations
-      if (state && state !== 'na' && city && city !== 'na') {
-        const key = `${state}:${city}`;
-        if (!stateCityMap.has(key)) {
-          stateCityMap.set(key, new Set());
-        }
-        stateCityMap.get(key)!.add(pc.pincode);
-      }
-
-      // District + City combinations (state:district:city)
-      if (state && state !== 'na' && district && district !== 'na' && city && city !== 'na') {
-        const key = `${state}:${district}:${city}`;
-        if (!districtCityMap.has(key)) {
-          districtCityMap.set(key, new Set());
-        }
-        districtCityMap.get(key)!.add(pc.pincode);
-      }
-    }
-
-    // Store multi-criteria lookups
-    for (const [key, pincodeSet] of stateCityMap.entries()) {
-      const members = Array.from(pincodeSet).flatMap(pincode => [
-        parseInt(pincode),
-        pincode,
-      ]);
-      pipeline.zadd(`lookup:state-city:${key}`, ...members);
-      pipeline.set(`count:state-city:${key}`, pincodeSet.size);
-    }
-
-    for (const [key, pincodeSet] of districtCityMap.entries()) {
-      const members = Array.from(pincodeSet).flatMap(pincode => [
-        parseInt(pincode),
-        pincode,
-      ]);
-      pipeline.zadd(`lookup:district-city:${key}`, ...members);
-      pipeline.set(`count:district-city:${key}`, pincodeSet.size);
-    }
-
     // Store metadata
     for (const [state, meta] of statesMeta.entries()) {
       pipeline.hset('states:meta', state, JSON.stringify(meta));
@@ -440,16 +366,9 @@ export class PincodeCacheService {
       pipeline.hset('districts:meta', districtKey, JSON.stringify(meta));
     }
 
-    for (const [city, meta] of citiesMeta.entries()) {
-      pipeline.hset('cities:meta', city, JSON.stringify(meta));
-    }
-
     await pipeline.exec();
     this.logger.log(
-      `✅ Built indexes: ${byState.size} states, ${byDistrict.size} districts, ${byCity.size} cities`
-    );
-    this.logger.log(
-      `✅ Built lookup tables: ${stateCityMap.size} state-city combos, ${districtCityMap.size} district-city combos`
+      `✅ Built indexes: ${byState.size} states, ${byDistrict.size} districts`
     );
     this.logger.log(`✅ Total pincodes indexed: ${allPincodes.size}`);
   }
@@ -579,11 +498,10 @@ export class PincodeCacheService {
   async getPincodesByFiltersWithPagination(filters: {
     state?: string;
     district?: string;
-    city?: string;
     page?: number;
     limit?: number;
   }): Promise<{ pincodes: string[]; total: number }> {
-    const { state, district, city, page = 1, limit = 25 } = filters;
+    const { state, district, page = 1, limit = 25 } = filters;
 
     // Calculate range for ZRANGE (0-indexed)
     const start = (page - 1) * limit;
@@ -593,18 +511,8 @@ export class PincodeCacheService {
     let countKey: string;
 
     // Strategy: Use most specific pre-computed index
-    if (state && district && city) {
-      // Use district-city lookup table
-      const normalized = `${this.normalizeKey(state)}:${this.normalizeKey(district)}:${this.normalizeKey(city)}`;
-      indexKey = `lookup:district-city:${normalized}`;
-      countKey = `count:district-city:${normalized}`;
-    } else if (state && city) {
-      // Use state-city lookup table
-      const normalized = `${this.normalizeKey(state)}:${this.normalizeKey(city)}`;
-      indexKey = `lookup:state-city:${normalized}`;
-      countKey = `count:state-city:${normalized}`;
-    } else if (state && district) {
-      // Use district index
+    if (state && district) {
+      // Use district index (compound key: state:district)
       const normalized = `${this.normalizeKey(state)}:${this.normalizeKey(district)}`;
       indexKey = `district:index:${normalized}`;
       countKey = `count:district:${normalized}`;
@@ -613,11 +521,6 @@ export class PincodeCacheService {
       const normalized = this.normalizeKey(state);
       indexKey = `state:index:${normalized}`;
       countKey = `count:state:${normalized}`;
-    } else if (city) {
-      // Use city index
-      const normalized = this.normalizeKey(city);
-      indexKey = `city:index:${normalized}`;
-      countKey = `count:city:${normalized}`;
     } else {
       // No filters - all pincodes
       indexKey = 'pincodes:all';
@@ -653,13 +556,7 @@ export class PincodeCacheService {
     return await this.redisCache.getClient().zrange(`district:index:${normalizedState}:${normalizedDistrict}`, 0, -1);
   }
 
-  /**
-   * Get pincodes by city (all, no pagination)
-   */
-  async getPincodesByCity(city: string): Promise<string[]> {
-    const normalized = this.normalizeKey(city);
-    return await this.redisCache.getClient().zrange(`city:index:${normalized}`, 0, -1);
-  }
+
 
   /**
    * Get all active pincodes (all, no pagination)
@@ -759,27 +656,17 @@ export class PincodeCacheService {
   async getCountByFilters(filters: {
     state?: string;
     district?: string;
-    city?: string;
   }): Promise<number> {
-    const { state, district, city } = filters;
+    const { state, district } = filters;
 
     let countKey: string;
 
-    if (state && district && city) {
-      const normalized = `${this.normalizeKey(state)}:${this.normalizeKey(district)}:${this.normalizeKey(city)}`;
-      countKey = `count:district-city:${normalized}`;
-    } else if (state && city) {
-      const normalized = `${this.normalizeKey(state)}:${this.normalizeKey(city)}`;
-      countKey = `count:state-city:${normalized}`;
-    } else if (state && district) {
+    if (state && district) {
       const normalized = `${this.normalizeKey(state)}:${this.normalizeKey(district)}`;
       countKey = `count:district:${normalized}`;
     } else if (state) {
       const normalized = this.normalizeKey(state);
       countKey = `count:state:${normalized}`;
-    } else if (city) {
-      const normalized = this.normalizeKey(city);
-      countKey = `count:city:${normalized}`;
     } else {
       countKey = 'count:all';
     }

@@ -171,7 +171,7 @@ export class PincodeController {
 
   /**
    * GET /api/v1/pincodes
-   * Search/filter pincodes by state, district, city
+   * Search/filter pincodes by state, district
    */
   @Get()
   async searchPincodes(@Query() query: PincodeQueryDto) {
