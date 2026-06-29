@@ -3,6 +3,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Pincode } from '../../database/entities/pincode.entity';
 import { RedisCacheService } from '../../redis/redis-cache.service';
+import { PincodeCacheService } from '../../redis/pincode-cache.service';
 import {
   StatesListResponseDto,
   StateDetailResponseDto,
@@ -16,15 +17,19 @@ import { DistrictQueryDto, RegionQueryDto } from '../dto/pincode-query.dto';
 
 /**
  * AdministrativeService
- * 
- * Handles administrative boundary queries (states, districts).
- * 
- * Caching Strategy (RedisCacheService):
- * - States list: 24 hours TTL (very static)
- * - State details: 24 hours TTL
- * - Districts list: 24 hours TTL
- * 
- * Performance: ~1-50ms (mostly cached)
+ *
+ * Handles administrative boundary queries (states, districts, regions).
+ *
+ * REDIS-FIRST STRATEGY:
+ * - Uses persistent Redis cache (loaded at startup, never expires)
+ * - Falls back to PostgreSQL on cache misses or errors
+ * - Performance: <1ms for cached queries (O(1) Redis HASH lookups)
+ *
+ * Endpoints:
+ * - GET /administrative/states - List all states
+ * - GET /administrative/states/:code - Get state details
+ * - GET /administrative/districts - List districts (optionally filtered by state)
+ * - GET /administrative/regions - List regions (filtered by state/circle)
  */
 @Injectable()
 export class AdministrativeService {
@@ -76,24 +81,61 @@ export class AdministrativeService {
     @InjectRepository(Pincode)
     private readonly pincodeRepository: Repository<Pincode>,
     private readonly redisCache: RedisCacheService,
+    private readonly pincodeCacheService: PincodeCacheService,
   ) {}
 
   /**
    * Get all states with metadata
    * GET /administrative/states
+   *
+   * REDIS-FIRST: Uses persistent cache loaded at startup
    */
   async getStates(): Promise<StatesListResponseDto> {
-    const cacheKey = 'admin:states';
-    const cached = await this.redisCache.get(cacheKey);
+    try {
+      this.logger.log('⚡ Fetching states from persistent Redis cache');
 
-    if (cached) {
-      this.logger.debug('Cache HIT for states list');
-      return JSON.parse(cached);
+      // Try persistent cache first
+      const cachedStates = await this.pincodeCacheService.getAllStates();
+
+      if (cachedStates && cachedStates.length > 0) {
+        // Get district count for each state from districts:meta
+        const allDistricts = await this.pincodeCacheService.getAllDistricts();
+
+        const states: StateDto[] = cachedStates.map(state => {
+          const districtCount = allDistricts.filter(d =>
+            d.state.toLowerCase().trim() === state.name.toLowerCase().trim()
+          ).length;
+
+          return {
+            name: state.name,
+            code: this.getStateCode(state.name),
+            pincodeCount: state.pincodeCount,
+            districtCount,
+          };
+        }).sort((a, b) => a.name.localeCompare(b.name));
+
+        this.logger.log(`✅ Redis hit: ${states.length} states from persistent cache`);
+
+        return {
+          total: states.length,
+          states,
+        };
+      }
+    } catch (error) {
+      this.logger.error(`❌ Redis error in getStates: ${error.message}`, error.stack);
+      this.logger.log('⚠️ Falling back to PostgreSQL');
     }
 
-    this.logger.debug('Cache MISS for states list, querying DB');
+    // Fallback to PostgreSQL
+    return this.getStatesFromDatabase();
+  }
 
-    // Query states with counts
+  /**
+   * Database fallback for getStates()
+   */
+  private async getStatesFromDatabase(): Promise<StatesListResponseDto> {
+    this.logger.log('📊 Querying states from PostgreSQL');
+
     const results = await this.pincodeRepository
       .createQueryBuilder('pincode')
       .select('pincode.state', 'name')
@@ -113,39 +155,56 @@ export class AdministrativeService {
       districtCount: parseInt(r.districtCount, 10),
     }));
 
-    const response: StatesListResponseDto = {
+    return {
       total: states.length,
       states,
     };
-
-    // Cache for 24 hours
-    await this.redisCache.set(cacheKey, JSON.stringify(response), this.CACHE_TTL);
-
-    return response;
   }
 
   /**
    * Get state details by code
    * GET /administrative/states/:code
+   *
+   * REDIS-FIRST: Uses persistent cache loaded at startup
    */
   async getStateDetails(stateCode: string): Promise<StateDetailResponseDto> {
-    const cacheKey = `admin:state:${stateCode.toUpperCase()}`;
-    const cached = await this.redisCache.get(cacheKey);
-
-    if (cached) {
-      this.logger.debug(`Cache HIT for state ${stateCode}`);
-      return JSON.parse(cached);
-    }
-
-    this.logger.debug(`Cache MISS for state ${stateCode}, querying DB`);
-
     // Find state name by code
     const stateName = this.getStateNameByCode(stateCode);
     if (!stateName) {
       throw new NotFoundException(`State code ${stateCode} not found`);
     }
 
-    // Query state details
+    try {
+      this.logger.log(`⚡ Fetching state details for ${stateName} from persistent Redis cache`);
+
+      const stateData = await this.pincodeCacheService.getStateByName(stateName);
+
+      if (stateData) {
+        this.logger.log(`✅ Redis hit: ${stateData.districts.length} districts, ${stateData.pincodeCount} pincodes`);
+
+        return {
+          name: stateData.name,
+          code: stateCode.toUpperCase(),
+          pincodeCount: stateData.pincodeCount,
+          districtCount: stateData.districts.length,
+          districts: stateData.districts,
+        };
+      }
+    } catch (error) {
+      this.logger.error(`❌ Redis error in getStateDetails: ${error.message}`, error.stack);
+      this.logger.log('⚠️ Falling back to PostgreSQL');
+    }
+
+    // Fallback to PostgreSQL
+    return this.getStateDetailsFromDatabase(stateName, stateCode);
+  }
+
+  /**
+   * Database fallback for getStateDetails()
+   */
+  private async getStateDetailsFromDatabase(stateName: string, stateCode: string): Promise<StateDetailResponseDto> {
+    this.logger.log(`📊 Querying state details for ${stateName} from PostgreSQL`);
+
     const results = await this.pincodeRepository
       .createQueryBuilder('pincode')
       .select('pincode.district', 'district')
@@ -164,35 +223,63 @@ export class AdministrativeService {
     const districts = results.map(r => r.district);
     const totalPincodes = results.reduce((sum, r) => sum + parseInt(r.pincodeCount, 10), 0);
 
-    const response: StateDetailResponseDto = {
+    return {
       name: stateName,
       code: stateCode.toUpperCase(),
       pincodeCount: totalPincodes,
       districtCount: districts.length,
       districts,
     };
-
-    // Cache for 24 hours
-    await this.redisCache.set(cacheKey, JSON.stringify(response), this.CACHE_TTL);
-
-    return response;
   }
 
   /**
    * Get districts (optionally filtered by state)
    * GET /administrative/districts?state=...
+   *
+   * REDIS-FIRST: Uses persistent cache loaded at startup
    */
   async getDistricts(query: DistrictQueryDto): Promise<DistrictsListResponseDto> {
     const { state, limit = 100, page = 1 } = query;
-    const cacheKey = `admin:districts:${state || 'all'}`;
-    const cached = await this.redisCache.get(cacheKey);
 
-    if (cached) {
-      this.logger.debug(`Cache HIT for districts (state=${state || 'all'})`);
-      return JSON.parse(cached);
+    try {
+      this.logger.log(`⚡ Fetching districts from persistent Redis cache (state=${state || 'all'})`);
+
+      const cachedDistricts = await this.pincodeCacheService.getAllDistricts(state);
+
+      if (cachedDistricts && cachedDistricts.length > 0) {
+        const districts: DistrictDto[] = cachedDistricts.map(d => ({
+          name: d.name,
+          state: d.state,
+          stateCode: this.getStateCode(d.state),
+          pincodeCount: d.pincodeCount,
+        }));
+
+        // Apply pagination
+        const total = districts.length;
+        const skip = (page - 1) * limit;
+        const paginated = districts.slice(skip, skip + limit);
+
+        this.logger.log(`✅ Redis hit: ${total} districts (returning page ${page}, ${paginated.length} items)`);
+
+        return {
+          total,
+          districts: paginated,
+        };
+      }
+    } catch (error) {
+      this.logger.error(`❌ Redis error in getDistricts: ${error.message}`, error.stack);
+      this.logger.log('⚠️ Falling back to PostgreSQL');
     }
 
-    this.logger.debug(`Cache MISS for districts, querying DB`);
+    // Fallback to PostgreSQL
+    return this.getDistrictsFromDatabase(state, limit, page);
+  }
+
+  /**
+   * Database fallback for getDistricts()
+   */
+  private async getDistrictsFromDatabase(state: string | undefined, limit: number, page: number): Promise<DistrictsListResponseDto> {
+    this.logger.log(`📊 Querying districts from PostgreSQL (state=${state || 'all'})`);
 
     const queryBuilder = this.pincodeRepository
       .createQueryBuilder('pincode')
@@ -226,15 +313,10 @@ export class AdministrativeService {
     const skip = (page - 1) * limit;
     const paginated = districts.slice(skip, skip + limit);
 
-    const response: DistrictsListResponseDto = {
+    return {
       total,
       districts: paginated,
     };
-
-    // Cache for 24 hours
-    await this.redisCache.set(cacheKey, JSON.stringify(response), this.CACHE_TTL);
-
-    return response;
   }
 
   /**

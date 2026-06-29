@@ -597,6 +597,91 @@ export class PincodeCacheService implements OnModuleInit {
   }
 
   /**
+   * Get all states metadata from persistent cache
+   */
+  async getAllStates(): Promise<Array<{ name: string; pincodeCount: number }>> {
+    const statesHash = await this.redisCache.getClient().hgetall('states:meta');
+
+    if (!statesHash || Object.keys(statesHash).length === 0) {
+      return [];
+    }
+
+    return Object.entries(statesHash).map(([key, value]) => {
+      const meta = JSON.parse(value);
+      return {
+        name: meta.name,
+        pincodeCount: meta.pincodeCount || 0,
+      };
+    });
+  }
+
+  /**
+   * Get state details by name from persistent cache
+   */
+  async getStateByName(stateName: string): Promise<{ name: string; pincodeCount: number; districts: string[] } | null> {
+    const normalized = this.normalizeKey(stateName);
+    const metaStr = await this.redisCache.getClient().hget('states:meta', normalized);
+
+    if (!metaStr) {
+      return null;
+    }
+
+    const meta = JSON.parse(metaStr);
+
+    // Get all districts for this state from districts:meta
+    const allDistricts = await this.redisCache.getClient().hgetall('districts:meta');
+    const stateDistricts: string[] = [];
+
+    for (const [key, value] of Object.entries(allDistricts)) {
+      if (key.startsWith(`${normalized}:`)) {
+        const districtMeta = JSON.parse(value);
+        stateDistricts.push(districtMeta.name);
+      }
+    }
+
+    return {
+      name: meta.name,
+      pincodeCount: meta.pincodeCount || 0,
+      districts: stateDistricts.sort(),
+    };
+  }
+
+  /**
+   * Get all districts metadata (optionally filtered by state)
+   */
+  async getAllDistricts(stateFilter?: string): Promise<Array<{ name: string; state: string; pincodeCount: number }>> {
+    const districtsHash = await this.redisCache.getClient().hgetall('districts:meta');
+
+    if (!districtsHash || Object.keys(districtsHash).length === 0) {
+      return [];
+    }
+
+    const normalizedFilter = stateFilter ? this.normalizeKey(stateFilter) : null;
+
+    const districts = Object.entries(districtsHash)
+      .filter(([key, _]) => {
+        if (!normalizedFilter) return true;
+        return key.startsWith(`${normalizedFilter}:`);
+      })
+      .map(([key, value]) => {
+        const meta = JSON.parse(value);
+        return {
+          name: meta.name,
+          state: meta.state,
+          pincodeCount: meta.pincodeCount || 0,
+        };
+      });
+
+    return districts.sort((a, b) => {
+      // Sort by state, then by district name
+      if (a.state !== b.state) {
+        return a.state.localeCompare(b.state);
+      }
+      return a.name.localeCompare(b.name);
+    });
+  }
+
+  /**
    * Get total count for filters (O(1) from cache or ZCARD)
    */
   async getCountByFilters(filters: {
