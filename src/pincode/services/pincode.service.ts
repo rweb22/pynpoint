@@ -922,6 +922,9 @@ export class PincodeService {
   /**
    * Find nearby pincodes within radius
    * GET /pincodes/:pincode/nearby
+   *
+   * REDIS-FIRST: Uses GEORADIUS for fast centroid-based distance queries
+   * Falls back to PostgreSQL PostGIS on cache miss or error
    */
   async findNearbyPincodes(
     sourcePincode: string,
@@ -933,6 +936,118 @@ export class PincodeService {
     this.logger.log(
       `🔍 Finding pincodes near ${sourcePincode} within ${radius}${unit} (limit: ${limit})`
     );
+
+    // Try Redis GEORADIUS first
+    try {
+      this.logger.log(`⚡ Attempting Redis GEORADIUS lookup`);
+
+      // 1. Get source pincode coordinates from Redis cache
+      const sourceCached = await this.pincodeCacheService.getPincode(sourcePincode);
+
+      if (!sourceCached) {
+        this.logger.warn(`⚠️ Source pincode ${sourcePincode} not in cache, falling back to DB`);
+        return this.findNearbyPincodesFromDatabase(sourcePincode, query);
+      }
+
+      if (!sourceCached.centroid_lat || !sourceCached.centroid_lng) {
+        this.logger.warn(`⚠️ Source pincode ${sourcePincode} has no centroid, falling back to DB`);
+        return this.findNearbyPincodesFromDatabase(sourcePincode, query);
+      }
+
+      const sourceLat = sourceCached.centroid_lat;
+      const sourceLng = sourceCached.centroid_lng;
+
+      // 2. Convert radius to km if needed
+      const radiusKm = unit === 'km' ? radius : radius / 1000;
+
+      // 3. Use Redis GEORADIUS to find nearby pincodes
+      const nearbyResults = await this.pincodeCacheService.findNearbyPincodes(
+        sourceLat,
+        sourceLng,
+        radiusKm,
+        limit + 1, // +1 to exclude source if it's in results
+      );
+
+      // 4. Filter out the source pincode itself
+      const filtered = nearbyResults.filter(r => r.pincode !== sourcePincode);
+
+      if (filtered.length === 0) {
+        this.logger.log(`✅ Redis GEORADIUS: No nearby pincodes found`);
+        return {
+          source: {
+            pincode: sourcePincode,
+            coordinates: { latitude: sourceLat, longitude: sourceLng },
+          },
+          searchParams: { radius, unit, limit },
+          results: [],
+          total: 0,
+        };
+      }
+
+      // 5. Fetch full details for nearby pincodes
+      const pincodeIds = filtered.slice(0, limit).map(r => r.pincode);
+      const detailsMap = await this.pincodeCacheService.getBulkPincodes(pincodeIds);
+
+      // 6. Build response
+      const results = filtered.slice(0, limit).map(nearby => {
+        const details = detailsMap.get(nearby.pincode);
+
+        const result: any = {
+          pincode: nearby.pincode,
+          officeName: details?.office_name,
+          state: details?.state,
+          district: details?.district,
+          city: details?.city,
+          coordinates: details?.centroid_lat && details?.centroid_lng ? {
+            latitude: details.centroid_lat,
+            longitude: details.centroid_lng,
+          } : undefined,
+        };
+
+        // Add distance if requested
+        if (includeDistance) {
+          result.distance = {
+            value: unit === 'km' ? nearby.distance : nearby.distance * 1000,
+            unit,
+          };
+        }
+
+        return result;
+      });
+
+      const totalTime = Date.now() - startTime;
+      this.logger.log(
+        `✅ Redis GEORADIUS hit: ${results.length} pincodes found (${totalTime}ms)`
+      );
+
+      return {
+        source: {
+          pincode: sourcePincode,
+          coordinates: { latitude: sourceLat, longitude: sourceLng },
+        },
+        searchParams: { radius, unit, limit },
+        results,
+        total: results.length,
+      };
+
+    } catch (error) {
+      this.logger.error(`❌ Redis error in findNearbyPincodes: ${error.message}`, error.stack);
+      this.logger.log('⚠️ Falling back to PostgreSQL PostGIS');
+      return this.findNearbyPincodesFromDatabase(sourcePincode, query);
+    }
+  }
+
+  /**
+   * Database fallback for findNearbyPincodes using PostGIS
+   */
+  private async findNearbyPincodesFromDatabase(
+    sourcePincode: string,
+    query: NearbyPincodeQueryDto,
+  ): Promise<NearbyPincodesResponseDto> {
+    const startTime = Date.now();
+    const { radius = 50, unit = 'km', limit = 50, includeDistance = true } = query;
+
+    this.logger.log(`📊 Querying nearby pincodes from PostgreSQL PostGIS`);
 
     // Get the source pincode first
     const source = await this.pincodeRepository.findOne({
