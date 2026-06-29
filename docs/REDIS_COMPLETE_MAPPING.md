@@ -31,11 +31,14 @@ Fields:
   city: "New Delhi"
   centroid_lat: "28.6139"
   centroid_lng: "77.2090"
+  ho_lat: "28.6305"        # NEW! Head Office coordinates (preferred for distance)
+  ho_lng: "77.2173"        # NEW! More accurate than centroid for logistics
   post_office_count: "5"
   is_active: "true"
 
+Priority for Distance Calculations: HO coordinates > Centroid
 Access Time: O(1) - HGETALL
-Use Case: GET /pincodes/:pincode
+Use Case: GET /pincodes/:pincode, Distance calculations
 ```
 
 #### **1.2 Post Offices**

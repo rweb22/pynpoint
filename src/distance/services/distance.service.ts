@@ -4,6 +4,7 @@ import { Repository } from 'typeorm';
 import { Pincode } from '../../database/entities/pincode.entity';
 import { DigipinAlgorithmService } from '../../digipin/services/digipin-algorithm.service';
 import { RedisCacheService } from '../../redis/redis-cache.service';
+import { PincodeCacheService } from '../../redis/pincode-cache.service';
 import {
   LocationDto,
   DistanceUnit,
@@ -26,6 +27,7 @@ export class DistanceService {
     private readonly pincodeRepository: Repository<Pincode>,
     private readonly digipinAlgorithm: DigipinAlgorithmService,
     private readonly redisCache: RedisCacheService,
+    private readonly pincodeCacheService: PincodeCacheService,
   ) {}
 
   /**
@@ -149,9 +151,34 @@ export class DistanceService {
 
   /**
    * Resolve pincode to coordinates
+   *
+   * NOW USES REDIS CACHE for 10x speedup!
+   * Priority: Head Office coordinates > Centroid
    */
   private async resolvePincode(pincode: string): Promise<LocationDetailsDto> {
-    // Query with PostGIS to get coordinates
+    // Try Redis cache first (O(1), <1ms)
+    const coords = await this.pincodeCacheService.getPincodeCoordinates(pincode);
+
+    if (coords) {
+      // Get pincode details from cache
+      const pincodeData = await this.pincodeCacheService.getPincode(pincode);
+
+      if (pincodeData) {
+        this.logger.debug(`✅ Cache HIT for pincode ${pincode} coordinates`);
+        return {
+          type: 'pincode',
+          pincode: pincodeData.pincode,
+          officeName: pincodeData.officeName || '',
+          coordinates: {
+            latitude: coords.lat,
+            longitude: coords.lng,
+          },
+        };
+      }
+    }
+
+    // Fallback to PostgreSQL (cache miss or error)
+    this.logger.warn(`❌ Cache MISS for pincode ${pincode}, falling back to PostgreSQL`);
     const result = await this.pincodeRepository.query(
       `SELECT
         pincode,

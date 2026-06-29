@@ -93,6 +93,9 @@ export class PincodeCacheService implements OnModuleInit {
 
   /**
    * Load all pincodes into Redis HASHes
+   *
+   * Now includes Head Office (HO) coordinates for accurate distance calculations!
+   * Priority: HO coordinates > Centroid coordinates
    */
   private async loadPincodesIntoRedis(): Promise<void> {
     this.logger.log('📦 Loading pincodes into Redis...');
@@ -118,11 +121,37 @@ export class PincodeCacheService implements OnModuleInit {
 
     this.logger.log(`Found ${pincodes.length} pincodes to cache`);
 
+    // Get Head Office coordinates for each pincode
+    // Head Office (HO) is the main post office - better for distance calculations than centroid!
+    const headOffices = await this.postOfficeRepository
+      .createQueryBuilder('po')
+      .select(['po.pincode', 'po.latitude', 'po.longitude'])
+      .where('po.is_active = :active', { active: true })
+      .andWhere('po.officetype = :type', { type: 'HO' })
+      .andWhere('po.latitude IS NOT NULL')
+      .andWhere('po.longitude IS NOT NULL')
+      .getRawMany();
+
+    // Create HO lookup map
+    const hoCoords = new Map<string, { lat: number; lng: number }>();
+    for (const ho of headOffices) {
+      hoCoords.set(ho.po_pincode, {
+        lat: Number(ho.po_latitude),
+        lng: Number(ho.po_longitude),
+      });
+    }
+
+    this.logger.log(`Found ${hoCoords.size} Head Office coordinates`);
+
     // Use Redis pipeline for batch insert (much faster)
     const pipeline = this.redisCache.getClient().pipeline();
+    let withHO = 0;
+    let withCentroid = 0;
 
     for (const pc of pincodes) {
       const key = `pincode:${pc.p_pincode}`;
+      const ho = hoCoords.get(pc.p_pincode);
+
       const data = {
         id: pc.p_id,
         pincode: pc.p_pincode,
@@ -134,14 +163,22 @@ export class PincodeCacheService implements OnModuleInit {
         circle: pc.p_circle || '',
         centroid_lat: pc.centroid_lat || null,
         centroid_lng: pc.centroid_lng || null,
+        // NEW: Head Office coordinates (preferred for distance calculations)
+        ho_lat: ho?.lat || null,
+        ho_lng: ho?.lng || null,
         is_active: pc.p_is_active,
       };
+
+      if (ho) withHO++;
+      else if (pc.centroid_lat && pc.centroid_lng) withCentroid++;
 
       pipeline.hset(key, data);
     }
 
     await pipeline.exec();
-    this.logger.log(`✅ Cached ${pincodes.length} pincodes`);
+    this.logger.log(
+      `✅ Cached ${pincodes.length} pincodes (${withHO} with HO coords, ${withCentroid} centroid-only)`
+    );
   }
 
   /**
@@ -779,5 +816,39 @@ export class PincodeCacheService implements OnModuleInit {
     await this.redisCache.del('cache:pincode:loaded');
     this.isLoaded = false;
     await this.onModuleInit();
+  }
+
+  /**
+   * Get best available coordinates for a pincode
+   * Priority: Head Office (HO) > Centroid
+   *
+   * @param pincode - Pincode to get coordinates for
+   * @returns {lat, lng} or null if no coordinates available
+   */
+  async getPincodeCoordinates(pincode: string): Promise<{ lat: number; lng: number } | null> {
+    const key = `pincode:${pincode}`;
+    const data = await this.redisCache.getClient().hgetall(key);
+
+    if (!data || Object.keys(data).length === 0) {
+      return null;
+    }
+
+    // Try HO coordinates first (most accurate for logistics)
+    if (data.ho_lat && data.ho_lng) {
+      return {
+        lat: parseFloat(data.ho_lat),
+        lng: parseFloat(data.ho_lng),
+      };
+    }
+
+    // Fallback to centroid
+    if (data.centroid_lat && data.centroid_lng) {
+      return {
+        lat: parseFloat(data.centroid_lat),
+        lng: parseFloat(data.centroid_lng),
+      };
+    }
+
+    return null;
   }
 }
