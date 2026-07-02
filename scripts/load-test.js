@@ -18,6 +18,10 @@
 const autocannon = require('autocannon');
 const Table = require('cli-table3');
 const chalk = require('chalk');
+const dns = require('dns').promises;
+
+// Use Google DNS for resolution (8.8.8.8)
+dns.setServers(['8.8.8.8', '8.8.4.4']);
 
 const API_KEY = process.argv[2];
 const BASE_URL = process.env.BASE_URL || 'https://pynpoint-production.up.railway.app';

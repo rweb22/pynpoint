@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, OnModuleDestroy } from '@nestjs/common';
 
 /**
  * MemoryCacheService
@@ -37,7 +37,7 @@ interface CacheEntry<T> {
 }
 
 @Injectable()
-export class MemoryCacheService {
+export class MemoryCacheService implements OnModuleDestroy {
   private readonly logger = new Logger(MemoryCacheService.name);
   private cache = new Map<string, CacheEntry<any>>();
   private maxSize: number;
