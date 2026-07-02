@@ -15,6 +15,7 @@ export class UpdateApiKeyTierDto {
   rateLimitOverrides?: {
     requests_per_minute?: number;
     requests_per_day?: number;
+    requests_per_month?: number;
     requests_per_second?: number;
   };
 }

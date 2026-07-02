@@ -303,7 +303,7 @@ echo -e "${YELLOW}N10: Nearby - Invalid Radius (Negative Value)${NC}"
 echo -e "${YELLOW}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
 echo ""
 test_error_endpoint "GET /api/v1/digipin/nearby (negative radius)" "GET" \
-  "/api/v1/digipin/nearby?lat=28.6139&lng=77.2090&radius=-5&level=6" "400"
+  "/api/v1/digipin/nearby?lat=28.6139&lng=77.2090&radius=-5&level=6" "" "400"
 
 # Negative Test 11: Nearby with Out-of-Range Latitude
 echo -e "${YELLOW}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
@@ -311,7 +311,7 @@ echo -e "${YELLOW}N11: Nearby - Out-of-Range Latitude${NC}"
 echo -e "${YELLOW}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
 echo ""
 test_error_endpoint "GET /api/v1/digipin/nearby (lat > 90)" "GET" \
-  "/api/v1/digipin/nearby?lat=100&lng=77.2090&radius=5&level=6" "400"
+  "/api/v1/digipin/nearby?lat=100&lng=77.2090&radius=5&level=6" "" "400"
 
 # Negative Test 12: Missing API Key
 echo -e "${YELLOW}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
