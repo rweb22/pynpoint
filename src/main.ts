@@ -6,8 +6,17 @@ import { VersionHeaderInterceptor } from './common/interceptors/version-header.i
 
 async function bootstrap() {
   console.log('[Bootstrap] Creating NestJS application...');
-  const app = await NestFactory.create(AppModule);
+
+  // Configure HTTP server options for high concurrency
+  const maxConnections = parseInt(process.env.MAX_HTTP_CONNECTIONS || '1000', 10);
+
+  const app = await NestFactory.create(AppModule, {
+    // Increase HTTP connection limits for high-load scenarios
+    httpsOptions: undefined, // Using HTTP (not HTTPS)
+  });
+
   console.log('[Bootstrap] Application created successfully');
+  console.log(`[Bootstrap] Max HTTP connections: ${maxConnections}`);
 
   // Enable API versioning (URI-based)
   app.enableVersioning({
@@ -83,7 +92,28 @@ async function bootstrap() {
 
   const port = process.env.PORT ?? 3000;
   console.log(`[Bootstrap] Starting server on port ${port}...`);
-  await app.listen(port);
+
+  // Start the server and configure connection limits
+  await app.listen(port, () => {
+    // Access the underlying HTTP server and set connection limits
+    const server = app.getHttpServer();
+    if (server) {
+      // Set maximum number of concurrent connections
+      server.maxConnections = maxConnections;
+
+      // Set keep-alive timeout (default 5s is too short for high load)
+      server.keepAliveTimeout = 65000; // 65 seconds (higher than typical LB timeout of 60s)
+
+      // Set headers timeout (must be higher than keepAliveTimeout)
+      server.headersTimeout = 66000; // 66 seconds
+
+      console.log(`[Bootstrap] ✅ HTTP server configured:`);
+      console.log(`[Bootstrap]    - Max connections: ${maxConnections}`);
+      console.log(`[Bootstrap]    - Keep-alive timeout: ${server.keepAliveTimeout}ms`);
+      console.log(`[Bootstrap]    - Headers timeout: ${server.headersTimeout}ms`);
+    }
+  });
+
   console.log(`[Bootstrap] Server is listening on port ${port}`);
   console.log(`[Bootstrap] API Documentation: http://localhost:${port}/api/docs`);
   console.log(`[Bootstrap] OpenAPI JSON: http://localhost:${port}/api/docs-json`);
