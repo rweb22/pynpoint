@@ -85,8 +85,8 @@ export class ApiKeyGuard implements CanActivate {
     const apiKey = this.extractApiKey(request);
 
     if (!apiKey) {
-      this.logger.warn(`Missing or invalid Authorization header from ${request.ip}`);
-      throw new UnauthorizedException('API key is required. Please provide a valid API key in the Authorization header.');
+      this.logger.warn(`Missing or invalid API key header from ${request.ip}`);
+      throw new UnauthorizedException('API key is required. Please provide a valid API key in the x-api-key header or Authorization header.');
     }
 
     // Validate API key
@@ -110,18 +110,25 @@ export class ApiKeyGuard implements CanActivate {
   }
 
   /**
-   * Extract API key from Authorization header
-   * 
+   * Extract API key from Authorization or x-api-key header
+   *
    * Supports:
    * - Bearer token: "Authorization: Bearer ppk_live_sk_..."
    * - Direct key: "Authorization: ppk_live_sk_..."
-   * 
+   * - x-api-key header: "x-api-key: ppk_live_sk_..."
+   *
    * @param request - Express request object
    * @returns API key string or null
    */
   private extractApiKey(request: Request): string | null {
-    const authHeader = request.headers.authorization;
+    // First, try x-api-key header (most common for API keys)
+    const xApiKey = request.headers['x-api-key'] as string;
+    if (xApiKey && xApiKey.startsWith('ppk_')) {
+      return xApiKey.trim();
+    }
 
+    // Then, try Authorization header
+    const authHeader = request.headers.authorization;
     if (!authHeader) {
       return null;
     }
