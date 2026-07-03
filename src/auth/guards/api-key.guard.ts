@@ -100,10 +100,9 @@ export class ApiKeyGuard implements CanActivate {
     // Attach key data to request for downstream use
     request.apiKey = keyData;
 
-    // Record usage (fire-and-forget, don't await)
-    this.apiKeyService.recordUsage(keyData.keyId).catch((error) => {
-      this.logger.error(`Failed to record usage for key ${keyData.keyId}:`, error);
-    });
+    // NOTE: Usage tracking (including last_used_at) is now handled by
+    // StreamUsageTrackingInterceptor via Redis Streams + background worker.
+    // This eliminates 3 DB operations per request (1 UPDATE + 2 for api_usage).
 
     this.logger.debug(`Authenticated request from customer ${keyData.externalCustomerId} (tier: ${keyData.tier})`);
 

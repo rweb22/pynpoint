@@ -11,8 +11,8 @@ import {
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiParam, ApiQuery, ApiSecurity } from '@nestjs/swagger';
 import { ApiKeyGuard } from '../../auth/guards/api-key.guard';
-import { RateLimitInterceptor } from '../../auth/interceptors/rate-limit.interceptor';
-import { UsageTrackingInterceptor } from '../../auth/interceptors/usage-tracking.interceptor';
+import { TokenBucketRateLimitInterceptor } from '../../auth/interceptors/token-bucket-rate-limit.interceptor';
+import { StreamUsageTrackingInterceptor } from '../../auth/interceptors/stream-usage-tracking.interceptor';
 import { PincodeService } from '../services/pincode.service';
 import { AdministrativeService } from '../services/administrative.service';
 import {
@@ -33,8 +33,8 @@ import { PincodeValidationPipe } from '../pipes/pincode-validation.pipe';
  *
  * All endpoints are protected by:
  * - ApiKeyGuard: Require valid API key
- * - RateLimitInterceptor: Enforce tier-based rate limits
- * - UsageTrackingInterceptor: Track API usage
+ * - TokenBucketRateLimitInterceptor: Token Bucket rate limiting (1 Redis op vs 9)
+ * - StreamUsageTrackingInterceptor: Redis Streams usage tracking (0 DB writes)
  *
  * Base path: /api/v1/pincodes
  */
@@ -42,7 +42,7 @@ import { PincodeValidationPipe } from '../pipes/pincode-validation.pipe';
 @ApiTags('pincodes')
 @ApiSecurity('api-key')
 @UseGuards(ApiKeyGuard)
-@UseInterceptors(RateLimitInterceptor, UsageTrackingInterceptor)
+@UseInterceptors(TokenBucketRateLimitInterceptor, StreamUsageTrackingInterceptor)
 export class PincodeController {
   private readonly logger = new Logger(PincodeController.name);
 
@@ -201,7 +201,7 @@ export class PincodeController {
 @ApiTags('administrative')
 @ApiSecurity('api-key')
 @UseGuards(ApiKeyGuard)
-@UseInterceptors(RateLimitInterceptor, UsageTrackingInterceptor)
+@UseInterceptors(TokenBucketRateLimitInterceptor, StreamUsageTrackingInterceptor)
 export class AdministrativeController {
   private readonly logger = new Logger(AdministrativeController.name);
 

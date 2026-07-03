@@ -3,6 +3,8 @@ import { ConfigModule } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { RedisCacheService } from './redis-cache.service';
 import { PincodeCacheService } from './pincode-cache.service';
+import { TokenBucketService } from './token-bucket.service';
+import { UsageStreamsService } from './usage-streams.service';
 import { Pincode } from '../database/entities/pincode.entity';
 import { PostOffice } from '../database/entities/postoffice.entity';
 
@@ -11,7 +13,8 @@ import { PostOffice } from '../database/entities/postoffice.entity';
  *
  * Provides Redis caching for:
  * - API authentication (API key validation)
- * - Rate limiting (request counters)
+ * - Rate limiting (Token Bucket algorithm with Lua scripts)
+ * - Usage tracking (Redis Streams for high-throughput event logging)
  * - General caching (query results)
  * - Persistent pincode/post office cache (PincodeCacheService)
  *
@@ -29,7 +32,17 @@ import { PostOffice } from '../database/entities/postoffice.entity';
     ConfigModule,
     TypeOrmModule.forFeature([Pincode, PostOffice]),
   ],
-  providers: [RedisCacheService, PincodeCacheService],
-  exports: [RedisCacheService, PincodeCacheService],
+  providers: [
+    RedisCacheService,
+    PincodeCacheService,
+    TokenBucketService,
+    UsageStreamsService,
+  ],
+  exports: [
+    RedisCacheService,
+    PincodeCacheService,
+    TokenBucketService,
+    UsageStreamsService,
+  ],
 })
 export class RedisModule {}

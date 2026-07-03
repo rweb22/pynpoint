@@ -11,8 +11,8 @@ import {
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiParam, ApiSecurity } from '@nestjs/swagger';
 import { ApiKeyGuard } from '../../auth/guards/api-key.guard';
-import { RateLimitInterceptor } from '../../auth/interceptors/rate-limit.interceptor';
-import { UsageTrackingInterceptor } from '../../auth/interceptors/usage-tracking.interceptor';
+import { TokenBucketRateLimitInterceptor } from '../../auth/interceptors/token-bucket-rate-limit.interceptor';
+import { StreamUsageTrackingInterceptor } from '../../auth/interceptors/stream-usage-tracking.interceptor';
 import { DigipinService } from '../services/digipin.service';
 import {
   EncodeDigipinDto,
@@ -53,14 +53,14 @@ import {
  *
  * All endpoints:
  * - Protected by ApiKeyGuard (requires valid API key)
- * - Rate limited by RateLimitInterceptor
- * - Usage tracked by UsageTrackingInterceptor
+ * - Rate limited by TokenBucketRateLimitInterceptor (1 Redis op vs 9)
+ * - Usage tracked by StreamUsageTrackingInterceptor (0 DB writes)
  */
 @Controller({ path: 'digipin', version: '1' })
 @ApiTags('digipin')
 @ApiSecurity('api-key')
 @UseGuards(ApiKeyGuard)
-@UseInterceptors(RateLimitInterceptor, UsageTrackingInterceptor)
+@UseInterceptors(TokenBucketRateLimitInterceptor, StreamUsageTrackingInterceptor)
 export class DigipinController {
   private readonly logger = new Logger(DigipinController.name);
 

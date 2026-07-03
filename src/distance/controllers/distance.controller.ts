@@ -2,8 +2,8 @@ import { Controller, Post, Body, UseGuards, UseInterceptors, Logger } from '@nes
 import { ApiTags, ApiOperation, ApiResponse, ApiSecurity } from '@nestjs/swagger';
 import { DistanceService } from '../services/distance.service';
 import { ApiKeyGuard } from '../../auth/guards/api-key.guard';
-import { RateLimitInterceptor } from '../../auth/interceptors/rate-limit.interceptor';
-import { UsageTrackingInterceptor } from '../../auth/interceptors/usage-tracking.interceptor';
+import { TokenBucketRateLimitInterceptor } from '../../auth/interceptors/token-bucket-rate-limit.interceptor';
+import { StreamUsageTrackingInterceptor } from '../../auth/interceptors/stream-usage-tracking.interceptor';
 import {
   CalculateDistanceDto,
   BatchDistanceDto,
@@ -17,7 +17,7 @@ import {
 @ApiTags('distance')
 @ApiSecurity('api-key')
 @UseGuards(ApiKeyGuard)
-@UseInterceptors(RateLimitInterceptor, UsageTrackingInterceptor)
+@UseInterceptors(TokenBucketRateLimitInterceptor, StreamUsageTrackingInterceptor)
 export class DistanceController {
   private readonly logger = new Logger(DistanceController.name);
 
