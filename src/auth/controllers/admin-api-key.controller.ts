@@ -13,6 +13,7 @@ import {
   NotFoundException,
   Logger,
 } from '@nestjs/common';
+import { ApiExcludeController } from '@nestjs/swagger';
 import { AdminAuthGuard } from '../guards/admin-auth.guard';
 import { ApiKeyService } from '../services/api-key.service';
 import { CreateApiKeyDto } from '../dto/create-api-key.dto';
@@ -36,8 +37,11 @@ import { Public } from '../decorators/public.decorator';
  * - All endpoints require X-Admin-Secret header
  * - Full API key only returned once on creation
  * - Subsequent responses only show prefix
+ *
+ * Excluded from public OpenAPI documentation (@ApiExcludeController)
  */
 @Controller('admin/api-keys')
+@ApiExcludeController()  // Exclude from Swagger/OpenAPI documentation
 @Public()  // Bypass global ApiKeyGuard - uses AdminAuthGuard instead
 @UseGuards(AdminAuthGuard)
 export class AdminApiKeyController {
