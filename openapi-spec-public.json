@@ -5,6 +5,7 @@
       "get": {
         "description": "Returns API information, version, available endpoints, and system status. This endpoint does not require authentication.",
         "operationId": "AppController_getWelcome_api/v1",
+        "parameters": [],
         "responses": {
           "200": {
             "description": "API information and status",
@@ -37,40 +38,13 @@
       "post": {
         "description": "Find the nearest Indian postal code(s) to given GPS coordinates. Returns pincodes sorted by distance from the point, useful when the point might be outside any pincode boundary or for finding nearby delivery options.",
         "operationId": "PincodeController_reverseGeocode_api/v1",
+        "parameters": [],
         "requestBody": {
           "required": true,
           "content": {
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/ReverseGeocodeDto"
-              },
-              "examples": {
-                "delhi-center": {
-                  "summary": "Find pincodes near Delhi center",
-                  "description": "Search for up to 3 nearest pincodes within 5km of Connaught Place, Delhi",
-                  "value": {
-                    "latitude": 28.6139,
-                    "longitude": 77.209,
-                    "maxDistance": 5,
-                    "limit": 3
-                  }
-                },
-                "mumbai-gateway": {
-                  "summary": "Find pincodes near Gateway of India",
-                  "description": "Search for nearest pincode within 10km of Gateway of India, Mumbai",
-                  "value": {
-                    "latitude": 18.922,
-                    "longitude": 72.8347,
-                    "maxDistance": 10,
-                    "limit": 1
-                  }
-                }
-              },
-              "example": {
-                "latitude": 28.6139,
-                "longitude": 77.209,
-                "maxDistance": 5,
-                "limit": 3
               }
             }
           }
@@ -101,6 +75,7 @@
       "post": {
         "description": "Find the pincode whose boundary polygon contains the given GPS coordinates. Uses exact point-in-polygon matching. Returns the pincode you are currently located in. Perfect for \"Where am I?\" queries.",
         "operationId": "PincodeController_locatePincode_api/v1",
+        "parameters": [],
         "requestBody": {
           "required": true,
           "content": {
@@ -123,10 +98,6 @@
                     "longitude": 72.8355
                   }
                 }
-              },
-              "example": {
-                "latitude": 28.6139,
-                "longitude": 77.209
               }
             }
           }
@@ -367,6 +338,7 @@
     "/api/v1/pincodes/bulk/lookup": {
       "post": {
         "operationId": "PincodeController_bulkLookup_api/v1",
+        "parameters": [],
         "requestBody": {
           "required": true,
           "content": {
@@ -397,15 +369,6 @@
                     "includePostOffices": true
                   }
                 }
-              },
-              "example": {
-                "pincodes": [
-                  "110001",
-                  "400001",
-                  "560001",
-                  "700001"
-                ],
-                "includePostOffices": false
               }
             }
           }
@@ -428,6 +391,7 @@
     "/api/v1/administrative/states": {
       "get": {
         "operationId": "AdministrativeController_getStates_api/v1",
+        "parameters": [],
         "responses": {
           "200": {
             "description": ""
@@ -474,6 +438,7 @@
     "/api/v1/administrative/districts": {
       "get": {
         "operationId": "AdministrativeController_getDistricts_api/v1",
+        "parameters": [],
         "responses": {
           "200": {
             "description": ""
@@ -492,6 +457,7 @@
     "/api/v1/administrative/regions": {
       "get": {
         "operationId": "AdministrativeController_getRegions_api/v1",
+        "parameters": [],
         "responses": {
           "200": {
             "description": ""
@@ -510,6 +476,7 @@
     "/api/v1/digipin/encode": {
       "post": {
         "operationId": "DigipinController_encode_api/v1",
+        "parameters": [],
         "requestBody": {
           "required": true,
           "content": {
@@ -562,15 +529,6 @@
                     "level": 10
                   }
                 }
-              },
-              "example": {
-                "coordinates": [
-                  {
-                    "latitude": 28.6139,
-                    "longitude": 77.209
-                  }
-                ],
-                "level": 6
               }
             }
           }
@@ -593,6 +551,7 @@
     "/api/v1/digipin/decode": {
       "post": {
         "operationId": "DigipinController_decode_api/v1",
+        "parameters": [],
         "requestBody": {
           "required": true,
           "content": {
@@ -619,11 +578,6 @@
                     ]
                   }
                 }
-              },
-              "example": {
-                "digipinCodes": [
-                  "C4P8K63M"
-                ]
               }
             }
           }
@@ -646,6 +600,7 @@
     "/api/v1/digipin/validate": {
       "post": {
         "operationId": "DigipinController_validate_api/v1",
+        "parameters": [],
         "requestBody": {
           "required": true,
           "content": {
@@ -660,9 +615,6 @@
                     "digipinCode": "C4P8K63M"
                   }
                 }
-              },
-              "example": {
-                "digipinCode": "C4P8K63M"
               }
             }
           }
@@ -685,6 +637,7 @@
     "/api/v1/digipin/to-pincode": {
       "post": {
         "operationId": "DigipinController_toPincode_api/v1",
+        "parameters": [],
         "requestBody": {
           "required": true,
           "content": {
@@ -699,9 +652,6 @@
                     "digipinCode": "C4P8K63M"
                   }
                 }
-              },
-              "example": {
-                "digipinCode": "C4P8K63M"
               }
             }
           }
@@ -724,6 +674,7 @@
     "/api/v1/digipin/nearby": {
       "get": {
         "operationId": "DigipinController_getNearby_api/v1",
+        "parameters": [],
         "responses": {
           "200": {
             "description": ""
@@ -883,6 +834,7 @@
       "post": {
         "description": "Calculate distance between any two locations (PINCODE, DIGIPIN, or coordinates) with delivery time estimates.",
         "operationId": "DistanceController_calculateDistance_api/v1",
+        "parameters": [],
         "requestBody": {
           "required": true,
           "content": {
@@ -936,15 +888,6 @@
                     "unit": "mi"
                   }
                 }
-              },
-              "example": {
-                "from": {
-                  "pincode": "110001"
-                },
-                "to": {
-                  "pincode": "400001"
-                },
-                "unit": "km"
               }
             }
           }
@@ -971,6 +914,7 @@
     "/api/v1/distance/batch": {
       "post": {
         "operationId": "DistanceController_batchDistance_api/v1",
+        "parameters": [],
         "requestBody": {
           "required": true,
           "content": {
@@ -1011,35 +955,6 @@
                     "unit": "km"
                   }
                 }
-              },
-              "example": {
-                "pairs": [
-                  {
-                    "from": {
-                      "pincode": "110001"
-                    },
-                    "to": {
-                      "pincode": "400001"
-                    }
-                  },
-                  {
-                    "from": {
-                      "pincode": "110001"
-                    },
-                    "to": {
-                      "pincode": "560001"
-                    }
-                  },
-                  {
-                    "from": {
-                      "pincode": "110001"
-                    },
-                    "to": {
-                      "pincode": "700001"
-                    }
-                  }
-                ],
-                "unit": "km"
               }
             }
           }
@@ -1062,6 +977,7 @@
     "/api/v1/health": {
       "get": {
         "operationId": "HealthController_check[0]_api/v1",
+        "parameters": [],
         "responses": {
           "200": {
             "description": "The Health Check is successful",
@@ -1229,6 +1145,7 @@
     "/health": {
       "get": {
         "operationId": "HealthController_check[1]",
+        "parameters": [],
         "responses": {
           "200": {
             "description": "The Health Check is successful",
@@ -1396,6 +1313,7 @@
     "/api/v1/health/live": {
       "get": {
         "operationId": "HealthController_liveness[0]_api/v1",
+        "parameters": [],
         "responses": {
           "200": {
             "description": "The Health Check is successful",
@@ -1563,6 +1481,7 @@
     "/health/live": {
       "get": {
         "operationId": "HealthController_liveness[1]",
+        "parameters": [],
         "responses": {
           "200": {
             "description": "The Health Check is successful",
@@ -1730,6 +1649,7 @@
     "/api/v1/health/ready": {
       "get": {
         "operationId": "HealthController_readiness[0]_api/v1",
+        "parameters": [],
         "responses": {
           "200": {
             "description": ""
@@ -1743,6 +1663,7 @@
     "/health/ready": {
       "get": {
         "operationId": "HealthController_readiness[1]",
+        "parameters": [],
         "responses": {
           "200": {
             "description": ""
@@ -1756,6 +1677,7 @@
     "/api/v1/health/status": {
       "get": {
         "operationId": "HealthController_status[0]_api/v1",
+        "parameters": [],
         "responses": {
           "200": {
             "description": ""
@@ -1769,6 +1691,7 @@
     "/health/status": {
       "get": {
         "operationId": "HealthController_status[1]",
+        "parameters": [],
         "responses": {
           "200": {
             "description": ""
