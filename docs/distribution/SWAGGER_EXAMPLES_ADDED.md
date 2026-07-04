@@ -153,24 +153,20 @@ pm2 restart pynpoint
 # or: systemctl restart pynpoint
 ```
 
-### 2. Regenerate OpenAPI Spec
-After deployment, download the new spec:
+### 2. Download OpenAPI Spec (Production-Ready!)
+After deployment, download the spec - **no cleaning needed**:
 ```bash
 curl https://pynpoint.codesense.in/api/docs-json > openapi-spec-public.json
 ```
 
-### 3. Clean Admin Endpoints (if needed)
-Run the cleaning script:
-```bash
-python3 scripts/clean-openapi-admin.py openapi-spec-public.json openapi-spec-public-clean.json
-```
+✨ **Admin endpoints are already excluded** via `@ApiExcludeController()` decorator!
 
-### 4. Upload to RapidAPI
+### 3. Upload to RapidAPI
 - Go to RapidAPI Dashboard → Your API → **Definition** tab
-- Upload `openapi-spec-public-clean.json`
+- Upload `openapi-spec-public.json` directly
 - RapidAPI will parse the examples automatically
 
-### 5. Verify in RapidAPI
+### 4. Verify in RapidAPI
 Go to **Requests** tab and check:
 - Click `POST /api/v1/pincodes/reverse-geocode`
 - Column 3 should show a **dropdown** with example names:
