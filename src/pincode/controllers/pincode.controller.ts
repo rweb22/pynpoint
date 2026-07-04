@@ -9,7 +9,7 @@ import {
   UseInterceptors,
   Logger,
 } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiResponse, ApiParam, ApiQuery, ApiSecurity } from '@nestjs/swagger';
+import { ApiTags, ApiOperation, ApiResponse, ApiParam, ApiQuery, ApiSecurity, ApiBody } from '@nestjs/swagger';
 import { ApiKeyGuard } from '../../auth/guards/api-key.guard';
 import { TokenBucketRateLimitInterceptor } from '../../auth/interceptors/token-bucket-rate-limit.interceptor';
 import { StreamUsageTrackingInterceptor } from '../../auth/interceptors/stream-usage-tracking.interceptor';
@@ -64,6 +64,31 @@ export class PincodeController {
     summary: 'Find nearest pincode(s) by distance',
     description: 'Find the nearest Indian postal code(s) to given GPS coordinates. Returns pincodes sorted by distance from the point, useful when the point might be outside any pincode boundary or for finding nearby delivery options.',
   })
+  @ApiBody({
+    type: ReverseGeocodeDto,
+    examples: {
+      'delhi-center': {
+        summary: 'Find pincodes near Delhi center',
+        description: 'Search for up to 3 nearest pincodes within 5km of Connaught Place, Delhi',
+        value: {
+          latitude: 28.6139,
+          longitude: 77.2090,
+          maxDistance: 5,
+          limit: 3
+        }
+      },
+      'mumbai-gateway': {
+        summary: 'Find pincodes near Gateway of India',
+        description: 'Search for nearest pincode within 10km of Gateway of India, Mumbai',
+        value: {
+          latitude: 18.9220,
+          longitude: 72.8347,
+          maxDistance: 10,
+          limit: 1
+        }
+      }
+    }
+  })
   @ApiResponse({ status: 200, description: 'Nearest pincode(s) found successfully' })
   @ApiResponse({ status: 400, description: 'Invalid coordinates' })
   @ApiResponse({ status: 404, description: 'No pincode found within search radius' })
@@ -82,6 +107,25 @@ export class PincodeController {
   @ApiOperation({
     summary: 'Find pincode from GPS coordinates',
     description: 'Find the pincode whose boundary polygon contains the given GPS coordinates. Uses exact point-in-polygon matching. Returns the pincode you are currently located in. Perfect for "Where am I?" queries.',
+  })
+  @ApiBody({
+    type: LocatePincodeDto,
+    examples: {
+      'delhi-parliament': {
+        summary: 'Locate pincode at Parliament House, Delhi',
+        value: {
+          latitude: 28.6139,
+          longitude: 77.2090
+        }
+      },
+      'mumbai-cst': {
+        summary: 'Locate pincode at CST, Mumbai',
+        value: {
+          latitude: 18.9398,
+          longitude: 72.8355
+        }
+      }
+    }
   })
   @ApiResponse({
     status: 200,
@@ -186,6 +230,25 @@ export class PincodeController {
    * Bulk pincode lookup (up to 100 pincodes)
    */
   @Post('bulk/lookup')
+  @ApiBody({
+    type: BulkPincodeLookupDto,
+    examples: {
+      'major-cities': {
+        summary: 'Lookup 4 major city pincodes',
+        value: {
+          pincodes: ['110001', '400001', '560001', '700001'],
+          includePostOffices: false
+        }
+      },
+      'with-post-offices': {
+        summary: 'Lookup with post office details',
+        value: {
+          pincodes: ['110001', '400001'],
+          includePostOffices: true
+        }
+      }
+    }
+  })
   async bulkLookup(@Body() dto: BulkPincodeLookupDto) {
     this.logger.log(`POST /pincodes/bulk/lookup (${dto.pincodes.length} pincodes)`);
     return this.pincodeService.bulkLookup(dto);

@@ -9,7 +9,7 @@ import {
   UseInterceptors,
   Logger,
 } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiResponse, ApiParam, ApiSecurity } from '@nestjs/swagger';
+import { ApiTags, ApiOperation, ApiResponse, ApiParam, ApiSecurity, ApiBody } from '@nestjs/swagger';
 import { ApiKeyGuard } from '../../auth/guards/api-key.guard';
 import { TokenBucketRateLimitInterceptor } from '../../auth/interceptors/token-bucket-rate-limit.interceptor';
 import { StreamUsageTrackingInterceptor } from '../../auth/interceptors/stream-usage-tracking.interceptor';
@@ -75,6 +75,36 @@ export class DigipinController {
    * IMPORTANT: POST routes should come before parameterized GET routes
    */
   @Post('encode')
+  @ApiBody({
+    type: EncodeDigipinDto,
+    examples: {
+      'single-delhi': {
+        summary: 'Encode single location (Delhi)',
+        value: {
+          coordinates: [{ latitude: 28.6139, longitude: 77.2090 }],
+          level: 6
+        }
+      },
+      'batch-cities': {
+        summary: 'Batch encode multiple cities',
+        value: {
+          coordinates: [
+            { latitude: 28.6139, longitude: 77.2090 },
+            { latitude: 19.0760, longitude: 72.8777 },
+            { latitude: 13.0827, longitude: 80.2707 }
+          ],
+          level: 8
+        }
+      },
+      'high-precision': {
+        summary: 'High precision encoding (~4m accuracy)',
+        value: {
+          coordinates: [{ latitude: 28.6139, longitude: 77.2090 }],
+          level: 10
+        }
+      }
+    }
+  })
   async encode(@Body() dto: EncodeDigipinDto): Promise<EncodeDigipinResponse> {
     this.logger.log(`POST /digipin/encode (${dto.coordinates.length} coordinates)`);
     return this.digipinService.encode(dto);
@@ -85,6 +115,23 @@ export class DigipinController {
    * Convert DIGIPIN codes to coordinates
    */
   @Post('decode')
+  @ApiBody({
+    type: DecodeDigipinDto,
+    examples: {
+      'single-code': {
+        summary: 'Decode single DIGIPIN',
+        value: {
+          digipinCodes: ['C4P8K63M']
+        }
+      },
+      'multiple-codes': {
+        summary: 'Decode multiple DIG IPINs',
+        value: {
+          digipinCodes: ['C4P8K63M', '4QHVFP2G', 'GWVPN64K']
+        }
+      }
+    }
+  })
   async decode(@Body() dto: DecodeDigipinDto): Promise<DecodeDigipinResponse> {
     this.logger.log(`POST /digipin/decode (${dto.digipinCodes.length} codes)`);
     return this.digipinService.decode(dto);
@@ -97,6 +144,17 @@ export class DigipinController {
    * UNIQUE FEATURE - No competitor has DIGIPIN validation!
    */
   @Post('validate')
+  @ApiBody({
+    type: ValidateDigipinDto,
+    examples: {
+      'valid-code': {
+        summary: 'Validate a DIGIPIN code',
+        value: {
+          digipinCode: 'C4P8K63M'
+        }
+      }
+    }
+  })
   async validate(@Body() dto: ValidateDigipinDto): Promise<ValidateDigipinResponse> {
     this.logger.log(`POST /digipin/validate (code: ${dto.digipinCode})`);
     return this.digipinService.validateDigipin(dto);
@@ -113,6 +171,17 @@ export class DigipinController {
    * IMPORTANT: Must come BEFORE GET routes to avoid route conflicts
    */
   @Post('to-pincode')
+  @ApiBody({
+    type: DigipinToPincodeDto,
+    examples: {
+      'digipin-to-pincode': {
+        summary: 'Convert DIGIPIN to nearest pincode',
+        value: {
+          digipinCode: 'C4P8K63M'
+        }
+      }
+    }
+  })
   async toPincode(@Body() dto: DigipinToPincodeDto): Promise<DigipinToPincodeResponse> {
     this.logger.log(`POST /digipin/to-pincode (code: ${dto.digipinCode})`);
     return this.digipinService.toPincode(dto);
