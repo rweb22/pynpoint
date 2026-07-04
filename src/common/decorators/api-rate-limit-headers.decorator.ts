@@ -1,40 +1,18 @@
 import { applyDecorators } from '@nestjs/common';
-import { ApiHeader } from '@nestjs/swagger';
 
 /**
  * Swagger decorator for rate limit response headers
- * 
- * Applies to all authenticated endpoints that use Token Bucket rate limiting.
- * Documents the X-RateLimit-* headers returned by the API.
+ *
+ * DEPRECATED: This decorator incorrectly uses @ApiHeader which creates REQUEST parameters
+ * instead of documenting RESPONSE headers. Removed to clean up OpenAPI spec for RapidAPI.
+ *
+ * Rate limit headers (X-RateLimit-*) are still returned by the API in responses,
+ * they're just not documented in the OpenAPI spec anymore.
+ *
+ * See: pynpoint/docs/api/RATE_LIMITING.md for rate limit documentation
  */
 export function ApiRateLimitHeaders() {
-  return applyDecorators(
-    ApiHeader({
-      name: 'X-RateLimit-Limit',
-      description: 'Maximum requests per minute for your tier',
-      required: false,
-      schema: {
-        type: 'integer',
-        example: 100,
-      },
-    }),
-    ApiHeader({
-      name: 'X-RateLimit-Remaining',
-      description: 'Number of requests remaining in current minute',
-      required: false,
-      schema: {
-        type: 'integer',
-        example: 95,
-      },
-    }),
-    ApiHeader({
-      name: 'X-RateLimit-Reset',
-      description: 'Unix timestamp (seconds) when the rate limit resets',
-      required: false,
-      schema: {
-        type: 'integer',
-        example: 1678901234,
-      },
-    }),
-  );
+  // Return empty decorator - rate limit headers are response headers
+  // and should be documented differently if needed
+  return applyDecorators();
 }

@@ -5,7 +5,6 @@
       "get": {
         "description": "Returns API information, version, available endpoints, and system status. This endpoint does not require authentication.",
         "operationId": "AppController_getWelcome_api/v1",
-        "parameters": [],
         "responses": {
           "200": {
             "description": "API information and status",
@@ -38,38 +37,6 @@
       "post": {
         "description": "Find the nearest Indian postal code(s) to given GPS coordinates. Returns pincodes sorted by distance from the point, useful when the point might be outside any pincode boundary or for finding nearby delivery options.",
         "operationId": "PincodeController_reverseGeocode_api/v1",
-        "parameters": [
-          {
-            "name": "X-RateLimit-Limit",
-            "in": "header",
-            "description": "Maximum requests per minute for your tier",
-            "required": false,
-            "schema": {
-              "type": "integer",
-              "example": 100
-            }
-          },
-          {
-            "name": "X-RateLimit-Remaining",
-            "in": "header",
-            "description": "Number of requests remaining in current minute",
-            "required": false,
-            "schema": {
-              "type": "integer",
-              "example": 95
-            }
-          },
-          {
-            "name": "X-RateLimit-Reset",
-            "in": "header",
-            "description": "Unix timestamp (seconds) when the rate limit resets",
-            "required": false,
-            "schema": {
-              "type": "integer",
-              "example": 1678901234
-            }
-          }
-        ],
         "requestBody": {
           "required": true,
           "content": {
@@ -134,38 +101,6 @@
       "post": {
         "description": "Find the pincode whose boundary polygon contains the given GPS coordinates. Uses exact point-in-polygon matching. Returns the pincode you are currently located in. Perfect for \"Where am I?\" queries.",
         "operationId": "PincodeController_locatePincode_api/v1",
-        "parameters": [
-          {
-            "name": "X-RateLimit-Limit",
-            "in": "header",
-            "description": "Maximum requests per minute for your tier",
-            "required": false,
-            "schema": {
-              "type": "integer",
-              "example": 100
-            }
-          },
-          {
-            "name": "X-RateLimit-Remaining",
-            "in": "header",
-            "description": "Number of requests remaining in current minute",
-            "required": false,
-            "schema": {
-              "type": "integer",
-              "example": 95
-            }
-          },
-          {
-            "name": "X-RateLimit-Reset",
-            "in": "header",
-            "description": "Unix timestamp (seconds) when the rate limit resets",
-            "required": false,
-            "schema": {
-              "type": "integer",
-              "example": 1678901234
-            }
-          }
-        ],
         "requestBody": {
           "required": true,
           "content": {
@@ -241,36 +176,6 @@
         "operationId": "PincodeController_validatePincode_api/v1",
         "parameters": [
           {
-            "name": "X-RateLimit-Limit",
-            "in": "header",
-            "description": "Maximum requests per minute for your tier",
-            "required": false,
-            "schema": {
-              "type": "integer",
-              "example": 100
-            }
-          },
-          {
-            "name": "X-RateLimit-Remaining",
-            "in": "header",
-            "description": "Number of requests remaining in current minute",
-            "required": false,
-            "schema": {
-              "type": "integer",
-              "example": 95
-            }
-          },
-          {
-            "name": "X-RateLimit-Reset",
-            "in": "header",
-            "description": "Unix timestamp (seconds) when the rate limit resets",
-            "required": false,
-            "schema": {
-              "type": "integer",
-              "example": 1678901234
-            }
-          },
-          {
             "name": "pincode",
             "required": true,
             "in": "path",
@@ -298,36 +203,6 @@
       "get": {
         "operationId": "PincodeController_getNearbyPincodes_api/v1",
         "parameters": [
-          {
-            "name": "X-RateLimit-Limit",
-            "in": "header",
-            "description": "Maximum requests per minute for your tier",
-            "required": false,
-            "schema": {
-              "type": "integer",
-              "example": 100
-            }
-          },
-          {
-            "name": "X-RateLimit-Remaining",
-            "in": "header",
-            "description": "Number of requests remaining in current minute",
-            "required": false,
-            "schema": {
-              "type": "integer",
-              "example": 95
-            }
-          },
-          {
-            "name": "X-RateLimit-Reset",
-            "in": "header",
-            "description": "Unix timestamp (seconds) when the rate limit resets",
-            "required": false,
-            "schema": {
-              "type": "integer",
-              "example": 1678901234
-            }
-          },
           {
             "name": "pincode",
             "required": true,
@@ -357,36 +232,6 @@
         "description": "Retrieve complete information for a specific 6-digit Indian postal code including location, administrative boundaries, and post office details.",
         "operationId": "PincodeController_getPincode_api/v1",
         "parameters": [
-          {
-            "name": "X-RateLimit-Limit",
-            "in": "header",
-            "description": "Maximum requests per minute for your tier",
-            "required": false,
-            "schema": {
-              "type": "integer",
-              "example": 100
-            }
-          },
-          {
-            "name": "X-RateLimit-Remaining",
-            "in": "header",
-            "description": "Number of requests remaining in current minute",
-            "required": false,
-            "schema": {
-              "type": "integer",
-              "example": 95
-            }
-          },
-          {
-            "name": "X-RateLimit-Reset",
-            "in": "header",
-            "description": "Unix timestamp (seconds) when the rate limit resets",
-            "required": false,
-            "schema": {
-              "type": "integer",
-              "example": 1678901234
-            }
-          },
           {
             "name": "pincode",
             "required": true,
@@ -437,36 +282,6 @@
       "get": {
         "operationId": "PincodeController_searchPincodes_api/v1",
         "parameters": [
-          {
-            "name": "X-RateLimit-Limit",
-            "in": "header",
-            "description": "Maximum requests per minute for your tier",
-            "required": false,
-            "schema": {
-              "type": "integer",
-              "example": 100
-            }
-          },
-          {
-            "name": "X-RateLimit-Remaining",
-            "in": "header",
-            "description": "Number of requests remaining in current minute",
-            "required": false,
-            "schema": {
-              "type": "integer",
-              "example": 95
-            }
-          },
-          {
-            "name": "X-RateLimit-Reset",
-            "in": "header",
-            "description": "Unix timestamp (seconds) when the rate limit resets",
-            "required": false,
-            "schema": {
-              "type": "integer",
-              "example": 1678901234
-            }
-          },
           {
             "name": "state",
             "required": false,
@@ -552,38 +367,6 @@
     "/api/v1/pincodes/bulk/lookup": {
       "post": {
         "operationId": "PincodeController_bulkLookup_api/v1",
-        "parameters": [
-          {
-            "name": "X-RateLimit-Limit",
-            "in": "header",
-            "description": "Maximum requests per minute for your tier",
-            "required": false,
-            "schema": {
-              "type": "integer",
-              "example": 100
-            }
-          },
-          {
-            "name": "X-RateLimit-Remaining",
-            "in": "header",
-            "description": "Number of requests remaining in current minute",
-            "required": false,
-            "schema": {
-              "type": "integer",
-              "example": 95
-            }
-          },
-          {
-            "name": "X-RateLimit-Reset",
-            "in": "header",
-            "description": "Unix timestamp (seconds) when the rate limit resets",
-            "required": false,
-            "schema": {
-              "type": "integer",
-              "example": 1678901234
-            }
-          }
-        ],
         "requestBody": {
           "required": true,
           "content": {
@@ -645,7 +428,6 @@
     "/api/v1/administrative/states": {
       "get": {
         "operationId": "AdministrativeController_getStates_api/v1",
-        "parameters": [],
         "responses": {
           "200": {
             "description": ""
@@ -692,7 +474,6 @@
     "/api/v1/administrative/districts": {
       "get": {
         "operationId": "AdministrativeController_getDistricts_api/v1",
-        "parameters": [],
         "responses": {
           "200": {
             "description": ""
@@ -711,7 +492,6 @@
     "/api/v1/administrative/regions": {
       "get": {
         "operationId": "AdministrativeController_getRegions_api/v1",
-        "parameters": [],
         "responses": {
           "200": {
             "description": ""
@@ -730,38 +510,6 @@
     "/api/v1/digipin/encode": {
       "post": {
         "operationId": "DigipinController_encode_api/v1",
-        "parameters": [
-          {
-            "name": "X-RateLimit-Limit",
-            "in": "header",
-            "description": "Maximum requests per minute for your tier",
-            "required": false,
-            "schema": {
-              "type": "integer",
-              "example": 100
-            }
-          },
-          {
-            "name": "X-RateLimit-Remaining",
-            "in": "header",
-            "description": "Number of requests remaining in current minute",
-            "required": false,
-            "schema": {
-              "type": "integer",
-              "example": 95
-            }
-          },
-          {
-            "name": "X-RateLimit-Reset",
-            "in": "header",
-            "description": "Unix timestamp (seconds) when the rate limit resets",
-            "required": false,
-            "schema": {
-              "type": "integer",
-              "example": 1678901234
-            }
-          }
-        ],
         "requestBody": {
           "required": true,
           "content": {
@@ -845,38 +593,6 @@
     "/api/v1/digipin/decode": {
       "post": {
         "operationId": "DigipinController_decode_api/v1",
-        "parameters": [
-          {
-            "name": "X-RateLimit-Limit",
-            "in": "header",
-            "description": "Maximum requests per minute for your tier",
-            "required": false,
-            "schema": {
-              "type": "integer",
-              "example": 100
-            }
-          },
-          {
-            "name": "X-RateLimit-Remaining",
-            "in": "header",
-            "description": "Number of requests remaining in current minute",
-            "required": false,
-            "schema": {
-              "type": "integer",
-              "example": 95
-            }
-          },
-          {
-            "name": "X-RateLimit-Reset",
-            "in": "header",
-            "description": "Unix timestamp (seconds) when the rate limit resets",
-            "required": false,
-            "schema": {
-              "type": "integer",
-              "example": 1678901234
-            }
-          }
-        ],
         "requestBody": {
           "required": true,
           "content": {
@@ -930,38 +646,6 @@
     "/api/v1/digipin/validate": {
       "post": {
         "operationId": "DigipinController_validate_api/v1",
-        "parameters": [
-          {
-            "name": "X-RateLimit-Limit",
-            "in": "header",
-            "description": "Maximum requests per minute for your tier",
-            "required": false,
-            "schema": {
-              "type": "integer",
-              "example": 100
-            }
-          },
-          {
-            "name": "X-RateLimit-Remaining",
-            "in": "header",
-            "description": "Number of requests remaining in current minute",
-            "required": false,
-            "schema": {
-              "type": "integer",
-              "example": 95
-            }
-          },
-          {
-            "name": "X-RateLimit-Reset",
-            "in": "header",
-            "description": "Unix timestamp (seconds) when the rate limit resets",
-            "required": false,
-            "schema": {
-              "type": "integer",
-              "example": 1678901234
-            }
-          }
-        ],
         "requestBody": {
           "required": true,
           "content": {
@@ -1001,38 +685,6 @@
     "/api/v1/digipin/to-pincode": {
       "post": {
         "operationId": "DigipinController_toPincode_api/v1",
-        "parameters": [
-          {
-            "name": "X-RateLimit-Limit",
-            "in": "header",
-            "description": "Maximum requests per minute for your tier",
-            "required": false,
-            "schema": {
-              "type": "integer",
-              "example": 100
-            }
-          },
-          {
-            "name": "X-RateLimit-Remaining",
-            "in": "header",
-            "description": "Number of requests remaining in current minute",
-            "required": false,
-            "schema": {
-              "type": "integer",
-              "example": 95
-            }
-          },
-          {
-            "name": "X-RateLimit-Reset",
-            "in": "header",
-            "description": "Unix timestamp (seconds) when the rate limit resets",
-            "required": false,
-            "schema": {
-              "type": "integer",
-              "example": 1678901234
-            }
-          }
-        ],
         "requestBody": {
           "required": true,
           "content": {
@@ -1072,38 +724,6 @@
     "/api/v1/digipin/nearby": {
       "get": {
         "operationId": "DigipinController_getNearby_api/v1",
-        "parameters": [
-          {
-            "name": "X-RateLimit-Limit",
-            "in": "header",
-            "description": "Maximum requests per minute for your tier",
-            "required": false,
-            "schema": {
-              "type": "integer",
-              "example": 100
-            }
-          },
-          {
-            "name": "X-RateLimit-Remaining",
-            "in": "header",
-            "description": "Number of requests remaining in current minute",
-            "required": false,
-            "schema": {
-              "type": "integer",
-              "example": 95
-            }
-          },
-          {
-            "name": "X-RateLimit-Reset",
-            "in": "header",
-            "description": "Unix timestamp (seconds) when the rate limit resets",
-            "required": false,
-            "schema": {
-              "type": "integer",
-              "example": 1678901234
-            }
-          }
-        ],
         "responses": {
           "200": {
             "description": ""
@@ -1123,36 +743,6 @@
       "get": {
         "operationId": "DigipinController_getNeighbors_api/v1",
         "parameters": [
-          {
-            "name": "X-RateLimit-Limit",
-            "in": "header",
-            "description": "Maximum requests per minute for your tier",
-            "required": false,
-            "schema": {
-              "type": "integer",
-              "example": 100
-            }
-          },
-          {
-            "name": "X-RateLimit-Remaining",
-            "in": "header",
-            "description": "Number of requests remaining in current minute",
-            "required": false,
-            "schema": {
-              "type": "integer",
-              "example": 95
-            }
-          },
-          {
-            "name": "X-RateLimit-Reset",
-            "in": "header",
-            "description": "Unix timestamp (seconds) when the rate limit resets",
-            "required": false,
-            "schema": {
-              "type": "integer",
-              "example": 1678901234
-            }
-          },
           {
             "name": "code",
             "required": true,
@@ -1182,36 +772,6 @@
         "operationId": "DigipinController_getParent_api/v1",
         "parameters": [
           {
-            "name": "X-RateLimit-Limit",
-            "in": "header",
-            "description": "Maximum requests per minute for your tier",
-            "required": false,
-            "schema": {
-              "type": "integer",
-              "example": 100
-            }
-          },
-          {
-            "name": "X-RateLimit-Remaining",
-            "in": "header",
-            "description": "Number of requests remaining in current minute",
-            "required": false,
-            "schema": {
-              "type": "integer",
-              "example": 95
-            }
-          },
-          {
-            "name": "X-RateLimit-Reset",
-            "in": "header",
-            "description": "Unix timestamp (seconds) when the rate limit resets",
-            "required": false,
-            "schema": {
-              "type": "integer",
-              "example": 1678901234
-            }
-          },
-          {
             "name": "code",
             "required": true,
             "in": "path",
@@ -1239,36 +799,6 @@
       "get": {
         "operationId": "DigipinController_getChildren_api/v1",
         "parameters": [
-          {
-            "name": "X-RateLimit-Limit",
-            "in": "header",
-            "description": "Maximum requests per minute for your tier",
-            "required": false,
-            "schema": {
-              "type": "integer",
-              "example": 100
-            }
-          },
-          {
-            "name": "X-RateLimit-Remaining",
-            "in": "header",
-            "description": "Number of requests remaining in current minute",
-            "required": false,
-            "schema": {
-              "type": "integer",
-              "example": 95
-            }
-          },
-          {
-            "name": "X-RateLimit-Reset",
-            "in": "header",
-            "description": "Unix timestamp (seconds) when the rate limit resets",
-            "required": false,
-            "schema": {
-              "type": "integer",
-              "example": 1678901234
-            }
-          },
           {
             "name": "code",
             "required": true,
@@ -1298,36 +828,6 @@
         "operationId": "DigipinController_getAncestors_api/v1",
         "parameters": [
           {
-            "name": "X-RateLimit-Limit",
-            "in": "header",
-            "description": "Maximum requests per minute for your tier",
-            "required": false,
-            "schema": {
-              "type": "integer",
-              "example": 100
-            }
-          },
-          {
-            "name": "X-RateLimit-Remaining",
-            "in": "header",
-            "description": "Number of requests remaining in current minute",
-            "required": false,
-            "schema": {
-              "type": "integer",
-              "example": 95
-            }
-          },
-          {
-            "name": "X-RateLimit-Reset",
-            "in": "header",
-            "description": "Unix timestamp (seconds) when the rate limit resets",
-            "required": false,
-            "schema": {
-              "type": "integer",
-              "example": 1678901234
-            }
-          },
-          {
             "name": "code",
             "required": true,
             "in": "path",
@@ -1356,36 +856,6 @@
         "operationId": "DigipinController_getCell_api/v1",
         "parameters": [
           {
-            "name": "X-RateLimit-Limit",
-            "in": "header",
-            "description": "Maximum requests per minute for your tier",
-            "required": false,
-            "schema": {
-              "type": "integer",
-              "example": 100
-            }
-          },
-          {
-            "name": "X-RateLimit-Remaining",
-            "in": "header",
-            "description": "Number of requests remaining in current minute",
-            "required": false,
-            "schema": {
-              "type": "integer",
-              "example": 95
-            }
-          },
-          {
-            "name": "X-RateLimit-Reset",
-            "in": "header",
-            "description": "Unix timestamp (seconds) when the rate limit resets",
-            "required": false,
-            "schema": {
-              "type": "integer",
-              "example": 1678901234
-            }
-          },
-          {
             "name": "code",
             "required": true,
             "in": "path",
@@ -1413,38 +883,6 @@
       "post": {
         "description": "Calculate distance between any two locations (PINCODE, DIGIPIN, or coordinates) with delivery time estimates.",
         "operationId": "DistanceController_calculateDistance_api/v1",
-        "parameters": [
-          {
-            "name": "X-RateLimit-Limit",
-            "in": "header",
-            "description": "Maximum requests per minute for your tier",
-            "required": false,
-            "schema": {
-              "type": "integer",
-              "example": 100
-            }
-          },
-          {
-            "name": "X-RateLimit-Remaining",
-            "in": "header",
-            "description": "Number of requests remaining in current minute",
-            "required": false,
-            "schema": {
-              "type": "integer",
-              "example": 95
-            }
-          },
-          {
-            "name": "X-RateLimit-Reset",
-            "in": "header",
-            "description": "Unix timestamp (seconds) when the rate limit resets",
-            "required": false,
-            "schema": {
-              "type": "integer",
-              "example": 1678901234
-            }
-          }
-        ],
         "requestBody": {
           "required": true,
           "content": {
@@ -1533,38 +971,6 @@
     "/api/v1/distance/batch": {
       "post": {
         "operationId": "DistanceController_batchDistance_api/v1",
-        "parameters": [
-          {
-            "name": "X-RateLimit-Limit",
-            "in": "header",
-            "description": "Maximum requests per minute for your tier",
-            "required": false,
-            "schema": {
-              "type": "integer",
-              "example": 100
-            }
-          },
-          {
-            "name": "X-RateLimit-Remaining",
-            "in": "header",
-            "description": "Number of requests remaining in current minute",
-            "required": false,
-            "schema": {
-              "type": "integer",
-              "example": 95
-            }
-          },
-          {
-            "name": "X-RateLimit-Reset",
-            "in": "header",
-            "description": "Unix timestamp (seconds) when the rate limit resets",
-            "required": false,
-            "schema": {
-              "type": "integer",
-              "example": 1678901234
-            }
-          }
-        ],
         "requestBody": {
           "required": true,
           "content": {
@@ -1656,7 +1062,6 @@
     "/api/v1/health": {
       "get": {
         "operationId": "HealthController_check[0]_api/v1",
-        "parameters": [],
         "responses": {
           "200": {
             "description": "The Health Check is successful",
@@ -1824,7 +1229,6 @@
     "/health": {
       "get": {
         "operationId": "HealthController_check[1]",
-        "parameters": [],
         "responses": {
           "200": {
             "description": "The Health Check is successful",
@@ -1992,7 +1396,6 @@
     "/api/v1/health/live": {
       "get": {
         "operationId": "HealthController_liveness[0]_api/v1",
-        "parameters": [],
         "responses": {
           "200": {
             "description": "The Health Check is successful",
@@ -2160,7 +1563,6 @@
     "/health/live": {
       "get": {
         "operationId": "HealthController_liveness[1]",
-        "parameters": [],
         "responses": {
           "200": {
             "description": "The Health Check is successful",
@@ -2328,7 +1730,6 @@
     "/api/v1/health/ready": {
       "get": {
         "operationId": "HealthController_readiness[0]_api/v1",
-        "parameters": [],
         "responses": {
           "200": {
             "description": ""
@@ -2342,7 +1743,6 @@
     "/health/ready": {
       "get": {
         "operationId": "HealthController_readiness[1]",
-        "parameters": [],
         "responses": {
           "200": {
             "description": ""
@@ -2356,7 +1756,6 @@
     "/api/v1/health/status": {
       "get": {
         "operationId": "HealthController_status[0]_api/v1",
-        "parameters": [],
         "responses": {
           "200": {
             "description": ""
@@ -2370,7 +1769,6 @@
     "/health/status": {
       "get": {
         "operationId": "HealthController_status[1]",
-        "parameters": [],
         "responses": {
           "200": {
             "description": ""
