@@ -15,6 +15,7 @@ import { TokenBucketRateLimitInterceptor } from '../../auth/interceptors/token-b
 import { StreamUsageTrackingInterceptor } from '../../auth/interceptors/stream-usage-tracking.interceptor';
 import { PincodeService } from '../services/pincode.service';
 import { AdministrativeService } from '../services/administrative.service';
+import { ApiRateLimitHeaders } from '../../common/decorators/api-rate-limit-headers.decorator';
 import {
   PincodeQueryDto,
   BulkPincodeLookupDto,
@@ -41,6 +42,7 @@ import { PincodeValidationPipe } from '../pipes/pincode-validation.pipe';
 @Controller({ path: 'pincodes', version: '1' })
 @ApiTags('pincodes')
 @ApiSecurity('api-key')
+@ApiRateLimitHeaders()
 @UseGuards(ApiKeyGuard)
 @UseInterceptors(TokenBucketRateLimitInterceptor, StreamUsageTrackingInterceptor)
 export class PincodeController {

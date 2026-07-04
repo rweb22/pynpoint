@@ -1,5 +1,6 @@
 import { IsOptional, IsString, IsInt, IsNumber, Min, Max, IsBoolean, IsArray, IsIn } from 'class-validator';
 import { Type, Transform } from 'class-transformer';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
 /**
  * Query DTO for GET /pincodes
@@ -7,18 +8,41 @@ import { Type, Transform } from 'class-transformer';
  * Supports filtering by state, district, and pagination
  */
 export class PincodeQueryDto {
+  @ApiPropertyOptional({
+    description: 'Filter pincodes by state name',
+    example: 'Delhi',
+    type: String,
+  })
   @IsOptional()
   @IsString()
   state?: string;
 
+  @ApiPropertyOptional({
+    description: 'Filter pincodes by district name',
+    example: 'Central Delhi',
+    type: String,
+  })
   @IsOptional()
   @IsString()
   district?: string;
 
+  @ApiPropertyOptional({
+    description: 'Search in office name or pincode',
+    example: 'Connaught',
+    type: String,
+  })
   @IsOptional()
   @IsString()
-  search?: string; // Search in office_name or pincode
+  search?: string;
 
+  @ApiPropertyOptional({
+    description: 'Number of results per page',
+    example: 25,
+    minimum: 1,
+    maximum: 100,
+    default: 25,
+    type: Number,
+  })
   @IsOptional()
   @Type(() => Number)
   @IsInt()
@@ -26,12 +50,25 @@ export class PincodeQueryDto {
   @Max(100)
   limit?: number = 25;
 
+  @ApiPropertyOptional({
+    description: 'Page number for pagination',
+    example: 1,
+    minimum: 1,
+    default: 1,
+    type: Number,
+  })
   @IsOptional()
   @Type(() => Number)
   @IsInt()
   @Min(1)
   page?: number = 1;
 
+  @ApiPropertyOptional({
+    description: 'Include post offices in the response',
+    example: false,
+    default: false,
+    type: Boolean,
+  })
   @IsOptional()
   @Transform(({ value }) => value === 'true' || value === true)
   @IsBoolean()
@@ -136,29 +173,59 @@ export class NearbyPincodeQueryDto {
  * Convert coordinates to nearest pincode
  */
 export class ReverseGeocodeDto {
+  @ApiProperty({
+    description: 'Latitude coordinate (-90 to 90)',
+    example: 28.6139,
+    minimum: -90,
+    maximum: 90,
+    type: Number,
+  })
   @IsNumber()
   @Min(-90)
   @Max(90)
   latitude: number;
 
+  @ApiProperty({
+    description: 'Longitude coordinate (-180 to 180)',
+    example: 77.2090,
+    minimum: -180,
+    maximum: 180,
+    type: Number,
+  })
   @IsNumber()
   @Min(-180)
   @Max(180)
   longitude: number;
 
+  @ApiPropertyOptional({
+    description: 'Maximum search radius in kilometers',
+    example: 5,
+    minimum: 0.1,
+    maximum: 50,
+    default: 5,
+    type: Number,
+  })
   @IsOptional()
   @Type(() => Number)
   @IsNumber()
   @Min(0.1)
   @Max(50)
-  maxDistance?: number = 5; // Max search radius in km
+  maxDistance?: number = 5;
 
+  @ApiPropertyOptional({
+    description: 'Maximum number of results to return',
+    example: 1,
+    minimum: 1,
+    maximum: 10,
+    default: 1,
+    type: Number,
+  })
   @IsOptional()
   @Type(() => Number)
   @IsInt()
   @Min(1)
   @Max(10)
-  limit?: number = 1; // Return top N closest pincodes
+  limit?: number = 1;
 }
 
 /**
@@ -167,11 +234,25 @@ export class ReverseGeocodeDto {
  * Find the pincode that contains the given coordinates (point-in-polygon)
  */
 export class LocatePincodeDto {
+  @ApiProperty({
+    description: 'Latitude coordinate (-90 to 90)',
+    example: 28.6139,
+    minimum: -90,
+    maximum: 90,
+    type: Number,
+  })
   @IsNumber()
   @Min(-90)
   @Max(90)
   latitude: number;
 
+  @ApiProperty({
+    description: 'Longitude coordinate (-180 to 180)',
+    example: 77.2090,
+    minimum: -180,
+    maximum: 180,
+    type: Number,
+  })
   @IsNumber()
   @Min(-180)
   @Max(180)

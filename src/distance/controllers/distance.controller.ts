@@ -4,6 +4,7 @@ import { DistanceService } from '../services/distance.service';
 import { ApiKeyGuard } from '../../auth/guards/api-key.guard';
 import { TokenBucketRateLimitInterceptor } from '../../auth/interceptors/token-bucket-rate-limit.interceptor';
 import { StreamUsageTrackingInterceptor } from '../../auth/interceptors/stream-usage-tracking.interceptor';
+import { ApiRateLimitHeaders } from '../../common/decorators/api-rate-limit-headers.decorator';
 import {
   CalculateDistanceDto,
   BatchDistanceDto,
@@ -16,6 +17,7 @@ import {
 @Controller({ path: 'distance', version: '1' })
 @ApiTags('distance')
 @ApiSecurity('api-key')
+@ApiRateLimitHeaders()
 @UseGuards(ApiKeyGuard)
 @UseInterceptors(TokenBucketRateLimitInterceptor, StreamUsageTrackingInterceptor)
 export class DistanceController {

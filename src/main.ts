@@ -63,9 +63,18 @@ async function bootstrap() {
         type: 'apiKey',
         name: 'X-API-Key',
         in: 'header',
-        description: 'API key for authentication. Get your API key at https://pinpointindia.in',
+        description: 'API key for authentication (recommended). Format: X-API-Key: your_api_key',
       },
       'api-key',
+    )
+    .addBearerAuth(
+      {
+        type: 'http',
+        scheme: 'bearer',
+        bearerFormat: 'API Key',
+        description: 'Alternative: Bearer token authentication. Format: Authorization: Bearer your_api_key',
+      },
+      'bearer',
     )
     .addTag('pincodes', 'PINCODE operations - lookup, search, validation, and spatial queries')
     .addTag('administrative', 'Administrative boundaries - states, districts, and regions')

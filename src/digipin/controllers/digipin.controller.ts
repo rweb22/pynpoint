@@ -14,6 +14,7 @@ import { ApiKeyGuard } from '../../auth/guards/api-key.guard';
 import { TokenBucketRateLimitInterceptor } from '../../auth/interceptors/token-bucket-rate-limit.interceptor';
 import { StreamUsageTrackingInterceptor } from '../../auth/interceptors/stream-usage-tracking.interceptor';
 import { DigipinService } from '../services/digipin.service';
+import { ApiRateLimitHeaders } from '../../common/decorators/api-rate-limit-headers.decorator';
 import {
   EncodeDigipinDto,
   DecodeDigipinDto,
@@ -59,6 +60,7 @@ import {
 @Controller({ path: 'digipin', version: '1' })
 @ApiTags('digipin')
 @ApiSecurity('api-key')
+@ApiRateLimitHeaders()
 @UseGuards(ApiKeyGuard)
 @UseInterceptors(TokenBucketRateLimitInterceptor, StreamUsageTrackingInterceptor)
 export class DigipinController {
