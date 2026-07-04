@@ -44,7 +44,7 @@ async function bootstrap() {
   const config = new DocumentBuilder()
     .setTitle('PinPoint India API')
     .setDescription(
-      "India's first dual-system addressing API supporting both traditional PINCODE (6-digit postal codes) and modern DIGIPIN (India's geocoding system based on H3 hexagonal grid). Features 150,000+ pincodes with complete PostGIS polygons, DIGIPIN integration with precise location accuracy, seamless PINCODE ↔ DIGIPIN ↔ Lat/Long conversion, distance calculator for delivery estimates, reverse geocoding, and spatial queries.",
+      "India's most comprehensive dual-system addressing API supporting both traditional PINCODE (6-digit postal codes) and modern DIGIPIN (India Post's official 10-level grid-based geocoding system). Features 19,000+ pincodes with precise geographic boundaries, 150,000+ post offices, complete administrative hierarchy, seamless PINCODE ↔ DIGIPIN ↔ Coordinates conversion, distance calculator, reverse geocoding, and spatial queries with polygon-accurate location validation.",
     )
     .setVersion('1.0.0')
     .setContact(
@@ -54,7 +54,7 @@ async function bootstrap() {
     )
     .setLicense('Commercial', 'https://pinpointindia.in/terms')
     .addServer(
-      process.env.API_BASE_URL || 'http://localhost:3000',
+      process.env.API_BASE_URL || 'https://pynpoint.codesense.in',
       'Production API',
     )
     .addServer('http://localhost:3000', 'Local Development')
