@@ -1,0 +1,2460 @@
+{
+  "openapi": "3.0.0",
+  "paths": {
+    "/api/v1": {
+      "get": {
+        "description": "Returns API information, version, available endpoints, and system status. This endpoint does not require authentication.",
+        "operationId": "AppController_getWelcome_api/v1",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "API information and status",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "example": {
+                    "message": "Welcome to PinPoint India API",
+                    "version": "1.0.0",
+                    "status": "operational",
+                    "features": [
+                      "PINCODE lookup",
+                      "DIGIPIN geocoding",
+                      "Distance calculation"
+                    ],
+                    "documentation": "/api/docs"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "summary": "API Welcome & Status",
+        "tags": [
+          "health"
+        ]
+      }
+    },
+    "/api/v1/pincodes/reverse-geocode": {
+      "post": {
+        "description": "Find the nearest Indian postal code(s) to given GPS coordinates. Returns pincodes sorted by distance from the point, useful when the point might be outside any pincode boundary or for finding nearby delivery options.",
+        "operationId": "PincodeController_reverseGeocode_api/v1",
+        "parameters": [
+          {
+            "name": "X-RateLimit-Limit",
+            "in": "header",
+            "description": "Maximum requests per minute for your tier",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "example": 100
+            }
+          },
+          {
+            "name": "X-RateLimit-Remaining",
+            "in": "header",
+            "description": "Number of requests remaining in current minute",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "example": 95
+            }
+          },
+          {
+            "name": "X-RateLimit-Reset",
+            "in": "header",
+            "description": "Unix timestamp (seconds) when the rate limit resets",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "example": 1678901234
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReverseGeocodeDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Nearest pincode(s) found successfully"
+          },
+          "400": {
+            "description": "Invalid coordinates"
+          },
+          "404": {
+            "description": "No pincode found within search radius"
+          }
+        },
+        "security": [
+          {
+            "api-key": []
+          }
+        ],
+        "summary": "Find nearest pincode(s) by distance",
+        "tags": [
+          "pincodes"
+        ]
+      }
+    },
+    "/api/v1/pincodes/locate": {
+      "post": {
+        "description": "Find the pincode whose boundary polygon contains the given GPS coordinates. Uses exact point-in-polygon matching. Returns the pincode you are currently located in. Perfect for \"Where am I?\" queries.",
+        "operationId": "PincodeController_locatePincode_api/v1",
+        "parameters": [
+          {
+            "name": "X-RateLimit-Limit",
+            "in": "header",
+            "description": "Maximum requests per minute for your tier",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "example": 100
+            }
+          },
+          {
+            "name": "X-RateLimit-Remaining",
+            "in": "header",
+            "description": "Number of requests remaining in current minute",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "example": 95
+            }
+          },
+          {
+            "name": "X-RateLimit-Reset",
+            "in": "header",
+            "description": "Unix timestamp (seconds) when the rate limit resets",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "example": 1678901234
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LocatePincodeDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successfully located pincode or confirmed no pincode contains the point",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "example": {
+                    "coordinates": {
+                      "latitude": 28.6139,
+                      "longitude": 77.209,
+                      "withinIndiaBounds": true
+                    },
+                    "pincode": "110001",
+                    "found": true,
+                    "details": {
+                      "pincode": "110001",
+                      "officeName": "Connaught Place H.O",
+                      "state": "Delhi",
+                      "district": "Central Delhi"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid coordinates"
+          }
+        },
+        "security": [
+          {
+            "api-key": []
+          }
+        ],
+        "summary": "Find pincode from GPS coordinates",
+        "tags": [
+          "pincodes"
+        ]
+      }
+    },
+    "/api/v1/pincodes/{pincode}/validate": {
+      "get": {
+        "operationId": "PincodeController_validatePincode_api/v1",
+        "parameters": [
+          {
+            "name": "X-RateLimit-Limit",
+            "in": "header",
+            "description": "Maximum requests per minute for your tier",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "example": 100
+            }
+          },
+          {
+            "name": "X-RateLimit-Remaining",
+            "in": "header",
+            "description": "Number of requests remaining in current minute",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "example": 95
+            }
+          },
+          {
+            "name": "X-RateLimit-Reset",
+            "in": "header",
+            "description": "Unix timestamp (seconds) when the rate limit resets",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "example": 1678901234
+            }
+          },
+          {
+            "name": "pincode",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "api-key": []
+          }
+        ],
+        "tags": [
+          "pincodes"
+        ]
+      }
+    },
+    "/api/v1/pincodes/{pincode}/nearby": {
+      "get": {
+        "operationId": "PincodeController_getNearbyPincodes_api/v1",
+        "parameters": [
+          {
+            "name": "X-RateLimit-Limit",
+            "in": "header",
+            "description": "Maximum requests per minute for your tier",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "example": 100
+            }
+          },
+          {
+            "name": "X-RateLimit-Remaining",
+            "in": "header",
+            "description": "Number of requests remaining in current minute",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "example": 95
+            }
+          },
+          {
+            "name": "X-RateLimit-Reset",
+            "in": "header",
+            "description": "Unix timestamp (seconds) when the rate limit resets",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "example": 1678901234
+            }
+          },
+          {
+            "name": "pincode",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "api-key": []
+          }
+        ],
+        "tags": [
+          "pincodes"
+        ]
+      }
+    },
+    "/api/v1/pincodes/{pincode}": {
+      "get": {
+        "description": "Retrieve complete information for a specific 6-digit Indian postal code including location, administrative boundaries, and post office details.",
+        "operationId": "PincodeController_getPincode_api/v1",
+        "parameters": [
+          {
+            "name": "X-RateLimit-Limit",
+            "in": "header",
+            "description": "Maximum requests per minute for your tier",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "example": 100
+            }
+          },
+          {
+            "name": "X-RateLimit-Remaining",
+            "in": "header",
+            "description": "Number of requests remaining in current minute",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "example": 95
+            }
+          },
+          {
+            "name": "X-RateLimit-Reset",
+            "in": "header",
+            "description": "Unix timestamp (seconds) when the rate limit resets",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "example": 1678901234
+            }
+          },
+          {
+            "name": "pincode",
+            "required": true,
+            "in": "path",
+            "description": "6-digit Indian postal code",
+            "schema": {
+              "example": "110001",
+              "type": "string"
+            }
+          },
+          {
+            "name": "includePostOffices",
+            "required": false,
+            "in": "query",
+            "description": "Include associated post offices in the response",
+            "schema": {
+              "example": "true",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Pincode details retrieved successfully"
+          },
+          "401": {
+            "description": "Invalid API key"
+          },
+          "404": {
+            "description": "Pincode not found"
+          },
+          "429": {
+            "description": "Rate limit exceeded"
+          }
+        },
+        "security": [
+          {
+            "api-key": []
+          }
+        ],
+        "summary": "Get pincode details",
+        "tags": [
+          "pincodes"
+        ]
+      }
+    },
+    "/api/v1/pincodes": {
+      "get": {
+        "operationId": "PincodeController_searchPincodes_api/v1",
+        "parameters": [
+          {
+            "name": "X-RateLimit-Limit",
+            "in": "header",
+            "description": "Maximum requests per minute for your tier",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "example": 100
+            }
+          },
+          {
+            "name": "X-RateLimit-Remaining",
+            "in": "header",
+            "description": "Number of requests remaining in current minute",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "example": 95
+            }
+          },
+          {
+            "name": "X-RateLimit-Reset",
+            "in": "header",
+            "description": "Unix timestamp (seconds) when the rate limit resets",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "example": 1678901234
+            }
+          },
+          {
+            "name": "state",
+            "required": false,
+            "in": "query",
+            "description": "Filter pincodes by state name",
+            "schema": {
+              "example": "Delhi",
+              "type": "string"
+            }
+          },
+          {
+            "name": "district",
+            "required": false,
+            "in": "query",
+            "description": "Filter pincodes by district name",
+            "schema": {
+              "example": "Central Delhi",
+              "type": "string"
+            }
+          },
+          {
+            "name": "search",
+            "required": false,
+            "in": "query",
+            "description": "Search in office name or pincode",
+            "schema": {
+              "example": "Connaught",
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "required": false,
+            "in": "query",
+            "description": "Number of results per page",
+            "schema": {
+              "minimum": 1,
+              "maximum": 100,
+              "default": 25,
+              "example": 25,
+              "type": "number"
+            }
+          },
+          {
+            "name": "page",
+            "required": false,
+            "in": "query",
+            "description": "Page number for pagination",
+            "schema": {
+              "minimum": 1,
+              "default": 1,
+              "example": 1,
+              "type": "number"
+            }
+          },
+          {
+            "name": "includePostOffices",
+            "required": false,
+            "in": "query",
+            "description": "Include post offices in the response",
+            "schema": {
+              "default": false,
+              "example": false,
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "api-key": []
+          }
+        ],
+        "tags": [
+          "pincodes"
+        ]
+      }
+    },
+    "/api/v1/pincodes/bulk/lookup": {
+      "post": {
+        "operationId": "PincodeController_bulkLookup_api/v1",
+        "parameters": [
+          {
+            "name": "X-RateLimit-Limit",
+            "in": "header",
+            "description": "Maximum requests per minute for your tier",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "example": 100
+            }
+          },
+          {
+            "name": "X-RateLimit-Remaining",
+            "in": "header",
+            "description": "Number of requests remaining in current minute",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "example": 95
+            }
+          },
+          {
+            "name": "X-RateLimit-Reset",
+            "in": "header",
+            "description": "Unix timestamp (seconds) when the rate limit resets",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "example": 1678901234
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BulkPincodeLookupDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "api-key": []
+          }
+        ],
+        "tags": [
+          "pincodes"
+        ]
+      }
+    },
+    "/api/v1/administrative/states": {
+      "get": {
+        "operationId": "AdministrativeController_getStates_api/v1",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "api-key": []
+          }
+        ],
+        "tags": [
+          "administrative"
+        ]
+      }
+    },
+    "/api/v1/administrative/states/{code}": {
+      "get": {
+        "operationId": "AdministrativeController_getStateDetails_api/v1",
+        "parameters": [
+          {
+            "name": "code",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "api-key": []
+          }
+        ],
+        "tags": [
+          "administrative"
+        ]
+      }
+    },
+    "/api/v1/administrative/districts": {
+      "get": {
+        "operationId": "AdministrativeController_getDistricts_api/v1",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "api-key": []
+          }
+        ],
+        "tags": [
+          "administrative"
+        ]
+      }
+    },
+    "/api/v1/administrative/regions": {
+      "get": {
+        "operationId": "AdministrativeController_getRegions_api/v1",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "api-key": []
+          }
+        ],
+        "tags": [
+          "administrative"
+        ]
+      }
+    },
+    "/api/v1/digipin/encode": {
+      "post": {
+        "operationId": "DigipinController_encode_api/v1",
+        "parameters": [
+          {
+            "name": "X-RateLimit-Limit",
+            "in": "header",
+            "description": "Maximum requests per minute for your tier",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "example": 100
+            }
+          },
+          {
+            "name": "X-RateLimit-Remaining",
+            "in": "header",
+            "description": "Number of requests remaining in current minute",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "example": 95
+            }
+          },
+          {
+            "name": "X-RateLimit-Reset",
+            "in": "header",
+            "description": "Unix timestamp (seconds) when the rate limit resets",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "example": 1678901234
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EncodeDigipinDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "api-key": []
+          }
+        ],
+        "tags": [
+          "digipin"
+        ]
+      }
+    },
+    "/api/v1/digipin/decode": {
+      "post": {
+        "operationId": "DigipinController_decode_api/v1",
+        "parameters": [
+          {
+            "name": "X-RateLimit-Limit",
+            "in": "header",
+            "description": "Maximum requests per minute for your tier",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "example": 100
+            }
+          },
+          {
+            "name": "X-RateLimit-Remaining",
+            "in": "header",
+            "description": "Number of requests remaining in current minute",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "example": 95
+            }
+          },
+          {
+            "name": "X-RateLimit-Reset",
+            "in": "header",
+            "description": "Unix timestamp (seconds) when the rate limit resets",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "example": 1678901234
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DecodeDigipinDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "api-key": []
+          }
+        ],
+        "tags": [
+          "digipin"
+        ]
+      }
+    },
+    "/api/v1/digipin/validate": {
+      "post": {
+        "operationId": "DigipinController_validate_api/v1",
+        "parameters": [
+          {
+            "name": "X-RateLimit-Limit",
+            "in": "header",
+            "description": "Maximum requests per minute for your tier",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "example": 100
+            }
+          },
+          {
+            "name": "X-RateLimit-Remaining",
+            "in": "header",
+            "description": "Number of requests remaining in current minute",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "example": 95
+            }
+          },
+          {
+            "name": "X-RateLimit-Reset",
+            "in": "header",
+            "description": "Unix timestamp (seconds) when the rate limit resets",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "example": 1678901234
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ValidateDigipinDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "api-key": []
+          }
+        ],
+        "tags": [
+          "digipin"
+        ]
+      }
+    },
+    "/api/v1/digipin/to-pincode": {
+      "post": {
+        "operationId": "DigipinController_toPincode_api/v1",
+        "parameters": [
+          {
+            "name": "X-RateLimit-Limit",
+            "in": "header",
+            "description": "Maximum requests per minute for your tier",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "example": 100
+            }
+          },
+          {
+            "name": "X-RateLimit-Remaining",
+            "in": "header",
+            "description": "Number of requests remaining in current minute",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "example": 95
+            }
+          },
+          {
+            "name": "X-RateLimit-Reset",
+            "in": "header",
+            "description": "Unix timestamp (seconds) when the rate limit resets",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "example": 1678901234
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DigipinToPincodeDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "api-key": []
+          }
+        ],
+        "tags": [
+          "digipin"
+        ]
+      }
+    },
+    "/api/v1/digipin/nearby": {
+      "get": {
+        "operationId": "DigipinController_getNearby_api/v1",
+        "parameters": [
+          {
+            "name": "X-RateLimit-Limit",
+            "in": "header",
+            "description": "Maximum requests per minute for your tier",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "example": 100
+            }
+          },
+          {
+            "name": "X-RateLimit-Remaining",
+            "in": "header",
+            "description": "Number of requests remaining in current minute",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "example": 95
+            }
+          },
+          {
+            "name": "X-RateLimit-Reset",
+            "in": "header",
+            "description": "Unix timestamp (seconds) when the rate limit resets",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "example": 1678901234
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "api-key": []
+          }
+        ],
+        "tags": [
+          "digipin"
+        ]
+      }
+    },
+    "/api/v1/digipin/neighbors/{code}": {
+      "get": {
+        "operationId": "DigipinController_getNeighbors_api/v1",
+        "parameters": [
+          {
+            "name": "X-RateLimit-Limit",
+            "in": "header",
+            "description": "Maximum requests per minute for your tier",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "example": 100
+            }
+          },
+          {
+            "name": "X-RateLimit-Remaining",
+            "in": "header",
+            "description": "Number of requests remaining in current minute",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "example": 95
+            }
+          },
+          {
+            "name": "X-RateLimit-Reset",
+            "in": "header",
+            "description": "Unix timestamp (seconds) when the rate limit resets",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "example": 1678901234
+            }
+          },
+          {
+            "name": "code",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "api-key": []
+          }
+        ],
+        "tags": [
+          "digipin"
+        ]
+      }
+    },
+    "/api/v1/digipin/{code}/parent": {
+      "get": {
+        "operationId": "DigipinController_getParent_api/v1",
+        "parameters": [
+          {
+            "name": "X-RateLimit-Limit",
+            "in": "header",
+            "description": "Maximum requests per minute for your tier",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "example": 100
+            }
+          },
+          {
+            "name": "X-RateLimit-Remaining",
+            "in": "header",
+            "description": "Number of requests remaining in current minute",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "example": 95
+            }
+          },
+          {
+            "name": "X-RateLimit-Reset",
+            "in": "header",
+            "description": "Unix timestamp (seconds) when the rate limit resets",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "example": 1678901234
+            }
+          },
+          {
+            "name": "code",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "api-key": []
+          }
+        ],
+        "tags": [
+          "digipin"
+        ]
+      }
+    },
+    "/api/v1/digipin/{code}/children": {
+      "get": {
+        "operationId": "DigipinController_getChildren_api/v1",
+        "parameters": [
+          {
+            "name": "X-RateLimit-Limit",
+            "in": "header",
+            "description": "Maximum requests per minute for your tier",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "example": 100
+            }
+          },
+          {
+            "name": "X-RateLimit-Remaining",
+            "in": "header",
+            "description": "Number of requests remaining in current minute",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "example": 95
+            }
+          },
+          {
+            "name": "X-RateLimit-Reset",
+            "in": "header",
+            "description": "Unix timestamp (seconds) when the rate limit resets",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "example": 1678901234
+            }
+          },
+          {
+            "name": "code",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "api-key": []
+          }
+        ],
+        "tags": [
+          "digipin"
+        ]
+      }
+    },
+    "/api/v1/digipin/{code}/ancestors": {
+      "get": {
+        "operationId": "DigipinController_getAncestors_api/v1",
+        "parameters": [
+          {
+            "name": "X-RateLimit-Limit",
+            "in": "header",
+            "description": "Maximum requests per minute for your tier",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "example": 100
+            }
+          },
+          {
+            "name": "X-RateLimit-Remaining",
+            "in": "header",
+            "description": "Number of requests remaining in current minute",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "example": 95
+            }
+          },
+          {
+            "name": "X-RateLimit-Reset",
+            "in": "header",
+            "description": "Unix timestamp (seconds) when the rate limit resets",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "example": 1678901234
+            }
+          },
+          {
+            "name": "code",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "api-key": []
+          }
+        ],
+        "tags": [
+          "digipin"
+        ]
+      }
+    },
+    "/api/v1/digipin/{code}": {
+      "get": {
+        "operationId": "DigipinController_getCell_api/v1",
+        "parameters": [
+          {
+            "name": "X-RateLimit-Limit",
+            "in": "header",
+            "description": "Maximum requests per minute for your tier",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "example": 100
+            }
+          },
+          {
+            "name": "X-RateLimit-Remaining",
+            "in": "header",
+            "description": "Number of requests remaining in current minute",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "example": 95
+            }
+          },
+          {
+            "name": "X-RateLimit-Reset",
+            "in": "header",
+            "description": "Unix timestamp (seconds) when the rate limit resets",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "example": 1678901234
+            }
+          },
+          {
+            "name": "code",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "api-key": []
+          }
+        ],
+        "tags": [
+          "digipin"
+        ]
+      }
+    },
+    "/api/v1/distance/calculate": {
+      "post": {
+        "description": "Calculate distance between any two locations (PINCODE, DIGIPIN, or coordinates) with delivery time estimates.",
+        "operationId": "DistanceController_calculateDistance_api/v1",
+        "parameters": [
+          {
+            "name": "X-RateLimit-Limit",
+            "in": "header",
+            "description": "Maximum requests per minute for your tier",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "example": 100
+            }
+          },
+          {
+            "name": "X-RateLimit-Remaining",
+            "in": "header",
+            "description": "Number of requests remaining in current minute",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "example": 95
+            }
+          },
+          {
+            "name": "X-RateLimit-Reset",
+            "in": "header",
+            "description": "Unix timestamp (seconds) when the rate limit resets",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "example": 1678901234
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CalculateDistanceDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Distance calculated successfully"
+          },
+          "400": {
+            "description": "Invalid location data"
+          }
+        },
+        "security": [
+          {
+            "api-key": []
+          }
+        ],
+        "summary": "Calculate distance between two locations",
+        "tags": [
+          "distance"
+        ]
+      }
+    },
+    "/api/v1/distance/batch": {
+      "post": {
+        "operationId": "DistanceController_batchDistance_api/v1",
+        "parameters": [
+          {
+            "name": "X-RateLimit-Limit",
+            "in": "header",
+            "description": "Maximum requests per minute for your tier",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "example": 100
+            }
+          },
+          {
+            "name": "X-RateLimit-Remaining",
+            "in": "header",
+            "description": "Number of requests remaining in current minute",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "example": 95
+            }
+          },
+          {
+            "name": "X-RateLimit-Reset",
+            "in": "header",
+            "description": "Unix timestamp (seconds) when the rate limit resets",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "example": 1678901234
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BatchDistanceDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "api-key": []
+          }
+        ],
+        "tags": [
+          "distance"
+        ]
+      }
+    },
+    "/api/v1/health": {
+      "get": {
+        "operationId": "HealthController_check[0]_api/v1",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "The Health Check is successful",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": {
+                      "type": "string",
+                      "example": "ok"
+                    },
+                    "info": {
+                      "type": "object",
+                      "example": {
+                        "database": {
+                          "status": "up"
+                        }
+                      },
+                      "additionalProperties": {
+                        "type": "object",
+                        "required": [
+                          "status"
+                        ],
+                        "properties": {
+                          "status": {
+                            "type": "string"
+                          }
+                        },
+                        "additionalProperties": true
+                      },
+                      "nullable": true
+                    },
+                    "error": {
+                      "type": "object",
+                      "example": {},
+                      "additionalProperties": {
+                        "type": "object",
+                        "required": [
+                          "status"
+                        ],
+                        "properties": {
+                          "status": {
+                            "type": "string"
+                          }
+                        },
+                        "additionalProperties": true
+                      },
+                      "nullable": true
+                    },
+                    "details": {
+                      "type": "object",
+                      "example": {
+                        "database": {
+                          "status": "up"
+                        }
+                      },
+                      "additionalProperties": {
+                        "type": "object",
+                        "required": [
+                          "status"
+                        ],
+                        "properties": {
+                          "status": {
+                            "type": "string"
+                          }
+                        },
+                        "additionalProperties": true
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The Health Check is not successful",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": {
+                      "type": "string",
+                      "example": "error"
+                    },
+                    "info": {
+                      "type": "object",
+                      "example": {
+                        "database": {
+                          "status": "up"
+                        }
+                      },
+                      "additionalProperties": {
+                        "type": "object",
+                        "required": [
+                          "status"
+                        ],
+                        "properties": {
+                          "status": {
+                            "type": "string"
+                          }
+                        },
+                        "additionalProperties": true
+                      },
+                      "nullable": true
+                    },
+                    "error": {
+                      "type": "object",
+                      "example": {
+                        "redis": {
+                          "status": "down",
+                          "message": "Could not connect"
+                        }
+                      },
+                      "additionalProperties": {
+                        "type": "object",
+                        "required": [
+                          "status"
+                        ],
+                        "properties": {
+                          "status": {
+                            "type": "string"
+                          }
+                        },
+                        "additionalProperties": true
+                      },
+                      "nullable": true
+                    },
+                    "details": {
+                      "type": "object",
+                      "example": {
+                        "database": {
+                          "status": "up"
+                        },
+                        "redis": {
+                          "status": "down",
+                          "message": "Could not connect"
+                        }
+                      },
+                      "additionalProperties": {
+                        "type": "object",
+                        "required": [
+                          "status"
+                        ],
+                        "properties": {
+                          "status": {
+                            "type": "string"
+                          }
+                        },
+                        "additionalProperties": true
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "Health"
+        ]
+      }
+    },
+    "/health": {
+      "get": {
+        "operationId": "HealthController_check[1]",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "The Health Check is successful",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": {
+                      "type": "string",
+                      "example": "ok"
+                    },
+                    "info": {
+                      "type": "object",
+                      "example": {
+                        "database": {
+                          "status": "up"
+                        }
+                      },
+                      "additionalProperties": {
+                        "type": "object",
+                        "required": [
+                          "status"
+                        ],
+                        "properties": {
+                          "status": {
+                            "type": "string"
+                          }
+                        },
+                        "additionalProperties": true
+                      },
+                      "nullable": true
+                    },
+                    "error": {
+                      "type": "object",
+                      "example": {},
+                      "additionalProperties": {
+                        "type": "object",
+                        "required": [
+                          "status"
+                        ],
+                        "properties": {
+                          "status": {
+                            "type": "string"
+                          }
+                        },
+                        "additionalProperties": true
+                      },
+                      "nullable": true
+                    },
+                    "details": {
+                      "type": "object",
+                      "example": {
+                        "database": {
+                          "status": "up"
+                        }
+                      },
+                      "additionalProperties": {
+                        "type": "object",
+                        "required": [
+                          "status"
+                        ],
+                        "properties": {
+                          "status": {
+                            "type": "string"
+                          }
+                        },
+                        "additionalProperties": true
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The Health Check is not successful",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": {
+                      "type": "string",
+                      "example": "error"
+                    },
+                    "info": {
+                      "type": "object",
+                      "example": {
+                        "database": {
+                          "status": "up"
+                        }
+                      },
+                      "additionalProperties": {
+                        "type": "object",
+                        "required": [
+                          "status"
+                        ],
+                        "properties": {
+                          "status": {
+                            "type": "string"
+                          }
+                        },
+                        "additionalProperties": true
+                      },
+                      "nullable": true
+                    },
+                    "error": {
+                      "type": "object",
+                      "example": {
+                        "redis": {
+                          "status": "down",
+                          "message": "Could not connect"
+                        }
+                      },
+                      "additionalProperties": {
+                        "type": "object",
+                        "required": [
+                          "status"
+                        ],
+                        "properties": {
+                          "status": {
+                            "type": "string"
+                          }
+                        },
+                        "additionalProperties": true
+                      },
+                      "nullable": true
+                    },
+                    "details": {
+                      "type": "object",
+                      "example": {
+                        "database": {
+                          "status": "up"
+                        },
+                        "redis": {
+                          "status": "down",
+                          "message": "Could not connect"
+                        }
+                      },
+                      "additionalProperties": {
+                        "type": "object",
+                        "required": [
+                          "status"
+                        ],
+                        "properties": {
+                          "status": {
+                            "type": "string"
+                          }
+                        },
+                        "additionalProperties": true
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "Health"
+        ]
+      }
+    },
+    "/api/v1/health/live": {
+      "get": {
+        "operationId": "HealthController_liveness[0]_api/v1",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "The Health Check is successful",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": {
+                      "type": "string",
+                      "example": "ok"
+                    },
+                    "info": {
+                      "type": "object",
+                      "example": {
+                        "database": {
+                          "status": "up"
+                        }
+                      },
+                      "additionalProperties": {
+                        "type": "object",
+                        "required": [
+                          "status"
+                        ],
+                        "properties": {
+                          "status": {
+                            "type": "string"
+                          }
+                        },
+                        "additionalProperties": true
+                      },
+                      "nullable": true
+                    },
+                    "error": {
+                      "type": "object",
+                      "example": {},
+                      "additionalProperties": {
+                        "type": "object",
+                        "required": [
+                          "status"
+                        ],
+                        "properties": {
+                          "status": {
+                            "type": "string"
+                          }
+                        },
+                        "additionalProperties": true
+                      },
+                      "nullable": true
+                    },
+                    "details": {
+                      "type": "object",
+                      "example": {
+                        "database": {
+                          "status": "up"
+                        }
+                      },
+                      "additionalProperties": {
+                        "type": "object",
+                        "required": [
+                          "status"
+                        ],
+                        "properties": {
+                          "status": {
+                            "type": "string"
+                          }
+                        },
+                        "additionalProperties": true
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The Health Check is not successful",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": {
+                      "type": "string",
+                      "example": "error"
+                    },
+                    "info": {
+                      "type": "object",
+                      "example": {
+                        "database": {
+                          "status": "up"
+                        }
+                      },
+                      "additionalProperties": {
+                        "type": "object",
+                        "required": [
+                          "status"
+                        ],
+                        "properties": {
+                          "status": {
+                            "type": "string"
+                          }
+                        },
+                        "additionalProperties": true
+                      },
+                      "nullable": true
+                    },
+                    "error": {
+                      "type": "object",
+                      "example": {
+                        "redis": {
+                          "status": "down",
+                          "message": "Could not connect"
+                        }
+                      },
+                      "additionalProperties": {
+                        "type": "object",
+                        "required": [
+                          "status"
+                        ],
+                        "properties": {
+                          "status": {
+                            "type": "string"
+                          }
+                        },
+                        "additionalProperties": true
+                      },
+                      "nullable": true
+                    },
+                    "details": {
+                      "type": "object",
+                      "example": {
+                        "database": {
+                          "status": "up"
+                        },
+                        "redis": {
+                          "status": "down",
+                          "message": "Could not connect"
+                        }
+                      },
+                      "additionalProperties": {
+                        "type": "object",
+                        "required": [
+                          "status"
+                        ],
+                        "properties": {
+                          "status": {
+                            "type": "string"
+                          }
+                        },
+                        "additionalProperties": true
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "Health"
+        ]
+      }
+    },
+    "/health/live": {
+      "get": {
+        "operationId": "HealthController_liveness[1]",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "The Health Check is successful",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": {
+                      "type": "string",
+                      "example": "ok"
+                    },
+                    "info": {
+                      "type": "object",
+                      "example": {
+                        "database": {
+                          "status": "up"
+                        }
+                      },
+                      "additionalProperties": {
+                        "type": "object",
+                        "required": [
+                          "status"
+                        ],
+                        "properties": {
+                          "status": {
+                            "type": "string"
+                          }
+                        },
+                        "additionalProperties": true
+                      },
+                      "nullable": true
+                    },
+                    "error": {
+                      "type": "object",
+                      "example": {},
+                      "additionalProperties": {
+                        "type": "object",
+                        "required": [
+                          "status"
+                        ],
+                        "properties": {
+                          "status": {
+                            "type": "string"
+                          }
+                        },
+                        "additionalProperties": true
+                      },
+                      "nullable": true
+                    },
+                    "details": {
+                      "type": "object",
+                      "example": {
+                        "database": {
+                          "status": "up"
+                        }
+                      },
+                      "additionalProperties": {
+                        "type": "object",
+                        "required": [
+                          "status"
+                        ],
+                        "properties": {
+                          "status": {
+                            "type": "string"
+                          }
+                        },
+                        "additionalProperties": true
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The Health Check is not successful",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": {
+                      "type": "string",
+                      "example": "error"
+                    },
+                    "info": {
+                      "type": "object",
+                      "example": {
+                        "database": {
+                          "status": "up"
+                        }
+                      },
+                      "additionalProperties": {
+                        "type": "object",
+                        "required": [
+                          "status"
+                        ],
+                        "properties": {
+                          "status": {
+                            "type": "string"
+                          }
+                        },
+                        "additionalProperties": true
+                      },
+                      "nullable": true
+                    },
+                    "error": {
+                      "type": "object",
+                      "example": {
+                        "redis": {
+                          "status": "down",
+                          "message": "Could not connect"
+                        }
+                      },
+                      "additionalProperties": {
+                        "type": "object",
+                        "required": [
+                          "status"
+                        ],
+                        "properties": {
+                          "status": {
+                            "type": "string"
+                          }
+                        },
+                        "additionalProperties": true
+                      },
+                      "nullable": true
+                    },
+                    "details": {
+                      "type": "object",
+                      "example": {
+                        "database": {
+                          "status": "up"
+                        },
+                        "redis": {
+                          "status": "down",
+                          "message": "Could not connect"
+                        }
+                      },
+                      "additionalProperties": {
+                        "type": "object",
+                        "required": [
+                          "status"
+                        ],
+                        "properties": {
+                          "status": {
+                            "type": "string"
+                          }
+                        },
+                        "additionalProperties": true
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "Health"
+        ]
+      }
+    },
+    "/api/v1/health/ready": {
+      "get": {
+        "operationId": "HealthController_readiness[0]_api/v1",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Health"
+        ]
+      }
+    },
+    "/health/ready": {
+      "get": {
+        "operationId": "HealthController_readiness[1]",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Health"
+        ]
+      }
+    },
+    "/api/v1/health/status": {
+      "get": {
+        "operationId": "HealthController_status[0]_api/v1",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Health"
+        ]
+      }
+    },
+    "/health/status": {
+      "get": {
+        "operationId": "HealthController_status[1]",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Health"
+        ]
+      }
+    },
+    "/api/v1/health/clear-cache": {
+      "post": {
+        "operationId": "HealthController_clearCache[0]_api/v1",
+        "parameters": [
+          {
+            "name": "authorization",
+            "required": true,
+            "in": "header",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Health"
+        ]
+      }
+    },
+    "/health/clear-cache": {
+      "post": {
+        "operationId": "HealthController_clearCache[1]",
+        "parameters": [
+          {
+            "name": "authorization",
+            "required": true,
+            "in": "header",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Health"
+        ]
+      }
+    },
+    "/api/v1/health/reload-pincode-cache": {
+      "post": {
+        "operationId": "HealthController_reloadPincodeCache[0]_api/v1",
+        "parameters": [
+          {
+            "name": "authorization",
+            "required": true,
+            "in": "header",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Health"
+        ]
+      }
+    },
+    "/health/reload-pincode-cache": {
+      "post": {
+        "operationId": "HealthController_reloadPincodeCache[1]",
+        "parameters": [
+          {
+            "name": "authorization",
+            "required": true,
+            "in": "header",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Health"
+        ]
+      }
+    }
+  },
+  "info": {
+    "title": "PinPoint India API",
+    "description": "India's most comprehensive dual-system addressing API supporting both traditional PINCODE (6-digit postal codes) and modern DIGIPIN (India Post's official 10-level grid-based geocoding system). Features 19,000+ pincodes with precise geographic boundaries, 150,000+ post offices, complete administrative hierarchy, seamless PINCODE \u2194 DIGIPIN \u2194 Coordinates conversion, distance calculator, reverse geocoding, and spatial queries with polygon-accurate location validation.",
+    "version": "1.0.0",
+    "contact": {
+      "name": "PinPoint India",
+      "url": "https://pinpointindia.in",
+      "email": "support@pinpointindia.in"
+    },
+    "license": {
+      "name": "Commercial",
+      "url": "https://pinpointindia.in/terms"
+    }
+  },
+  "tags": [
+    {
+      "name": "pincodes",
+      "description": "PINCODE operations - lookup, search, validation, and spatial queries"
+    },
+    {
+      "name": "administrative",
+      "description": "Administrative boundaries - states, districts, and regions"
+    },
+    {
+      "name": "digipin",
+      "description": "DIGIPIN operations - encode, decode, hierarchy, and reverse geocoding"
+    },
+    {
+      "name": "distance",
+      "description": "Distance calculations - point-to-point and batch operations"
+    },
+    {
+      "name": "convert",
+      "description": "Conversion operations - PINCODE \u2194 DIGIPIN \u2194 H3 \u2194 Coordinates"
+    },
+    {
+      "name": "health",
+      "description": "Health checks and API status"
+    }
+  ],
+  "servers": [
+    {
+      "url": "https://pynpoint.codesense.in",
+      "description": "Production API"
+    },
+    {
+      "url": "http://localhost:3000",
+      "description": "Local Development"
+    }
+  ],
+  "components": {
+    "securitySchemes": {
+      "api-key": {
+        "type": "apiKey",
+        "in": "header",
+        "name": "X-API-Key",
+        "description": "API key for authentication (recommended). Format: X-API-Key: your_api_key"
+      },
+      "bearer": {
+        "scheme": "bearer",
+        "bearerFormat": "API Key",
+        "type": "http",
+        "description": "Alternative: Bearer token authentication. Format: Authorization: Bearer your_api_key"
+      }
+    },
+    "schemas": {
+      "ReverseGeocodeDto": {
+        "type": "object",
+        "properties": {
+          "latitude": {
+            "type": "number",
+            "description": "Latitude coordinate (-90 to 90)",
+            "example": 28.6139,
+            "minimum": -90,
+            "maximum": 90
+          },
+          "longitude": {
+            "type": "number",
+            "description": "Longitude coordinate (-180 to 180)",
+            "example": 77.209,
+            "minimum": -180,
+            "maximum": 180
+          },
+          "maxDistance": {
+            "type": "number",
+            "description": "Maximum search radius in kilometers",
+            "example": 5,
+            "minimum": 0.1,
+            "maximum": 50,
+            "default": 5
+          },
+          "limit": {
+            "type": "number",
+            "description": "Maximum number of results to return",
+            "example": 1,
+            "minimum": 1,
+            "maximum": 10,
+            "default": 1
+          }
+        },
+        "required": [
+          "latitude",
+          "longitude"
+        ]
+      },
+      "LocatePincodeDto": {
+        "type": "object",
+        "properties": {
+          "latitude": {
+            "type": "number",
+            "description": "Latitude coordinate (-90 to 90)",
+            "example": 28.6139,
+            "minimum": -90,
+            "maximum": 90
+          },
+          "longitude": {
+            "type": "number",
+            "description": "Longitude coordinate (-180 to 180)",
+            "example": 77.209,
+            "minimum": -180,
+            "maximum": 180
+          }
+        },
+        "required": [
+          "latitude",
+          "longitude"
+        ]
+      },
+      "BulkPincodeLookupDto": {
+        "type": "object",
+        "properties": {}
+      },
+      "CoordinateDto": {
+        "type": "object",
+        "properties": {
+          "latitude": {
+            "type": "number",
+            "description": "Latitude coordinate (-90 to 90)",
+            "example": 28.6139,
+            "minimum": -90,
+            "maximum": 90
+          },
+          "longitude": {
+            "type": "number",
+            "description": "Longitude coordinate (-180 to 180)",
+            "example": 77.209,
+            "minimum": -180,
+            "maximum": 180
+          }
+        },
+        "required": [
+          "latitude",
+          "longitude"
+        ]
+      },
+      "EncodeDigipinDto": {
+        "type": "object",
+        "properties": {
+          "coordinates": {
+            "description": "Array of coordinates to encode (1-100 items)",
+            "example": [
+              {
+                "latitude": 28.6139,
+                "longitude": 77.209
+              }
+            ],
+            "minItems": 1,
+            "maxItems": 100,
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CoordinateDto"
+            }
+          },
+          "level": {
+            "type": "number",
+            "description": "DIGIPIN precision level (1-10). Level 10 = ~4m\u00d74m accuracy",
+            "example": 6,
+            "minimum": 1,
+            "maximum": 10,
+            "default": 6
+          }
+        },
+        "required": [
+          "coordinates"
+        ]
+      },
+      "DecodeDigipinDto": {
+        "type": "object",
+        "properties": {
+          "digipinCodes": {
+            "description": "Array of DIGIPIN codes to decode (1-100 items)",
+            "example": [
+              "C4P8K63M4M"
+            ],
+            "minItems": 1,
+            "maxItems": 100,
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "digipinCodes"
+        ]
+      },
+      "ValidateDigipinDto": {
+        "type": "object",
+        "properties": {}
+      },
+      "DigipinToPincodeDto": {
+        "type": "object",
+        "properties": {}
+      },
+      "LocationDto": {
+        "type": "object",
+        "properties": {
+          "pincode": {
+            "type": "string",
+            "description": "Indian postal code (6 digits)",
+            "example": "110001"
+          },
+          "digipin": {
+            "type": "string",
+            "description": "DIGIPIN code (10 characters)",
+            "example": "C4P8K63M4M"
+          },
+          "coordinate": {
+            "description": "GPS coordinates (lat/lng)",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/CoordinateDto"
+              }
+            ]
+          }
+        }
+      },
+      "CalculateDistanceDto": {
+        "type": "object",
+        "properties": {
+          "from": {
+            "description": "Starting location (pincode, digipin, or coordinates)",
+            "example": {
+              "pincode": "110001"
+            },
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/LocationDto"
+              }
+            ]
+          },
+          "to": {
+            "description": "Destination location (pincode, digipin, or coordinates)",
+            "example": {
+              "pincode": "400001"
+            },
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/LocationDto"
+              }
+            ]
+          },
+          "unit": {
+            "type": "string",
+            "description": "Distance unit (km=kilometers, mi=miles, m=meters)",
+            "example": "km",
+            "enum": [
+              "km",
+              "mi",
+              "m"
+            ],
+            "default": "km"
+          }
+        },
+        "required": [
+          "from",
+          "to"
+        ]
+      },
+      "BatchDistanceDto": {
+        "type": "object",
+        "properties": {}
+      }
+    }
+  }
+}
