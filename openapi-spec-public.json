@@ -76,6 +76,12 @@
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/ReverseGeocodeDto"
+              },
+              "example": {
+                "latitude": 28.6139,
+                "longitude": 77.209,
+                "maxDistance": 5,
+                "limit": 3
               }
             }
           }
@@ -144,6 +150,10 @@
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/LocatePincodeDto"
+              },
+              "example": {
+                "latitude": 28.6139,
+                "longitude": 77.209
               }
             }
           }
@@ -228,7 +238,8 @@
             "in": "path",
             "schema": {
               "type": "string"
-            }
+            },
+            "example": "110001"
           }
         ],
         "responses": {
@@ -286,7 +297,8 @@
             "in": "path",
             "schema": {
               "type": "string"
-            }
+            },
+            "example": "110001"
           }
         ],
         "responses": {
@@ -347,7 +359,8 @@
             "schema": {
               "example": "110001",
               "type": "string"
-            }
+            },
+            "example": "110001"
           },
           {
             "name": "includePostOffices",
@@ -357,7 +370,8 @@
             "schema": {
               "example": "true",
               "type": "string"
-            }
+            },
+            "example": "false"
           }
         ],
         "responses": {
@@ -427,7 +441,8 @@
             "schema": {
               "example": "Delhi",
               "type": "string"
-            }
+            },
+            "example": "Delhi"
           },
           {
             "name": "district",
@@ -437,7 +452,8 @@
             "schema": {
               "example": "Central Delhi",
               "type": "string"
-            }
+            },
+            "example": "Central Delhi"
           },
           {
             "name": "search",
@@ -447,7 +463,8 @@
             "schema": {
               "example": "Connaught",
               "type": "string"
-            }
+            },
+            "example": "Connaught"
           },
           {
             "name": "limit",
@@ -460,7 +477,8 @@
               "default": 25,
               "example": 25,
               "type": "number"
-            }
+            },
+            "example": 25
           },
           {
             "name": "page",
@@ -472,7 +490,8 @@
               "default": 1,
               "example": 1,
               "type": "number"
-            }
+            },
+            "example": 1
           },
           {
             "name": "includePostOffices",
@@ -483,7 +502,8 @@
               "default": false,
               "example": false,
               "type": "boolean"
-            }
+            },
+            "example": "false"
           }
         ],
         "responses": {
@@ -542,6 +562,14 @@
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/BulkPincodeLookupDto"
+              },
+              "example": {
+                "pincodes": [
+                  "110001",
+                  "400001",
+                  "560001"
+                ],
+                "includePostOffices": false
               }
             }
           }
@@ -590,7 +618,9 @@
             "in": "path",
             "schema": {
               "type": "string"
-            }
+            },
+            "example": "DL",
+            "description": "State code (e.g., DL for Delhi, MH for Maharashtra)"
           }
         ],
         "responses": {
@@ -687,6 +717,19 @@
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/EncodeDigipinDto"
+              },
+              "example": {
+                "coordinates": [
+                  {
+                    "latitude": 28.6139,
+                    "longitude": 77.209
+                  },
+                  {
+                    "latitude": 19.076,
+                    "longitude": 72.8777
+                  }
+                ],
+                "level": 6
               }
             }
           }
@@ -747,6 +790,12 @@
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/DecodeDigipinDto"
+              },
+              "example": {
+                "digipinCodes": [
+                  "C4P8K63M",
+                  "4QHVFP2G"
+                ]
               }
             }
           }
@@ -807,6 +856,9 @@
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/ValidateDigipinDto"
+              },
+              "example": {
+                "digipinCode": "C4P8K63M"
               }
             }
           }
@@ -867,6 +919,9 @@
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/DigipinToPincodeDto"
+              },
+              "example": {
+                "digipinCode": "C4P8K63M"
               }
             }
           }
@@ -976,7 +1031,8 @@
             "in": "path",
             "schema": {
               "type": "string"
-            }
+            },
+            "example": "C4P8K63M"
           }
         ],
         "responses": {
@@ -1034,7 +1090,8 @@
             "in": "path",
             "schema": {
               "type": "string"
-            }
+            },
+            "example": "C4P8K63M"
           }
         ],
         "responses": {
@@ -1092,7 +1149,8 @@
             "in": "path",
             "schema": {
               "type": "string"
-            }
+            },
+            "example": "C4P8K63M"
           }
         ],
         "responses": {
@@ -1150,7 +1208,8 @@
             "in": "path",
             "schema": {
               "type": "string"
-            }
+            },
+            "example": "C4P8K63M"
           }
         ],
         "responses": {
@@ -1208,7 +1267,8 @@
             "in": "path",
             "schema": {
               "type": "string"
-            }
+            },
+            "example": "C4P8K63M"
           }
         ],
         "responses": {
@@ -1268,6 +1328,15 @@
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/CalculateDistanceDto"
+              },
+              "example": {
+                "from": {
+                  "pincode": "110001"
+                },
+                "to": {
+                  "pincode": "400001"
+                },
+                "unit": "km"
               }
             }
           }
@@ -1332,6 +1401,27 @@
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/BatchDistanceDto"
+              },
+              "example": {
+                "pairs": [
+                  {
+                    "from": {
+                      "pincode": "110001"
+                    },
+                    "to": {
+                      "pincode": "400001"
+                    }
+                  },
+                  {
+                    "from": {
+                      "pincode": "110001"
+                    },
+                    "to": {
+                      "pincode": "560001"
+                    }
+                  }
+                ],
+                "unit": "km"
               }
             }
           }
