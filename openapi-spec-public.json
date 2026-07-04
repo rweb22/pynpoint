@@ -77,6 +77,28 @@
               "schema": {
                 "$ref": "#/components/schemas/ReverseGeocodeDto"
               },
+              "examples": {
+                "delhi-center": {
+                  "summary": "Find pincodes near Delhi center",
+                  "description": "Search for up to 3 nearest pincodes within 5km of Connaught Place, Delhi",
+                  "value": {
+                    "latitude": 28.6139,
+                    "longitude": 77.209,
+                    "maxDistance": 5,
+                    "limit": 3
+                  }
+                },
+                "mumbai-gateway": {
+                  "summary": "Find pincodes near Gateway of India",
+                  "description": "Search for nearest pincode within 10km of Gateway of India, Mumbai",
+                  "value": {
+                    "latitude": 18.922,
+                    "longitude": 72.8347,
+                    "maxDistance": 10,
+                    "limit": 1
+                  }
+                }
+              },
               "example": {
                 "latitude": 28.6139,
                 "longitude": 77.209,
@@ -150,6 +172,22 @@
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/LocatePincodeDto"
+              },
+              "examples": {
+                "delhi-parliament": {
+                  "summary": "Locate pincode at Parliament House, Delhi",
+                  "value": {
+                    "latitude": 28.6139,
+                    "longitude": 77.209
+                  }
+                },
+                "mumbai-cst": {
+                  "summary": "Locate pincode at CST, Mumbai",
+                  "value": {
+                    "latitude": 18.9398,
+                    "longitude": 72.8355
+                  }
+                }
               },
               "example": {
                 "latitude": 28.6139,
@@ -238,8 +276,7 @@
             "in": "path",
             "schema": {
               "type": "string"
-            },
-            "example": "110001"
+            }
           }
         ],
         "responses": {
@@ -297,8 +334,7 @@
             "in": "path",
             "schema": {
               "type": "string"
-            },
-            "example": "110001"
+            }
           }
         ],
         "responses": {
@@ -359,8 +395,7 @@
             "schema": {
               "example": "110001",
               "type": "string"
-            },
-            "example": "110001"
+            }
           },
           {
             "name": "includePostOffices",
@@ -370,8 +405,7 @@
             "schema": {
               "example": "true",
               "type": "string"
-            },
-            "example": "false"
+            }
           }
         ],
         "responses": {
@@ -441,8 +475,7 @@
             "schema": {
               "example": "Delhi",
               "type": "string"
-            },
-            "example": "Delhi"
+            }
           },
           {
             "name": "district",
@@ -452,8 +485,7 @@
             "schema": {
               "example": "Central Delhi",
               "type": "string"
-            },
-            "example": "Central Delhi"
+            }
           },
           {
             "name": "search",
@@ -463,8 +495,7 @@
             "schema": {
               "example": "Connaught",
               "type": "string"
-            },
-            "example": "Connaught"
+            }
           },
           {
             "name": "limit",
@@ -477,8 +508,7 @@
               "default": 25,
               "example": 25,
               "type": "number"
-            },
-            "example": 25
+            }
           },
           {
             "name": "page",
@@ -490,8 +520,7 @@
               "default": 1,
               "example": 1,
               "type": "number"
-            },
-            "example": 1
+            }
           },
           {
             "name": "includePostOffices",
@@ -502,8 +531,7 @@
               "default": false,
               "example": false,
               "type": "boolean"
-            },
-            "example": "false"
+            }
           }
         ],
         "responses": {
@@ -563,11 +591,36 @@
               "schema": {
                 "$ref": "#/components/schemas/BulkPincodeLookupDto"
               },
+              "examples": {
+                "major-cities": {
+                  "summary": "Lookup 4 major city pincodes",
+                  "value": {
+                    "pincodes": [
+                      "110001",
+                      "400001",
+                      "560001",
+                      "700001"
+                    ],
+                    "includePostOffices": false
+                  }
+                },
+                "with-post-offices": {
+                  "summary": "Lookup with post office details",
+                  "value": {
+                    "pincodes": [
+                      "110001",
+                      "400001"
+                    ],
+                    "includePostOffices": true
+                  }
+                }
+              },
               "example": {
                 "pincodes": [
                   "110001",
                   "400001",
-                  "560001"
+                  "560001",
+                  "700001"
                 ],
                 "includePostOffices": false
               }
@@ -618,9 +671,7 @@
             "in": "path",
             "schema": {
               "type": "string"
-            },
-            "example": "DL",
-            "description": "State code (e.g., DL for Delhi, MH for Maharashtra)"
+            }
           }
         ],
         "responses": {
@@ -718,15 +769,57 @@
               "schema": {
                 "$ref": "#/components/schemas/EncodeDigipinDto"
               },
+              "examples": {
+                "single-delhi": {
+                  "summary": "Encode single location (Delhi)",
+                  "value": {
+                    "coordinates": [
+                      {
+                        "latitude": 28.6139,
+                        "longitude": 77.209
+                      }
+                    ],
+                    "level": 6
+                  }
+                },
+                "batch-cities": {
+                  "summary": "Batch encode multiple cities",
+                  "value": {
+                    "coordinates": [
+                      {
+                        "latitude": 28.6139,
+                        "longitude": 77.209
+                      },
+                      {
+                        "latitude": 19.076,
+                        "longitude": 72.8777
+                      },
+                      {
+                        "latitude": 13.0827,
+                        "longitude": 80.2707
+                      }
+                    ],
+                    "level": 8
+                  }
+                },
+                "high-precision": {
+                  "summary": "High precision encoding (~4m accuracy)",
+                  "value": {
+                    "coordinates": [
+                      {
+                        "latitude": 28.6139,
+                        "longitude": 77.209
+                      }
+                    ],
+                    "level": 10
+                  }
+                }
+              },
               "example": {
                 "coordinates": [
                   {
                     "latitude": 28.6139,
                     "longitude": 77.209
-                  },
-                  {
-                    "latitude": 19.076,
-                    "longitude": 72.8777
                   }
                 ],
                 "level": 6
@@ -791,10 +884,29 @@
               "schema": {
                 "$ref": "#/components/schemas/DecodeDigipinDto"
               },
+              "examples": {
+                "single-code": {
+                  "summary": "Decode single DIGIPIN",
+                  "value": {
+                    "digipinCodes": [
+                      "C4P8K63M"
+                    ]
+                  }
+                },
+                "multiple-codes": {
+                  "summary": "Decode multiple DIG IPINs",
+                  "value": {
+                    "digipinCodes": [
+                      "C4P8K63M",
+                      "4QHVFP2G",
+                      "GWVPN64K"
+                    ]
+                  }
+                }
+              },
               "example": {
                 "digipinCodes": [
-                  "C4P8K63M",
-                  "4QHVFP2G"
+                  "C4P8K63M"
                 ]
               }
             }
@@ -856,6 +968,14 @@
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/ValidateDigipinDto"
+              },
+              "examples": {
+                "valid-code": {
+                  "summary": "Validate a DIGIPIN code",
+                  "value": {
+                    "digipinCode": "C4P8K63M"
+                  }
+                }
               },
               "example": {
                 "digipinCode": "C4P8K63M"
@@ -919,6 +1039,14 @@
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/DigipinToPincodeDto"
+              },
+              "examples": {
+                "digipin-to-pincode": {
+                  "summary": "Convert DIGIPIN to nearest pincode",
+                  "value": {
+                    "digipinCode": "C4P8K63M"
+                  }
+                }
               },
               "example": {
                 "digipinCode": "C4P8K63M"
@@ -1031,8 +1159,7 @@
             "in": "path",
             "schema": {
               "type": "string"
-            },
-            "example": "C4P8K63M"
+            }
           }
         ],
         "responses": {
@@ -1090,8 +1217,7 @@
             "in": "path",
             "schema": {
               "type": "string"
-            },
-            "example": "C4P8K63M"
+            }
           }
         ],
         "responses": {
@@ -1149,8 +1275,7 @@
             "in": "path",
             "schema": {
               "type": "string"
-            },
-            "example": "C4P8K63M"
+            }
           }
         ],
         "responses": {
@@ -1208,8 +1333,7 @@
             "in": "path",
             "schema": {
               "type": "string"
-            },
-            "example": "C4P8K63M"
+            }
           }
         ],
         "responses": {
@@ -1267,8 +1391,7 @@
             "in": "path",
             "schema": {
               "type": "string"
-            },
-            "example": "C4P8K63M"
+            }
           }
         ],
         "responses": {
@@ -1328,6 +1451,53 @@
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/CalculateDistanceDto"
+              },
+              "examples": {
+                "pincode-to-pincode": {
+                  "summary": "Delhi to Mumbai (pincodes)",
+                  "value": {
+                    "from": {
+                      "pincode": "110001"
+                    },
+                    "to": {
+                      "pincode": "400001"
+                    },
+                    "unit": "km"
+                  }
+                },
+                "mixed-types": {
+                  "summary": "DIGIPIN to coordinates",
+                  "value": {
+                    "from": {
+                      "digipin": "C4P8K63M"
+                    },
+                    "to": {
+                      "coordinate": {
+                        "lat": 19.076,
+                        "lng": 72.8777
+                      }
+                    },
+                    "unit": "km"
+                  }
+                },
+                "coordinates": {
+                  "summary": "Between two GPS coordinates",
+                  "value": {
+                    "from": {
+                      "coordinate": {
+                        "lat": 28.6139,
+                        "lng": 77.209
+                      }
+                    },
+                    "to": {
+                      "coordinate": {
+                        "lat": 13.0827,
+                        "lng": 80.2707
+                      }
+                    },
+                    "unit": "mi"
+                  }
+                }
               },
               "example": {
                 "from": {
@@ -1402,6 +1572,40 @@
               "schema": {
                 "$ref": "#/components/schemas/BatchDistanceDto"
               },
+              "examples": {
+                "multiple-routes": {
+                  "summary": "Calculate multiple routes",
+                  "value": {
+                    "pairs": [
+                      {
+                        "from": {
+                          "pincode": "110001"
+                        },
+                        "to": {
+                          "pincode": "400001"
+                        }
+                      },
+                      {
+                        "from": {
+                          "pincode": "110001"
+                        },
+                        "to": {
+                          "pincode": "560001"
+                        }
+                      },
+                      {
+                        "from": {
+                          "pincode": "110001"
+                        },
+                        "to": {
+                          "pincode": "700001"
+                        }
+                      }
+                    ],
+                    "unit": "km"
+                  }
+                }
+              },
               "example": {
                 "pairs": [
                   {
@@ -1418,6 +1622,14 @@
                     },
                     "to": {
                       "pincode": "560001"
+                    }
+                  },
+                  {
+                    "from": {
+                      "pincode": "110001"
+                    },
+                    "to": {
+                      "pincode": "700001"
                     }
                   }
                 ],
