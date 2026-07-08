@@ -1238,7 +1238,8 @@
         },
         "tags": [
           "Health"
-        ]
+        ],
+        "security": []
       }
     },
     "/health": {
@@ -1406,7 +1407,8 @@
         },
         "tags": [
           "Health"
-        ]
+        ],
+        "security": []
       }
     },
     "/api/v1/health/live": {
@@ -1574,7 +1576,8 @@
         },
         "tags": [
           "Health"
-        ]
+        ],
+        "security": []
       }
     },
     "/health/live": {
@@ -1742,7 +1745,8 @@
         },
         "tags": [
           "Health"
-        ]
+        ],
+        "security": []
       }
     },
     "/api/v1/health/ready": {
@@ -1756,7 +1760,8 @@
         },
         "tags": [
           "Health"
-        ]
+        ],
+        "security": []
       }
     },
     "/health/ready": {
@@ -1770,7 +1775,8 @@
         },
         "tags": [
           "Health"
-        ]
+        ],
+        "security": []
       }
     },
     "/api/v1/health/status": {
@@ -1784,7 +1790,8 @@
         },
         "tags": [
           "Health"
-        ]
+        ],
+        "security": []
       }
     },
     "/health/status": {
@@ -1798,7 +1805,8 @@
         },
         "tags": [
           "Health"
-        ]
+        ],
+        "security": []
       }
     },
     "/api/v1/health/clear-cache": {
@@ -1821,7 +1829,8 @@
         },
         "tags": [
           "Health"
-        ]
+        ],
+        "security": []
       }
     },
     "/health/clear-cache": {
@@ -1844,7 +1853,8 @@
         },
         "tags": [
           "Health"
-        ]
+        ],
+        "security": []
       }
     },
     "/api/v1/health/reload-pincode-cache": {
@@ -1867,7 +1877,8 @@
         },
         "tags": [
           "Health"
-        ]
+        ],
+        "security": []
       }
     },
     "/health/reload-pincode-cache": {
@@ -1890,7 +1901,8 @@
         },
         "tags": [
           "Health"
-        ]
+        ],
+        "security": []
       }
     }
   },
@@ -2178,5 +2190,10 @@
         "properties": {}
       }
     }
-  }
+  },
+  "security": [
+    {
+      "api-key": []
+    }
+  ]
 }
