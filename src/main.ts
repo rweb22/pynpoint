@@ -85,6 +85,33 @@ async function bootstrap() {
     .build();
 
   const document = SwaggerModule.createDocument(app, config);
+
+  // Inject schema-level examples for RapidAPI compatibility
+  // Read static `schema.example` from DTO classes and add to component schemas
+  if (document.components && document.components.schemas) {
+    const dtoClasses = [
+      // Import dynamically to avoid circular dependencies
+      require('./pincode/dto/pincode-query.dto').ReverseGeocodeDto,
+      require('./pincode/dto/pincode-query.dto').LocatePincodeDto,
+      require('./pincode/dto/pincode-query.dto').BulkPincodeLookupDto,
+      require('./digipin/dto/digipin-request.dto').EncodeDigipinDto,
+      require('./digipin/dto/digipin-request.dto').DecodeDigipinDto,
+      require('./digipin/dto/digipin-request.dto').ValidateDigipinDto,
+      require('./digipin/dto/digipin-request.dto').DigipinToPincodeDto,
+      require('./distance/dto/distance-request.dto').CalculateDistanceDto,
+      require('./distance/dto/distance-request.dto').BatchDistanceDto,
+    ];
+
+    for (const dtoClass of dtoClasses) {
+      if (dtoClass && dtoClass.schema && dtoClass.schema.example) {
+        const schemaName = dtoClass.name;
+        if (document.components.schemas[schemaName]) {
+          document.components.schemas[schemaName].example = dtoClass.schema.example;
+        }
+      }
+    }
+  }
+
   SwaggerModule.setup('api/docs', app, document, {
     customSiteTitle: 'PinPoint India API Documentation',
     customCss: '.swagger-ui .topbar { display: none }',

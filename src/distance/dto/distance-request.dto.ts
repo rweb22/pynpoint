@@ -94,17 +94,36 @@ export class CalculateDistanceDto {
   @IsOptional()
   @IsEnum(DistanceUnit)
   unit?: DistanceUnit = DistanceUnit.KM;
+
+  // Schema-level example for OpenAPI (used by RapidAPI code generator)
+  static schema = {
+    example: {
+      from: { pincode: '110001' },
+      to: { pincode: '400001' },
+      unit: 'km',
+    },
+  };
 }
 
 /**
  * POST /distance/batch
  */
 export class DistancePairDto {
+  @ApiProperty({
+    description: 'Starting location',
+    example: { pincode: '110001' },
+    type: LocationDto,
+  })
   @IsDefined({ message: 'from location is required in each pair' })
   @ValidateNested()
   @Type(() => LocationDto)
   from: LocationDto;
 
+  @ApiProperty({
+    description: 'Destination location',
+    example: { pincode: '400001' },
+    type: LocationDto,
+  })
   @IsDefined({ message: 'to location is required in each pair' })
   @ValidateNested()
   @Type(() => LocationDto)
@@ -112,6 +131,15 @@ export class DistancePairDto {
 }
 
 export class BatchDistanceDto {
+  @ApiProperty({
+    description: 'Array of location pairs (1-100 items)',
+    example: [
+      { from: { pincode: '110001' }, to: { pincode: '400001' } },
+      { from: { pincode: '110001' }, to: { pincode: '560001' } },
+      { from: { pincode: '110001' }, to: { pincode: '700001' } },
+    ],
+    type: [DistancePairDto],
+  })
   @IsDefined({ message: 'pairs array is required' })
   @IsArray({ message: 'pairs must be an array' })
   @ArrayMinSize(1, { message: 'At least one location pair is required' })
@@ -120,7 +148,25 @@ export class BatchDistanceDto {
   @Type(() => DistancePairDto)
   pairs: DistancePairDto[];
 
+  @ApiPropertyOptional({
+    description: 'Distance unit',
+    example: 'km',
+    enum: DistanceUnit,
+    default: DistanceUnit.KM,
+  })
   @IsOptional()
   @IsEnum(DistanceUnit)
   unit?: DistanceUnit = DistanceUnit.KM;
+
+  // Schema-level example for OpenAPI (used by RapidAPI code generator)
+  static schema = {
+    example: {
+      pairs: [
+        { from: { pincode: '110001' }, to: { pincode: '400001' } },
+        { from: { pincode: '110001' }, to: { pincode: '560001' } },
+        { from: { pincode: '110001' }, to: { pincode: '700001' } },
+      ],
+      unit: 'km',
+    },
+  };
 }

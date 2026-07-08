@@ -127,13 +127,32 @@ export class RegionQueryDto {
  * Request body for POST /pincodes/bulk/lookup
  */
 export class BulkPincodeLookupDto {
+  @ApiProperty({
+    description: 'Array of pincodes to lookup (1-100 items)',
+    example: ['110001', '400001', '560001', '700001'],
+    type: [String],
+  })
   @IsArray()
   @IsString({ each: true })
   pincodes: string[];
 
+  @ApiPropertyOptional({
+    description: 'Include post offices in the response',
+    example: false,
+    default: false,
+    type: Boolean,
+  })
   @IsOptional()
   @IsBoolean()
   includePostOffices?: boolean = false;
+
+  // Schema-level example for OpenAPI (used by RapidAPI code generator)
+  static schema = {
+    example: {
+      pincodes: ['110001', '400001', '560001', '700001'],
+      includePostOffices: false,
+    },
+  };
 }
 
 /**
@@ -214,7 +233,7 @@ export class ReverseGeocodeDto {
 
   @ApiPropertyOptional({
     description: 'Maximum number of results to return',
-    example: 1,
+    example: 3,
     minimum: 1,
     maximum: 10,
     default: 1,
@@ -226,6 +245,16 @@ export class ReverseGeocodeDto {
   @Min(1)
   @Max(10)
   limit?: number = 1;
+
+  // Schema-level example for OpenAPI (used by RapidAPI code generator)
+  static schema = {
+    example: {
+      latitude: 28.6139,
+      longitude: 77.209,
+      maxDistance: 5,
+      limit: 3,
+    },
+  };
 }
 
 /**
@@ -257,4 +286,12 @@ export class LocatePincodeDto {
   @Min(-180)
   @Max(180)
   longitude: number;
+
+  // Schema-level example for OpenAPI (used by RapidAPI code generator)
+  static schema = {
+    example: {
+      latitude: 28.6139,
+      longitude: 77.209,
+    },
+  };
 }

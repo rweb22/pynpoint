@@ -63,6 +63,14 @@ export class EncodeDigipinDto {
   @Max(10)
   @IsOptional()
   level?: number = 6;
+
+  // Schema-level example for OpenAPI (used by RapidAPI code generator)
+  static schema = {
+    example: {
+      coordinates: [{ latitude: 28.6139, longitude: 77.209 }],
+      level: 6,
+    },
+  };
 }
 
 /**
@@ -72,7 +80,7 @@ export class EncodeDigipinDto {
 export class DecodeDigipinDto {
   @ApiProperty({
     description: 'Array of DIGIPIN codes to decode (1-100 items)',
-    example: ['C4P8K63M4M'],
+    example: ['C4P8K63M'],
     type: [String],
     minItems: 1,
     maxItems: 100,
@@ -82,6 +90,13 @@ export class DecodeDigipinDto {
   @ArrayMaxSize(100)
   @IsString({ each: true })
   digipinCodes: string[];
+
+  // Schema-level example for OpenAPI (used by RapidAPI code generator)
+  static schema = {
+    example: {
+      digipinCodes: ['C4P8K63M'],
+    },
+  };
 }
 
 /**
@@ -121,8 +136,20 @@ export class NearbyDigipinQueryDto {
  * Validate DIGIPIN code format and geographic bounds
  */
 export class ValidateDigipinDto {
+  @ApiProperty({
+    description: 'DIGIPIN code to validate',
+    example: 'C4P8K63M',
+    type: String,
+  })
   @IsString()
   digipinCode: string;
+
+  // Schema-level example for OpenAPI (used by RapidAPI code generator)
+  static schema = {
+    example: {
+      digipinCode: 'C4P8K63M',
+    },
+  };
 }
 
 /**
@@ -130,6 +157,18 @@ export class ValidateDigipinDto {
  * Convert DIGIPIN code to pincode (reverse geocode)
  */
 export class DigipinToPincodeDto {
+  @ApiProperty({
+    description: 'DIGIPIN code to convert to pincode',
+    example: 'C4P8K63M',
+    type: String,
+  })
   @IsString()
   digipinCode: string;
+
+  // Schema-level example for OpenAPI (used by RapidAPI code generator)
+  static schema = {
+    example: {
+      digipinCode: 'C4P8K63M',
+    },
+  };
 }
