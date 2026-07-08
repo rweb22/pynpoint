@@ -2009,7 +2009,13 @@
         "required": [
           "latitude",
           "longitude"
-        ]
+        ],
+        "example": {
+          "latitude": 28.6139,
+          "longitude": 77.209,
+          "maxDistance": 5,
+          "limit": 3
+        }
       },
       "LocatePincodeDto": {
         "type": "object",
@@ -2032,11 +2038,24 @@
         "required": [
           "latitude",
           "longitude"
-        ]
+        ],
+        "example": {
+          "latitude": 28.6139,
+          "longitude": 77.209
+        }
       },
       "BulkPincodeLookupDto": {
         "type": "object",
-        "properties": {}
+        "properties": {},
+        "example": {
+          "pincodes": [
+            "110001",
+            "400001",
+            "560001",
+            "700001"
+          ],
+          "includePostOffices": false
+        }
       },
       "CoordinateDto": {
         "type": "object",
@@ -2090,7 +2109,16 @@
         },
         "required": [
           "coordinates"
-        ]
+        ],
+        "example": {
+          "coordinates": [
+            {
+              "latitude": 28.6139,
+              "longitude": 77.209
+            }
+          ],
+          "level": 6
+        }
       },
       "DecodeDigipinDto": {
         "type": "object",
@@ -2110,15 +2138,26 @@
         },
         "required": [
           "digipinCodes"
-        ]
+        ],
+        "example": {
+          "digipinCodes": [
+            "C4P8K63M"
+          ]
+        }
       },
       "ValidateDigipinDto": {
         "type": "object",
-        "properties": {}
+        "properties": {},
+        "example": {
+          "digipinCode": "C4P8K63M"
+        }
       },
       "DigipinToPincodeDto": {
         "type": "object",
-        "properties": {}
+        "properties": {},
+        "example": {
+          "digipinCode": "C4P8K63M"
+        }
       },
       "LocationDto": {
         "type": "object",
@@ -2183,11 +2222,49 @@
         "required": [
           "from",
           "to"
-        ]
+        ],
+        "example": {
+          "from": {
+            "pincode": "110001"
+          },
+          "to": {
+            "pincode": "400001"
+          },
+          "unit": "km"
+        }
       },
       "BatchDistanceDto": {
         "type": "object",
-        "properties": {}
+        "properties": {},
+        "example": {
+          "pairs": [
+            {
+              "from": {
+                "pincode": "110001"
+              },
+              "to": {
+                "pincode": "400001"
+              }
+            },
+            {
+              "from": {
+                "pincode": "110001"
+              },
+              "to": {
+                "pincode": "560001"
+              }
+            },
+            {
+              "from": {
+                "pincode": "110001"
+              },
+              "to": {
+                "pincode": "700001"
+              }
+            }
+          ],
+          "unit": "km"
+        }
       }
     }
   },
