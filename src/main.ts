@@ -105,8 +105,10 @@ async function bootstrap() {
     for (const dtoClass of dtoClasses) {
       if (dtoClass && dtoClass.schema && dtoClass.schema.example) {
         const schemaName = dtoClass.name;
-        if (document.components.schemas[schemaName]) {
-          document.components.schemas[schemaName].example = dtoClass.schema.example;
+        const schema = document.components.schemas[schemaName];
+        // Check if schema exists and is not a reference object
+        if (schema && !('$ref' in schema)) {
+          (schema as any).example = dtoClass.schema.example;
         }
       }
     }
