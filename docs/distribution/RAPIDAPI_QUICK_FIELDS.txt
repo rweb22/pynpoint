@@ -1,0 +1,90 @@
+================================================================================
+RAPIDAPI NEW LISTING - QUICK COPY/PASTE FIELDS
+================================================================================
+
+API NAME:
+---------
+PinPoint India - Pincode & Digipin Geocoding API
+
+
+SHORT DESCRIPTION (choose one based on character limit):
+--------------------------------------------------------
+Option 1 (Detailed):
+India's most comprehensive addressing API with 19,000+ Pincodes and DIGIPIN support. Polygon-accurate geocoding, dual conversion, and distance calculations for production applications.
+
+Option 2 (Concise):
+Comprehensive Indian PINCODE and DIGIPIN geocoding API. Polygon-accurate location validation, dual addressing, distance calculations, and bulk operations.
+
+
+CATEGORY:
+---------
+Location & Maps
+
+
+TAGS (comma-separated):
+-----------------------
+india, pincode, geocoding, digipin, postal-code, reverse-geocoding, location, gps, coordinates, address-validation, india-post, logistics, delivery, location-intelligence
+
+
+BASE URL:
+---------
+https://pynpoint.codesense.in
+
+
+AUTHENTICATION:
+---------------
+Type: API Key
+Header Name: X-API-Key
+Location: Header
+
+
+OPENAPI SPEC:
+-------------
+File to upload: pynpoint/openapi-spec-public.json
+
+
+LONG DESCRIPTION:
+-----------------
+Copy entire content from: pynpoint/docs/marketing/RAPIDAPI_LONG_DESCRIPTION.md
+
+
+README/DOCUMENTATION:
+---------------------
+Copy entire content from: pynpoint/docs/distribution/RAPIDAPI_README.md
+
+
+WEBSITE:
+--------
+https://pynpoint.codesense.in
+
+
+API DOCUMENTATION:
+------------------
+https://pynpoint.codesense.in/api/docs
+
+
+================================================================================
+AFTER UPLOAD - TEST THESE ENDPOINTS:
+================================================================================
+
+1. TEST ENDPOINT (no examples - isolate UUID error):
+   POST /api/v1/pincodes/reverse-geocode
+   → Check if UUID error appears
+
+2. CONTROL ENDPOINT (has examples - compare):
+   POST /api/v1/digipin/encode
+   → Check if UUID error appears
+   → Should have dropdown with example choices
+
+3. SIMPLE GET TEST (verify basic functionality):
+   GET /api/v1/pincodes/110001
+   → Should return pincode details
+
+================================================================================
+REPORT RESULTS:
+================================================================================
+- Test endpoint UUID error? [YES/NO]
+- Control endpoint UUID error? [YES/NO]
+- Scenario: [1/2/3] (see RAPIDAPI_TEST_NO_EXAMPLES.md)
+
+================================================================================
