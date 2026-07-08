@@ -45,6 +45,34 @@
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/ReverseGeocodeDto"
+              },
+              "examples": {
+                "delhi-center": {
+                  "summary": "Find pincodes near Delhi center",
+                  "description": "Search for up to 3 nearest pincodes within 5km of Connaught Place, Delhi",
+                  "value": {
+                    "latitude": 28.6139,
+                    "longitude": 77.209,
+                    "maxDistance": 5,
+                    "limit": 3
+                  }
+                },
+                "mumbai-gateway": {
+                  "summary": "Find pincodes near Gateway of India",
+                  "description": "Search for nearest pincode within 10km of Gateway of India, Mumbai",
+                  "value": {
+                    "latitude": 18.922,
+                    "longitude": 72.8347,
+                    "maxDistance": 10,
+                    "limit": 1
+                  }
+                }
+              },
+              "example": {
+                "latitude": 28.6139,
+                "longitude": 77.209,
+                "maxDistance": 5,
+                "limit": 3
               }
             }
           }
