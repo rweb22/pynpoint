@@ -98,6 +98,10 @@
                     "longitude": 72.8355
                   }
                 }
+              },
+              "example": {
+                "latitude": 28.6139,
+                "longitude": 77.209
               }
             }
           }
@@ -369,6 +373,15 @@
                     "includePostOffices": true
                   }
                 }
+              },
+              "example": {
+                "pincodes": [
+                  "110001",
+                  "400001",
+                  "560001",
+                  "700001"
+                ],
+                "includePostOffices": false
               }
             }
           }
@@ -529,6 +542,15 @@
                     "level": 10
                   }
                 }
+              },
+              "example": {
+                "coordinates": [
+                  {
+                    "latitude": 28.6139,
+                    "longitude": 77.209
+                  }
+                ],
+                "level": 6
               }
             }
           }
@@ -578,6 +600,11 @@
                     ]
                   }
                 }
+              },
+              "example": {
+                "digipinCodes": [
+                  "C4P8K63M"
+                ]
               }
             }
           }
@@ -615,6 +642,9 @@
                     "digipinCode": "C4P8K63M"
                   }
                 }
+              },
+              "example": {
+                "digipinCode": "C4P8K63M"
               }
             }
           }
@@ -652,6 +682,9 @@
                     "digipinCode": "C4P8K63M"
                   }
                 }
+              },
+              "example": {
+                "digipinCode": "C4P8K63M"
               }
             }
           }
@@ -888,6 +921,15 @@
                     "unit": "mi"
                   }
                 }
+              },
+              "example": {
+                "from": {
+                  "pincode": "110001"
+                },
+                "to": {
+                  "pincode": "400001"
+                },
+                "unit": "km"
               }
             }
           }
@@ -955,6 +997,35 @@
                     "unit": "km"
                   }
                 }
+              },
+              "example": {
+                "pairs": [
+                  {
+                    "from": {
+                      "pincode": "110001"
+                    },
+                    "to": {
+                      "pincode": "400001"
+                    }
+                  },
+                  {
+                    "from": {
+                      "pincode": "110001"
+                    },
+                    "to": {
+                      "pincode": "560001"
+                    }
+                  },
+                  {
+                    "from": {
+                      "pincode": "110001"
+                    },
+                    "to": {
+                      "pincode": "700001"
+                    }
+                  }
+                ],
+                "unit": "km"
               }
             }
           }
