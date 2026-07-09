@@ -104,18 +104,40 @@ export class DecodeDigipinDto {
  * Find DIGIPIN cells within radius
  */
 export class NearbyDigipinQueryDto {
+  @ApiProperty({
+    description: 'Latitude coordinate (-90 to 90)',
+    example: 28.6139,
+    minimum: -90,
+    maximum: 90,
+    type: Number,
+  })
   @IsNumber()
   @Min(-90)
   @Max(90)
   @Type(() => Number)
   lat: number;
 
+  @ApiProperty({
+    description: 'Longitude coordinate (-180 to 180)',
+    example: 77.209,
+    minimum: -180,
+    maximum: 180,
+    type: Number,
+  })
   @IsNumber()
   @Min(-180)
   @Max(180)
   @Type(() => Number)
   lng: number;
 
+  @ApiPropertyOptional({
+    description: 'Search radius in kilometers',
+    example: 5,
+    minimum: 0.1,
+    maximum: 50,
+    default: 5,
+    type: Number,
+  })
   @IsNumber()
   @Min(0.1)
   @Max(50)
@@ -123,6 +145,14 @@ export class NearbyDigipinQueryDto {
   @Type(() => Number)
   radius?: number = 5; // Default 5km
 
+  @ApiPropertyOptional({
+    description: 'DIGIPIN precision level (1-10)',
+    example: 6,
+    minimum: 1,
+    maximum: 10,
+    default: 6,
+    type: Number,
+  })
   @IsNumber()
   @Min(1)
   @Max(10)
